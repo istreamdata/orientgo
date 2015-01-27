@@ -77,6 +77,8 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 		return err
 	}
 
+	// TODO: the status check should come at the end, since an error message was also sent FIXME: !!
+
 	// first byte returned is status code : SUCCESS/ERROR
 	if status != SUCCESS {
 		// TODO: would now read error details from the response and put those details in the error obj

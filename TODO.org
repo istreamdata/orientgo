@@ -1,3 +1,4 @@
 * DONE unit test newly added Read commands in obinary.reader
 * DONE split commands into 'server' and 'database' -> separate files
+* DONE Do the REQUEST_CONNECT command and then see if DB_EXISTS now works after calling that
 * TODO Need to add SUCCESS checks and server error reading to every network command

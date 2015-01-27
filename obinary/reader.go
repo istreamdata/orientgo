@@ -32,6 +32,12 @@ func ReadString(rdr io.Reader) (string, error) {
 	return string(bs), nil
 }
 
+//
+// ReadBytes reads the first 4 bytes from the Reader, which specifies the
+// length of the remaining byte array, which is then read in.
+// If the specified size of the byte array is 0 (empty) or negative (null)
+// nil is returned for the []byte.
+//
 func ReadBytes(rdr io.Reader) ([]byte, error) {
 	// the first four bytes give the length of the remaining byte array
 	sz, err := ReadInt(rdr)

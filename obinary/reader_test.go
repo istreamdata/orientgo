@@ -12,6 +12,11 @@ const (
 	MinUint = 0
 	MaxInt  = int32(MaxUint >> 1)
 	MinInt  = -MaxInt - 1
+
+	MaxUint64 = ^uint64(0)
+	MinUint64 = 0
+	MaxInt64  = int64(MaxUint64 >> 1)
+	MinInt64  = -MaxInt64 - 1
 )
 
 var err error
@@ -97,9 +102,44 @@ func TestReadBytesWithNullBytesArray(t *testing.T) {
 	assert(t, bs == nil, "bs should be nil")
 }
 
+func TestReadLong(t *testing.T) {
+	var outval int64
+	data := []int64{0, 1, -100000, int64(MaxInt) + 99999, MaxInt64, MinInt64}
+
+	buf := new(bytes.Buffer)
+	for _, inval := range data {
+		buf.Reset()
+		// turn int64 into bytes
+		err = binary.Write(buf, binary.BigEndian, inval)
+		ok(t, err)
+
+		// turn bytes back into int using obinary.ReadLong (fn under test)
+		outval, err = ReadLong(buf)
+		ok(t, err)
+		equals(t, int64(inval), outval)
+	}
+}
+
+func TestReadLongWithBadInputs(t *testing.T) {
+	// no input
+	var outval int64
+	buf := new(bytes.Buffer)
+	outval, err = ReadLong(buf)
+	assert(t, err != nil, "err should not be nil")
+	equals(t, int64(DEFAULT_RETVAL), outval)
+
+	// not enough input (int64 needs 8 bytes)
+	data := []byte{0, 1, 2, 3}
+	buf = bytes.NewBuffer(data)
+	outval, err = ReadLong(buf)
+	assert(t, err != nil, "err should not be nil")
+	equals(t, IncorrectNetworkRead{expected: 8, actual: 4}, err)
+	equals(t, int64(DEFAULT_RETVAL), outval)
+}
+
 func TestReadInt(t *testing.T) {
 	var outval int
-	data := []int32{0, 1, 100000, 200000, MaxInt, MinInt}
+	data := []int32{0, 1, -100000, 200000, MaxInt, MinInt}
 
 	buf := new(bytes.Buffer)
 	for _, inval := range data {
@@ -174,4 +214,57 @@ func TestReadStringWithSizeLargerThanString(t *testing.T) {
 	assert(t, err != nil, "err should not be nil")
 	equals(t, IncorrectNetworkRead{expected: 200, actual: 3}, err)
 	equals(t, "", outstr)
+}
+
+func TestReadErrorResponseWithSingleException(t *testing.T) {
+	buf := new(bytes.Buffer)
+	err := WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
+	ok(t, err)
+
+	err = WriteByte(buf, byte(0)) // indicates end of exception class/msg array
+	ok(t, err)
+
+	err = WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
+	ok(t, err)
+
+	exceptions, err := ReadErrorResponse(buf)
+	ok(t, err)
+	equals(t, 1, len(exceptions))
+
+	var serverExc OServerException = exceptions[0]
+	equals(t, "org.foo.BlargException", serverExc.Class)
+	equals(t, "Too many blorgles!!", serverExc.Message)
+}
+
+func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
+	buf := new(bytes.Buffer)
+	err := WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
+	ok(t, err)
+
+	err = WriteByte(buf, byte(1)) // indicates more exceptions to come
+	ok(t, err)
+
+	err = WriteStrings(buf, "org.foo.FeebleException", "Not enough juice")
+	ok(t, err)
+
+	err = WriteByte(buf, byte(1)) // indicates more exceptions to come
+	ok(t, err)
+
+	err = WriteStrings(buf, "org.foo.WobbleException", "Orbital decay")
+	ok(t, err)
+
+	err = WriteByte(buf, byte(0)) // indicates end of exceptions
+	ok(t, err)
+
+	err = WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
+	ok(t, err)
+
+	exceptions, err := ReadErrorResponse(buf)
+	ok(t, err)
+	equals(t, 3, len(exceptions))
+
+	equals(t, "org.foo.BlargException", exceptions[0].Class)
+	equals(t, "Not enough juice", exceptions[1].Message)
+	equals(t, "org.foo.WobbleException", exceptions[2].Class)
+	equals(t, "Orbital decay", exceptions[2].Message)
 }

@@ -1,0 +1,3 @@
+* DONE unit test newly added Read commands in obinary.reader
+* TODO Need to add SUCCESS checks and server error reading to every network command
+* TODO split commands into 'server' and 'database' -> separate files

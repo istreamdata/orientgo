@@ -1,6 +1,6 @@
 package obinary
 
 type OServerException struct {
-	ExceptionClass   string
-	ExceptionMessage string
+	Class   string
+	Message string
 }

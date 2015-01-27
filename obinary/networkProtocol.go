@@ -28,30 +28,10 @@ const (
 const (
 	DocumentDbType = "document" // use in OpenDatabase() call
 	GraphDbType    = "graph"    // use in OpenDatabase() call
+
+	PersistentStorageType = "plocal" // use in DatabaseExists() call
+	VolatileStorageType   = "memory" // use in DatabaseExists() call
 )
-
-/* ---[ Predefined Errors ]--- */
-
-type UnsupportedVersionError struct {
-	serverVersion int16
-}
-
-func (e UnsupportedVersionError) Error() string {
-	return fmt.Sprintf("server binary protocol version `%d` is outside client supported version range: %d-%d",
-		e.serverVersion, MinSupportedBinaryProtocolVersion, MaxSupportedBinaryProtocolVersion)
-}
-
-type IncorrectNetworkRead struct {
-	expected int
-	actual   int
-}
-
-func (e IncorrectNetworkRead) Error() string {
-	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
-		e.expected, e.actual)
-}
-
-/* ---[ END Predefined Errors ]--- */
 
 // TODO: pattern this after OStorageRemote ?
 type DbClient struct {
@@ -333,32 +313,137 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 }
 
 //
+// GetDatabaseSize retrives the size of the current database in bytes.
+// OpenDatabase must have been called first in order to start a session
+// with the database.
 //
-// TODO: might need to add serverStorageType (plocal/memory)
-func DatabaseExists(dbc *DbClient, dbname string) (bool, error) {
+func GetDatabaseSize(dbc *DbClient) (int64, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
-		return false, errors.New("Session not initiated") // TODO: make this into a std error
+		return int64(-1), SessionNotInitialized{}
 	}
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_EXIST)
+	err := WriteByte(dbc.buf, REQUEST_DB_SIZE)
 	if err != nil {
-		return err
+		return int64(-1), err
 	}
 
 	// session id
 	err = WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
-		return err
+		return int64(-1), err
 	}
 
-	// LEFT OFF
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return int64(-1), err
+	}
 
-	// // send to the OrientDB server
-	// _, err = dbc.conx.Write(dbc.buf.Bytes())
-	// if err != nil {
-	// 	return err
-	// }
+	/* ---[ Read Response ]--- */
+
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return int64(-1), err
+	}
+
+	sessionId, err := ReadInt(dbc.conx)
+	if err != nil {
+		return int64(-1), err
+	}
+	if sessionId != dbc.sessionId {
+		return int64(-1), fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, dbc.sessionId)
+	}
+
+	// the answer to the query
+	dbSize, err := ReadLong(dbc.conx)
+	if err != nil {
+		return int64(-1), err
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return int64(-1), err
+		}
+		return int64(-1), fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	return dbSize, nil
+}
+
+//
+// DatabaseExists is a Server command, so must be preceded by calling InitServerSession
+// otherise an authorization error will be returned.
+// storageType param must be one of PersistentStorageType or VolatileStorageType.
+//
+func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
+	dbc.buf.Reset()
+
+	if dbc.sessionId == NoSessionId {
+		return false, SessionNotInitialized{}
+	}
+
+	if storageType != PersistentStorageType && storageType != VolatileStorageType {
+		return false, errors.New("Storage Type is not valid: " + storageType)
+	}
+
+	// cmd
+	err := WriteByte(dbc.buf, REQUEST_DB_EXIST)
+	if err != nil {
+		return false, err
+	}
+
+	// session id
+	err = WriteInt(dbc.buf, dbc.sessionId)
+	if err != nil {
+		return false, err
+	}
+
+	// database name, storage-type
+	err = WriteStrings(dbc.buf, dbname, storageType)
+	if err != nil {
+		return false, err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return false, err
+	}
+
+	/* ---[ Read Response From Server ]--- */
+
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return false, err
+	}
+
+	sessionId, err := ReadInt(dbc.conx)
+	if err != nil {
+		return false, err
+	}
+	if sessionId != dbc.sessionId {
+		return false, fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, dbc.sessionId)
+	}
+
+	// the answer to the query
+	dbexists, err := ReadBool(dbc.conx)
+	if err != nil {
+		return false, err
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return false, err
+		}
+		return dbexists, fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	return dbexists, nil
 }

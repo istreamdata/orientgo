@@ -3,7 +3,6 @@ package obinary
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
@@ -46,7 +45,6 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 
-	fmt.Printf("++ ReadBytes sz: %v\n", sz) // DEBUG
 	readbuf := make([]byte, sz)
 	n, err := rdr.Read(readbuf)
 	if err != nil {
@@ -80,6 +78,28 @@ func ReadInt(rdr io.Reader) (int, error) {
 	// return ToIntBigEndian(readbuf), nil
 }
 
+func ReadLong(rdr io.Reader) (int64, error) {
+	longSz := 8
+	readbuf := make([]byte, longSz)
+
+	n, err := rdr.Read(readbuf)
+	if err != nil {
+		return DEFAULT_RETVAL, err
+	}
+	if n != longSz {
+		return DEFAULT_RETVAL, IncorrectNetworkRead{expected: longSz, actual: n}
+	}
+
+	var longval int64
+	buf := bytes.NewBuffer(readbuf)
+	err = binary.Read(buf, binary.BigEndian, &longval)
+	if err != nil {
+		return DEFAULT_RETVAL, err
+	}
+
+	return longval, nil
+}
+
 func ReadShort(rdr io.Reader) (int16, error) {
 	shortSz := 2
 	readbuf := make([]byte, shortSz)
@@ -99,4 +119,54 @@ func ReadShort(rdr io.Reader) (int16, error) {
 	}
 
 	return shortval, nil
+}
+
+//
+// Reads one byte from the Reader. If the byte is zero, then false is returned,
+// otherwise true.  If error is non-nil, then the bool value is undefined.
+//
+func ReadBool(rdr io.Reader) (bool, error) {
+	b, err := ReadByte(rdr)
+	if err != nil {
+		return false, err
+	}
+	// non-zero is true
+	return b != byte(0), nil
+}
+
+//
+//
+//
+func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
+	var (
+		exClass, exMsg string
+		err            error
+	)
+	exs := make([]OServerException, 0, 1)
+	for {
+		exClass, err = ReadString(rdr)
+		if err != nil {
+			return nil, err
+		}
+		exMsg, err = ReadString(rdr)
+		if err != nil {
+			return nil, err
+		}
+		exs = append(exs, OServerException{exClass, exMsg})
+		// after class/message combo there is a 1 (continue) or 0 (no more)
+		endMarker, err := ReadByte(rdr)
+		if err != nil {
+			return nil, err
+		}
+		if endMarker == byte(0) {
+			break
+		}
+	}
+	// next there is a serialized exception of bytes, but it is only useful to Java clients, so read and ignore
+	_, err = ReadBytes(rdr)
+	if err != nil {
+		return nil, err
+	}
+
+	return exs, nil
 }

@@ -1,7 +1,31 @@
 package obinary
 
-// copied from Java OChannelBinaryProtocol
+// end user constants
+const (
+	DocumentDbType = "document" // use in OpenDatabase() call
+	GraphDbType    = "graph"    // use in OpenDatabase() call
 
+	PersistentStorageType = "plocal" // use in DatabaseExists() call
+	VolatileStorageType   = "memory" // use in DatabaseExists() call
+)
+
+// internal client constants
+const (
+	SUCCESS                           = 0
+	ERROR                             = 1
+	NoSessionId                       = -1
+	MaxSupportedBinaryProtocolVersion = 28 // max protocol supported by this client
+	MinSupportedBinaryProtocolVersion = 21 // min protocol supported by this client
+	MinBinarySerializerVersion        = 22 // if server protocol version is less, use csv ser, not binary ser
+	RequestNewSession                 = -4 // arbitrary negative number sent to start session
+	DriverName                        = "ogo: OrientDB Go client"
+	DriverVersion                     = "1.0"
+	BinarySerialization               = "ORecordSerializerBinary" // name of binary serialization to pass to server
+	CsvSerialization                  = "ORecordDocument2csv"     // name of csv serialization to pass to server
+)
+
+// command and server-related constants
+// copied from Java OChannelBinaryProtocol
 const (
 	// OUTGOING
 	REQUEST_SHUTDOWN                       = 1

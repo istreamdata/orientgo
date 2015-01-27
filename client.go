@@ -13,7 +13,7 @@ func main() {
 		err error
 	)
 	fmt.Println("ConnectToServer")
-	dbc, err = obinary.ConnectToServer(obinary.ClientOptions{})
+	dbc, err = obinary.NewDbClient(obinary.ClientOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}

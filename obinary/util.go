@@ -8,3 +8,11 @@ package obinary
 func ToIntBigEndian(bs []byte) int {
 	return int(bs[3]) | int(bs[2])<<8 | int(bs[1])<<16 | int(bs[0])<<24
 }
+
+func validStorageType(storageType string) bool {
+	return storageType == PersistentStorageType || storageType == VolatileStorageType
+}
+
+func validDbType(dbtype string) bool {
+	return dbtype == PersistentStorageType || dbtype == VolatileStorageType
+}

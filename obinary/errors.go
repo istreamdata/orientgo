@@ -30,5 +30,27 @@ func (e IncorrectNetworkRead) Error() string {
 type SessionNotInitialized struct{}
 
 func (e SessionNotInitialized) Error() string {
-	return "Session not initialized. Call OpenDatabase or ServerConnect" // TODO: `ServerConnect` is probably the wrong name here
+	return "Session not initialized. Call OpenDatabase or CreateServerSession first."
 }
+
+// ------
+
+type InvalidStorageType struct {
+	typeRequested string
+}
+
+func (e InvalidStorageType) Error() string {
+	return "Storage Type is not valid: " + e.typeRequested
+}
+
+// ------
+
+type InvalidDatabaseType struct {
+	typeRequested string
+}
+
+func (e InvalidDatabaseType) Error() string {
+	return "Database Type is not valid: " + e.typeRequested
+}
+
+// ------

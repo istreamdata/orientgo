@@ -3,10 +3,15 @@ package obinary
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
 const DEFAULT_RETVAL = 255
+
+/* -------------------------------- */
+/* ---[ Lower Level Functions ]--- */
+/* -------------------------------- */
 
 func ReadByte(rdr io.Reader) (byte, error) {
 	readbuf := make([]byte, 1)
@@ -140,6 +145,10 @@ func ReadBool(rdr io.Reader) (bool, error) {
 	return b != byte(0), nil
 }
 
+/* -------------------------------- */
+/* ---[ Higher Level Functions ]--- */
+/* -------------------------------- */
+
 //
 //
 //
@@ -150,6 +159,14 @@ func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
 	)
 	exs := make([]OServerException, 0, 1)
 	for {
+		// before class/message combo there is a 1 (continue) or 0 (no more)
+		marker, err := ReadByte(rdr)
+		if err != nil {
+			return nil, err
+		}
+		if marker == byte(0) {
+			break
+		}
 		exClass, err = ReadString(rdr)
 		if err != nil {
 			return nil, err
@@ -159,20 +176,30 @@ func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
 			return nil, err
 		}
 		exs = append(exs, OServerException{exClass, exMsg})
-		// after class/message combo there is a 1 (continue) or 0 (no more)
-		endMarker, err := ReadByte(rdr)
-		if err != nil {
-			return nil, err
-		}
-		if endMarker == byte(0) {
-			break
-		}
 	}
-	// next there is a serialized exception of bytes, but it is only useful to Java clients, so read and ignore
+
+	// next there *may* a serialized exception of bytes, but it is only useful to Java clients,
+	// so read and ignore if present
+	// if there is no serialized exception, EOF will be returned, so ignore that "error"
 	_, err = ReadBytes(rdr)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
 	return exs, nil
+}
+
+//
+//
+//
+func ReadAndValidateSessionId(rdr io.Reader, currentSessionId int) error {
+	sessionId, err := ReadInt(rdr)
+	if err != nil {
+		return err
+	}
+	if sessionId != currentSessionId {
+		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, currentSessionId)
+	}
+	return nil
 }

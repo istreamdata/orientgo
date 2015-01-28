@@ -77,14 +77,6 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 		return err
 	}
 
-	// TODO: the status check should come at the end, since an error message was also sent FIXME: !!
-
-	// first byte returned is status code : SUCCESS/ERROR
-	if status != SUCCESS {
-		// TODO: would now read error details from the response and put those details in the error obj
-		return errors.New("Request failed (ERROR returned from server): details XXXXX")
-	}
-
 	dbc.currDb = &ODatabase{Name: dbname, Typ: dbtype}
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
@@ -94,6 +86,15 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	}
 	if sessionValSent != RequestNewSession {
 		return errors.New("Unexpected Error: Server did not return expected session-request-val that was sent")
+	}
+
+	// if status returned was ERROR, then the rest of server data is the exception info
+	if status != SUCCESS {
+		exceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Server Error(s): %v", exceptions)
 	}
 
 	// for the REQUEST_DB_OPEN case, another int is returned which is the new sessionId
@@ -178,6 +179,8 @@ func CloseDatabase(dbc *DbClient) error {
 		return err
 	}
 
+	// the server has no response to a DB_CLOSE
+
 	// mark this session as gone
 	dbc.sessionId = NoSessionId
 	// TODO: probably need to set token to nil as well?
@@ -232,18 +235,18 @@ func GetDatabaseSize(dbc *DbClient) (int64, error) {
 			sessionId, dbc.sessionId)
 	}
 
-	// the answer to the query
-	dbSize, err := ReadLong(dbc.conx)
-	if err != nil {
-		return int64(-1), err
-	}
-
 	if status == ERROR {
 		serverExceptions, err := ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return int64(-1), err
 		}
 		return int64(-1), fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	// the answer to the query
+	dbSize, err := ReadLong(dbc.conx)
+	if err != nil {
+		return int64(-1), err
 	}
 
 	return dbSize, nil

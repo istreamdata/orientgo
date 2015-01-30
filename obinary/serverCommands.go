@@ -307,3 +307,57 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 
 	return dbexists, nil
 }
+
+func RequestDbList(dbc *DbClient) error {
+	dbc.buf.Reset()
+
+	if dbc.sessionId == NoSessionId {
+		return SessionNotInitialized{}
+	}
+
+	// cmd
+	err := WriteByte(dbc.buf, REQUEST_DB_LIST)
+	if err != nil {
+		return err
+	}
+
+	// session id
+	err = WriteInt(dbc.buf, dbc.sessionId)
+	if err != nil {
+		return err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	err = ReadAndValidateSessionId(dbc.conx, dbc.sessionId)
+	if err != nil {
+		return err
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	// TODO: have to figure out how to read the bytes returned
+	responseBytes, err := ReadBytes(dbc.conx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("DB_LIST response size: %d; as str: %v\n", len(responseBytes),
+		string(responseBytes)) // DEBUG
+
+	return nil
+}

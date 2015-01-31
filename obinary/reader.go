@@ -145,6 +145,8 @@ func ReadBool(rdr io.Reader) (bool, error) {
 	return b != byte(0), nil
 }
 
+// func ReadVarInt
+
 /* -------------------------------- */
 /* ---[ Higher Level Functions ]--- */
 /* -------------------------------- */

@@ -48,6 +48,17 @@ func WriteString(buf *bytes.Buffer, s string) error {
 	return err
 }
 
+// TODO: impl WriteRawBytes that just writes the bytes, not prefixed by the size of the []byte
+func WriteRawBytes(buf *bytes.Buffer, bs []byte) error {
+	panic("WriteRawBytes: not yet implemented")
+}
+
+//
+// WriteBytes is meant to be used for writing a structure that the OrientDB will
+// interpret as a byte array, usually a serialized datastructure.  This means the
+// first thing written to the buffer is the size of the byte array.  If you want
+// to write bytes without the the size prefix, use WriteRawBytes instead.
+//
 func WriteBytes(buf *bytes.Buffer, bs []byte) error {
 	err := WriteInt(buf, len(bs))
 	if err != nil {

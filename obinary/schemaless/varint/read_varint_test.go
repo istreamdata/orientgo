@@ -11,7 +11,7 @@ import (
 
 func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	bs := []byte{0x39}
-	actualInt, err := ReadVarInt1Byte(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x39}
@@ -25,7 +25,7 @@ func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 
 func TestReadVarInt1ByteAllOnes(t *testing.T) {
 	bs := []byte{0x7f}
-	actualInt, err := ReadVarInt1Byte(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x7f}
@@ -39,7 +39,7 @@ func TestReadVarInt1ByteAllOnes(t *testing.T) {
 
 func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	bs := []byte{0x0}
-	actualInt, err := ReadVarInt1Byte(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -53,7 +53,7 @@ func TestReadVarInt1ByteAllZeros(t *testing.T) {
 
 func TestReadVarInt2BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x70}
-	actualInt, err := ReadVarInt2Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x00, 0x07, 0xf0}
@@ -67,7 +67,7 @@ func TestReadVarInt2BytesRandomInputA(t *testing.T) {
 
 func TestReadVarInt3BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x70}
-	actualInt, err := ReadVarInt3Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x03, 0xc7, 0xf0}
@@ -81,7 +81,7 @@ func TestReadVarInt3BytesRandomInputA(t *testing.T) {
 
 func TestReadVarInt3BytesRandomInputB(t *testing.T) {
 	bs := []byte{0xdb, 0xaa, 0x23}
-	actualInt, err := ReadVarInt3Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x00, 0x16, 0xd5, 0x23}
@@ -95,7 +95,7 @@ func TestReadVarInt3BytesRandomInputB(t *testing.T) {
 
 func TestReadVarInt3BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0x7f}
-	actualInt, err := ReadVarInt3Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x1f, 0xff, 0xff}
@@ -109,7 +109,7 @@ func TestReadVarInt3BytesAllOnes(t *testing.T) {
 
 func TestReadVarInt3BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x0}
-	actualInt, err := ReadVarInt3Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -123,7 +123,7 @@ func TestReadVarInt3BytesAllZeros(t *testing.T) {
 
 func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x70}
-	actualInt, err := ReadVarInt4Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x01, 0xe3, 0xc7, 0xf0}
@@ -137,7 +137,7 @@ func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 
 func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 	bs := []byte{0x95, 0xbd, 0xcc, 0x46}
-	actualInt, err := ReadVarInt4Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x02, 0xaf, 0x66, 0x46}
@@ -151,7 +151,7 @@ func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 
 func TestReadVarInt4BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0xff, 0x7f}
-	actualInt, err := ReadVarInt4Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0f, 0xff, 0xff, 0xff}
@@ -165,7 +165,7 @@ func TestReadVarInt4BytesAllOnes(t *testing.T) {
 
 func TestReadVarInt4BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x80, 0x0}
-	actualInt, err := ReadVarInt4Bytes(bs)
+	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -194,7 +194,7 @@ func TestReadVarInt4BytesAllZeros(t *testing.T) {
 
 func TestReadVarInt5BytesRandomInputA(t *testing.T) {
 	bs := []byte{0xaa, 0xc1, 0xcc, 0x83, 0x7e}
-	actualInt, err := ReadVarInt5Bytes(bs)
+	actualInt, err := ReadVarIntToUint64(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x02, 0xa8, 0x33, 0x01, 0xfe}
@@ -208,7 +208,7 @@ func TestReadVarInt5BytesRandomInputA(t *testing.T) {
 
 func TestReadVarInt5BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0xff, 0xff, 0x7f}
-	actualInt, err := ReadVarInt5Bytes(bs)
+	actualInt, err := ReadVarIntToUint64(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x07, 0xff, 0xff, 0xff, 0xff}
@@ -222,7 +222,7 @@ func TestReadVarInt5BytesAllOnes(t *testing.T) {
 
 func TestReadVarInt5BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x80, 0x80, 0x0}
-	actualInt, err := ReadVarInt5Bytes(bs)
+	actualInt, err := ReadVarIntToUint64(bs)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
@@ -232,4 +232,72 @@ func TestReadVarInt5BytesAllZeros(t *testing.T) {
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
+}
+
+func TestReadVarIntAndZigzagDecode(t *testing.T) {
+	bs := []byte{0x64} // uint value 100
+
+	var (
+		zzencoded uint32
+		actualVal int32
+		err       error
+	)
+	zzencoded, err = ReadVarIntToUint32(bs)
+	ok(t, err)
+	actualVal = zigzagDecodeInt32(zzencoded)
+
+	equals(t, uint32(100), zzencoded)
+	equals(t, int32(50), actualVal)
+}
+
+func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
+	var (
+		b          byte
+		orig       int32
+		zzorig     uint32
+		zzreadback uint32
+		result     int32
+	)
+	orig = int32(-18923)
+
+	// first zigzag encode the orig val
+	zzorig = zigzagEncodeUInt32(orig)
+
+	// write it to varint format
+	buf := new(bytes.Buffer)
+	err := WriteVarInt(buf, zzorig)
+	ok(t, err)
+
+	// read it from varint to regular int32 format
+	bs := make([]byte, 0, 4)
+	for {
+		b, err = buf.ReadByte()
+		ok(t, err)
+		bs = append(bs, b)
+		if IsFinalVarIntByte(b) {
+			break
+		}
+	}
+	err = ReadVarInt(bs, &zzreadback)
+	ok(t, err)
+	equals(t, zzorig, zzreadback)
+
+	// finally zigzag decode back to orig
+	result = zigzagDecodeInt32(zzreadback)
+	equals(t, orig, result)
+}
+
+func TestReadVarInt(t *testing.T) {
+	bs := []byte{0x8f, 0x8f, 0x70}
+	var actual uint32
+	err := ReadVarInt(bs, &actual)
+	ok(t, err)
+
+	expectedBytes := []byte{0x0, 0x03, 0xc7, 0xf0}
+	var expectedInt uint32
+	buf := bytes.NewBuffer(expectedBytes)
+	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	ok(t, err)
+
+	equals(t, expectedInt, actual)
 }

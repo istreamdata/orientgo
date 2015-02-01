@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// TODO: the varints should all potentially be treated as uints?  Or since Java doesn't have unsigned types, is ints ok?
-
 func TestWriteVarInt1Byte(t *testing.T) {
 	var (
 		n   uint32
@@ -142,5 +140,43 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 	equals(t, 4, buf.Len())
 	actual = buf.Bytes()
 	expected = []byte{0xff, 0xff, 0xff, 0x7f}
+	equals(t, expected, actual)
+}
+
+func TestWriteVarInt5Bytes(t *testing.T) {
+	var (
+		n                uint64
+		err              error
+		actual, expected []byte
+	)
+	n = 13268435566 // 0x03 16 dc 42 6e
+	//   0x03     0x16     0xdc     0x42     0x6e
+	// 00000011 00010110 11011100 01000010 01101110  orig
+	// 10110001 10110110 11110001 10000100 01101110  varint encoded
+	//   0xb1     0xb6     0xf1     0x84     0x6e
+	buf := new(bytes.Buffer)
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 5, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0xb1, 0xb6, 0xf1, 0x84, 0x6e}
+	equals(t, expected, actual)
+
+	n = uint64(Max4Byte) + 1
+	buf.Reset()
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 5, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0x81, 0x80, 0x80, 0x80, 0x0}
+	equals(t, expected, actual)
+
+	n = Max5Byte
+	buf.Reset()
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 5, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0xff, 0xff, 0xff, 0xff, 0x7f}
 	equals(t, expected, actual)
 }

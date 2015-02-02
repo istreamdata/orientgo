@@ -195,6 +195,19 @@ func CloseDatabase(dbc *DbClient) error {
 // been called first in order to start a session with the database.
 //
 func GetDatabaseSize(dbc *DbClient) (int64, error) {
+	return getLongFromDb(dbc, byte(REQUEST_DB_SIZE))
+}
+
+//
+// GetNumRecordsInDatabase retrieves the number of records of the current
+// database. It is a database-level operation, so OpenDatabase must have
+// already been called first in order to start a session with the database.
+//
+func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
+	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
+}
+
+func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
@@ -202,7 +215,7 @@ func GetDatabaseSize(dbc *DbClient) (int64, error) {
 	}
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_SIZE)
+	err := WriteByte(dbc.buf, cmd)
 	if err != nil {
 		return int64(-1), err
 	}
@@ -244,10 +257,10 @@ func GetDatabaseSize(dbc *DbClient) (int64, error) {
 	}
 
 	// the answer to the query
-	dbSize, err := ReadLong(dbc.conx)
+	longFromDb, err := ReadLong(dbc.conx)
 	if err != nil {
 		return int64(-1), err
 	}
 
-	return dbSize, nil
+	return longFromDb, nil
 }

@@ -31,6 +31,8 @@ func IsFinalVarIntByte(b byte) bool {
 // after this function.
 //
 func ReadVarInt(bs []byte, data interface{}) error {
+	// NOTE: if OrientDB uses little endian encoding (like protobuf), then
+	//       would need to reverse all the bytes here before proceeding
 	switch data.(type) {
 	case *uint32:
 		v, err := ReadVarIntToUint32(bs)

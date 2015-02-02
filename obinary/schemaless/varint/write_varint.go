@@ -92,6 +92,43 @@ func WriteVarInt64(w io.Writer, n uint64) error {
 	}
 }
 
+// TODO: not yet tested
+func varintEncodeLittleEndian(w io.Writer, v uint32, nbytes int) error {
+	getmask := func(idx int) byte {
+		if idx == nbytes-1 {
+			return byte(0x7f)
+		}
+		return byte(0x80)
+	}
+
+	bs := make([]byte, nbytes)
+	idx := 0
+	bs[idx] = byte(v) & getmask(idx)
+
+	if nbytes >= 2 {
+		idx++
+		bs[idx] = byte(v>>7) & getmask(idx)
+	}
+	if nbytes >= 3 {
+		idx++
+		bs[idx] = byte(v>>14) | getmask(idx)
+	}
+	if nbytes == 4 {
+		idx++
+		bs[idx] = byte(v>>21) | getmask(idx)
+	}
+
+	n, err := w.Write(bs)
+	if err != nil {
+		return err
+	}
+	if n != nbytes {
+		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual: %d", nbytes, n)
+	}
+	return nil
+}
+
+// assumes big-endian
 func varintEncode(w io.Writer, v uint32, nbytes int) error {
 	bs := make([]byte, nbytes)
 	idx := 0

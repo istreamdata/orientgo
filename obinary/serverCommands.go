@@ -308,6 +308,14 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 	return dbexists, nil
 }
 
+// TODO: this is not fully implemented since I don't understand what data is being returned:
+// Reading byte (1 byte)... [OChannelBinaryServer]
+// Read byte: 74 [OChannelBinaryServer]
+// Reading int (4 bytes)... [OChannelBinaryServer]
+// Read int: 184 [OChannelBinaryServer]
+// Writing byte (1 byte): 0 [OChannelBinaryServer]
+// Writing int (4 bytes): 184 [OChannelBinaryServer]
+// Writing bytes (4+219=223 bytes): [0, 0, 18, 100, 97, 116, 97, 98, 97, 115, 101, 115, 0, 0, 0, 18, 12, 0, 4, 7, 8, 99, 97, 114, 115, 0, 0, 0, 57, 7, 7, 40, 71, 114, 97, 116, 101, 102, 117, 108, 68, 101, 97, 100, 67, 111, 110, 99, 101, 114, 116, 115, 0, 0, 0, -126, 7, -114, 1, 112, 108, 111, 99, 97, 108, 58, 47, 104, 111, 109, 101, 47, 109, 105, 100, 112, 101, 116, 101, 114, 52, 52, 52, 47, 97, 112, 112, 115, 47, 111, 114, 105, 101, 110, 116, 100, 98, 45, 99, 111, 109, 109, 117, 110, 105, 116, 121, 45, 50, 46, 48, 45, 114, 99, 50, 47, 100, 97, 116, 97, 98, 97, 115, 101, 115, 47, 99, 97, 114, 115, -82, 1, 112, 108, 111, 99, 97, 108, 58, 47, 104, 111, 109, 101, 47, 109, 105, 100, 112, 101, 116, 101, 114, 52, 52, 52, 47, 97, 112, 112, 115, 47, 111, 114, 105, 101, 110, 116, 100, 98, 45, 99, 111, 109, 109, 117, 110, 105, 116, 121, 45, 50, 46, 48, 45, 114, 99, 50, 47, 100, 97, 116, 97, 98, 97, 115, 101, 115, 47, 71, 114, 97, 116, 101, 102, 117, 108, 68, 101, 97, 100, 67, 111, 110, 99, 101, 114, 116, 115] [OChannelBinaryServer]
 func RequestDbList(dbc *DbClient) error {
 	dbc.buf.Reset()
 

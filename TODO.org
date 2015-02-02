@@ -1,4 +1,8 @@
 * DONE unit test newly added Read commands in obinary.reader
 * DONE split commands into 'server' and 'database' -> separate files
 * DONE Do the REQUEST_CONNECT command and then see if DB_EXISTS now works after calling that
-* TODO Need to add SUCCESS checks and server error reading to every network command
+* DONE Need to add SUCCESS checks and server error reading to every network command
+* DEFERRED ReadVar API / unit test needs cleanup
+* TODO Re-evaluate db/network reader API
+* TODO Get back to the db call that is returning what looks like serialized content
+** If can't make sense of it, change to the csv-serialization and see if that helps figure out the schemaless serialized version

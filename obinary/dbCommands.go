@@ -3,6 +3,7 @@ package obinary
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 //
@@ -207,6 +208,153 @@ func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
 }
 
+//
+// AddCluster adds a cluster to the current database. It is a
+// database-level operation, so OpenDatabase must have already
+// been called first in order to start a session with the database.
+// The clusterId is returned if the command is successful.
+//
+func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) {
+	dbc.buf.Reset()
+
+	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_ADD)
+	if err != nil {
+		return int16(0), err
+	}
+
+	cname := strings.ToLower(clusterName)
+
+	err = WriteString(dbc.buf, cname)
+	if err != nil {
+		return int16(0), err
+	}
+
+	err = WriteShort(dbc.buf, -1) // -1 means generate new cluster id
+	if err != nil {
+		return int16(0), err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return int16(0), err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return int16(0), err
+	}
+
+	sessionId, err := ReadInt(dbc.conx)
+	if err != nil {
+		return int16(0), err
+	}
+	if sessionId != dbc.sessionId {
+		return int16(0), fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, dbc.sessionId)
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return int16(-1), err
+		}
+		return int16(-1), fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	clusterId, err = ReadShort(dbc.conx)
+	if err != nil {
+		return clusterId, err
+	}
+
+	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterId})
+	return clusterId, err
+}
+
+//
+// DropCluster drops a cluster to the current database. It is a
+// database-level operation, so OpenDatabase must have already
+// been called first in order to start a session with the database.
+// If nil is returned, then the action succeeded.
+//
+func DropCluster(dbc *DbClient, clusterName string) error {
+	dbc.buf.Reset()
+
+	fmt.Printf("Attempt DROP: %v\n", clusterName) // DEBUG
+
+	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	if clusterId < 0 {
+		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+	}
+
+	err := writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DROP)
+	if err != nil {
+		return err
+	}
+
+	err = WriteShort(dbc.buf, clusterId)
+	if err != nil {
+		return err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	sessionId, err := ReadInt(dbc.conx)
+	if err != nil {
+		return err
+	}
+	if sessionId != dbc.sessionId {
+		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, dbc.sessionId)
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	delStatus, err := ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+	if delStatus != byte(1) {
+		return fmt.Errorf("Drop cluster action failed. Return code from server was not '1', but %d",
+			delStatus)
+	}
+
+	return nil
+}
+
+func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
+	err := WriteByte(dbc.buf, cmd)
+	if err != nil {
+		return err
+	}
+
+	err = WriteInt(dbc.buf, dbc.sessionId)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 	dbc.buf.Reset()
 
@@ -263,4 +411,17 @@ func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 	}
 
 	return longFromDb, nil
+}
+
+//
+// Returns negative number if no cluster with `clusterName` is found
+// in the clusters slice.
+//
+func findClusterWithName(clusters []OCluster, clusterName string) int16 {
+	for _, cluster := range clusters {
+		if cluster.Name == clusterName {
+			return cluster.Id
+		}
+	}
+	return int16(-1)
 }

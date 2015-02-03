@@ -73,19 +73,35 @@ func dbCommands(dbc *obinary.DbClient) {
 	}
 	fmt.Printf("%v\n", dbc) // DEBUG
 
-	defer obinary.CloseDatabase(dbc)
+	// dbsz, err := obinary.GetDatabaseSize(dbc)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("dbsz of `cars`: %v\n", dbsz)
 
-	dbsz, err := obinary.GetDatabaseSize(dbc)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("dbsz of `cars`: %v\n", dbsz)
+	// nrecs, err := obinary.GetNumRecordsInDatabase(dbc)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("nrecs in `cars`: %v\n", nrecs)
 
-	nrecs, err := obinary.GetNumRecordsInDatabase(dbc)
-	if err != nil {
-		log.Fatal(err)
+	// clusterId, err := obinary.AddCluster(dbc, "myNewCluster")
+	// clusterId, err := obinary.AddCluster(dbc, "bigapple")
+
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("clusterId in `cars`: %v\n", clusterId)
+
+	for _, name := range []string{"bigApple"} {
+		err = obinary.DropCluster(dbc, name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("cluster %v dropped successfully\n", name)
 	}
-	fmt.Printf("nrecs in `cars`: %v\n", nrecs)
+
+	obinary.CloseDatabase(dbc)
 }
 
 func main() {

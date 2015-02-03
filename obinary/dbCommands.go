@@ -242,26 +242,9 @@ func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) 
 
 	/* ---[ Read Response ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
 		return int16(0), err
-	}
-
-	sessionId, err := ReadInt(dbc.conx)
-	if err != nil {
-		return int16(0), err
-	}
-	if sessionId != dbc.sessionId {
-		return int16(0), fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
-			sessionId, dbc.sessionId)
-	}
-
-	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
-		if err != nil {
-			return int16(-1), err
-		}
-		return int16(-1), fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
 
 	clusterId, err = ReadShort(dbc.conx)
@@ -286,6 +269,10 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 
 	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
 	if clusterId < 0 {
+		// TODO: This is problematic - someone else may add the cluster not through this
+		//       driver session and then this would fail - so options:
+		//       1) do a lookup of all clusters on the DB
+		//       2) provide a DropClusterById(dbc, clusterId)
 		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
 	}
 
@@ -307,26 +294,9 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 
 	/* ---[ Read Response ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
 		return err
-	}
-
-	sessionId, err := ReadInt(dbc.conx)
-	if err != nil {
-		return err
-	}
-	if sessionId != dbc.sessionId {
-		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
-			sessionId, dbc.sessionId)
-	}
-
-	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
 
 	delStatus, err := ReadByte(dbc.conx)
@@ -339,6 +309,85 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 	}
 
 	return nil
+}
+
+//
+// GetClusterCountIncludingDeleted gets the number of records in all
+// the clusters specified *including* deleted records (applicable for
+// autosharded storage only)
+//
+func GetClusterCountIncludingDeleted(dbc *DbClient, clusterNames ...string) (count int64, err error) {
+	// LEFT OFF
+	return int64(0), nil // TODO: impl me
+}
+
+//
+// GetClusterCountIncludingDeleted gets the number of records in all the
+// clusters specified. The count does NOT include deleted records in
+// autosharded storage. Use GetClusterCountIncludingDeleted if you want
+// the count including deleted records
+//
+func GetClusterCount(dbc *DbClient, clusterNames ...string) (count int64, err error) {
+	dbc.buf.Reset()
+
+	clusterIds := make([]int16, len(clusterNames))
+	for i, name := range clusterNames {
+		clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(name))
+		if clusterId < 0 {
+			// TODO: This is problematic - someone else may add the cluster not through this
+			//       driver session and then this would fail - so options:
+			//       1) do a lookup of all clusters on the DB
+			//       2) provide a GetClusterCountById(dbc, clusterId)
+			return int64(0),
+				fmt.Errorf("No cluster with name %s is known in database %s\n",
+					name, dbc.currDb.Name)
+		}
+		clusterIds[i] = clusterId
+	}
+
+	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_COUNT)
+	if err != nil {
+		return int64(0), err
+	}
+
+	// specify number of clusterIds being sent and then write the clusterIds
+	err = WriteShort(dbc.buf, int16(len(clusterIds)))
+	if err != nil {
+		return int64(0), err
+	}
+
+	for _, cid := range clusterIds {
+		err = WriteShort(dbc.buf, cid)
+		if err != nil {
+			return int64(0), err
+		}
+	}
+
+	// count-tombstones
+	err = WriteByte(dbc.buf, byte(0)) // presuming that 0 means "false"
+	if err != nil {
+		return int64(0), err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return int64(0), err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return int64(0), err
+	}
+
+	nrecs, err := ReadLong(dbc.conx)
+	if err != nil {
+		return int64(0), err
+	}
+
+	return nrecs, err
 }
 
 func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
@@ -424,4 +473,30 @@ func findClusterWithName(clusters []OCluster, clusterName string) int16 {
 		}
 	}
 	return int16(-1)
+}
+
+func readStatusCodeAndSessionId(dbc *DbClient) error {
+	status, err := ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	sessionId, err := ReadInt(dbc.conx)
+	if err != nil {
+		return err
+	}
+	if sessionId != dbc.sessionId {
+		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, dbc.sessionId)
+	}
+
+	if status == ERROR {
+		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Server Error(s): %v", serverExceptions)
+	}
+
+	return nil
 }

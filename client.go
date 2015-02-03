@@ -73,25 +73,17 @@ func dbCommands(dbc *obinary.DbClient) {
 	}
 	fmt.Printf("%v\n", dbc) // DEBUG
 
-	// dbsz, err := obinary.GetDatabaseSize(dbc)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("dbsz of `cars`: %v\n", dbsz)
+	clusterId, err := obinary.AddCluster(dbc, "bigapple")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("bigapple cluster added => clusterId in `cars`: %v\n", clusterId)
 
-	// nrecs, err := obinary.GetNumRecordsInDatabase(dbc)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("nrecs in `cars`: %v\n", nrecs)
-
-	// clusterId, err := obinary.AddCluster(dbc, "myNewCluster")
-	// clusterId, err := obinary.AddCluster(dbc, "bigapple")
-
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("clusterId in `cars`: %v\n", clusterId)
+	cnt, err := obinary.GetClusterCount(dbc, "bigapple")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("bigapple cluster count = %d\n", cnt)
 
 	for _, name := range []string{"bigApple"} {
 		err = obinary.DropCluster(dbc, name)

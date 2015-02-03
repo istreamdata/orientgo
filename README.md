@@ -11,7 +11,7 @@ I am starting with an implementation of the Binary Protocol for OrientDB version
 Things on the overall todo list:
 
 * marshal and unmarshal Go structs to OrientDB documents and data structures
-** intend to look closely at the mgo (mongo DB) Go driver for ideas/compatibility
+ * intend to look closely at the mgo (mongo DB) Go driver for ideas/compatibility
 * support database/sql interface (implement database/sql/driver)
 * implement support for the HTTP Protocol.
 * add support for older versions of OrientDB.

@@ -111,6 +111,12 @@ func dbCommands(dbc *obinary.DbClient) {
 	}
 	fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
+	fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
+	err = obinary.GetRecordByRID(dbc, "11:0", "", false, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	obinary.CloseDatabase(dbc)
 }
 

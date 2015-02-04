@@ -25,6 +25,10 @@ func WriteInt(buf *bytes.Buffer, n int) error {
 	return binary.Write(buf, binary.BigEndian, int32(n))
 }
 
+func WriteLong(buf *bytes.Buffer, n int64) error {
+	return binary.Write(buf, binary.BigEndian, n)
+}
+
 func WriteStrings(buf *bytes.Buffer, ss ...string) error {
 	for _, s := range ss {
 		err := WriteString(buf, s)

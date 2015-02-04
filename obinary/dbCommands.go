@@ -3,6 +3,7 @@ package obinary
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -162,14 +163,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 func CloseDatabase(dbc *DbClient) error {
 	dbc.buf.Reset()
 
-	// close cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_CLOSE)
-	if err != nil {
-		return err
-	}
-
-	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err := writeCommandAndSessionId(dbc, REQUEST_DB_CLOSE)
 	if err != nil {
 		return err
 	}
@@ -206,6 +200,144 @@ func GetDatabaseSize(dbc *DbClient) (int64, error) {
 //
 func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
+}
+
+//
+// TODO: this probably needs to map a record into a JSON obj?  Or some other datastructure
+// TODO: put fetchPlan, ignoreCache and loadTombstons into a map or Options obj?
+//
+func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, loadTombstones bool) error {
+	dbc.buf.Reset()
+	// LEFT OFF -> first thing: parse rid into cluster-id (short) and cluster-pos (long)
+	var (
+		clusterId  int16
+		clusterPos int64
+		err        error
+	)
+	clusterId, clusterPos, err = parseRid(rid)
+
+	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
+	if err != nil {
+		return err
+	}
+
+	err = WriteShort(dbc.buf, clusterId)
+	if err != nil {
+		return err
+	}
+
+	err = WriteLong(dbc.buf, clusterPos)
+	if err != nil {
+		return err
+	}
+
+	err = WriteString(dbc.buf, fetchPlan)
+	if err != nil {
+		return err
+	}
+
+	err = WriteBool(dbc.buf, ignoreCache)
+	if err != nil {
+		return err
+	}
+
+	err = WriteBool(dbc.buf, loadTombstones)
+	if err != nil {
+		return err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return err
+	}
+
+	for {
+		payloadStatus, err := ReadByte(dbc.conx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("D5: payloadStatus: %v\n", payloadStatus)
+
+		if payloadStatus == byte(0) {
+			break
+		}
+
+		rectype, err := ReadByte(dbc.conx)
+		fmt.Printf("D6a: rectype: %T: %v\n", rectype, rectype)
+		fmt.Printf("D6b: rectype as str: %v\n", string(rectype))
+
+		recversion, err := ReadInt(dbc.conx)
+		fmt.Printf("D7: recversion: %v\n", recversion)
+
+		databytes, err := ReadBytes(dbc.conx)
+		fmt.Printf("D8: len:databytes: %v\n", len(databytes))
+		if err != nil {
+			fmt.Printf("D9: ERROR: %v\n", err)
+		}
+		// err = readRecord(dbc)
+		// if err != nil {
+		// 	return err
+		// }
+	}
+
+	return nil
+}
+
+// TODO: needs to read record into some datastructure
+func readRecord(dbc *DbClient) error {
+	fmt.Printf("%v\n", "DEBUG 10")
+	recType, err := ReadByte(dbc.buf)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("D11: recType: %v\n", recType)
+
+	recVersion, err := ReadInt(dbc.buf)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("D12: recVersion: %v\n", recVersion)
+
+	recData, err := ReadBytes(dbc.buf)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("D13: len:recData: %v\n", len(recData))
+
+	recTypeStr := string(recType)
+
+	// DEBUG
+	fmt.Printf("record type is: %v\n", recTypeStr)
+	fmt.Printf("record version is: %v\n", recVersion)
+	fmt.Printf("record data is: %v\n", string(recData))
+	// END DEBUG
+	return nil
+}
+
+func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
+	parts := strings.Split(rid, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("RID %s is not of form x:y", rid)
+	}
+	if strings.HasPrefix(parts[0], "#") {
+		parts[0] = parts[0][1:]
+	}
+	id64, err := strconv.ParseInt(parts[0], 10, 16)
+	if err != nil {
+		return 0, 0, err
+	}
+	clusterId = int16(id64)
+
+	clusterPos, err = strconv.ParseInt(parts[1], 10, 64)
+	return clusterId, clusterPos, err
 }
 
 //

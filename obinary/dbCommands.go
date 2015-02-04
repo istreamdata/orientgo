@@ -209,6 +209,54 @@ func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
 }
 
 //
+// GetClusterDataRange returns the range of record ids for a cluster
+//
+func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, err error) {
+	dbc.buf.Reset()
+
+	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	if clusterId < 0 {
+		// TODO: This is problematic - someone else may add the cluster not through this
+		//       driver session and then this would fail - so options:
+		//       1) do a lookup of all clusters on the DB
+		//       2) provide a DropClusterById(dbc, clusterId)
+		return begin, end,
+			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+	}
+
+	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DATARANGE)
+	if err != nil {
+		return begin, end, err
+	}
+
+	err = WriteShort(dbc.buf, clusterId)
+	if err != nil {
+		return begin, end, err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return begin, end, err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return begin, end, err
+	}
+
+	begin, err = ReadLong(dbc.conx)
+	if err != nil {
+		return begin, end, err
+	}
+
+	end, err = ReadLong(dbc.conx)
+	return begin, end, err
+}
+
+//
 // AddCluster adds a cluster to the current database. It is a
 // database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
@@ -317,8 +365,7 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 // autosharded storage only)
 //
 func GetClusterCountIncludingDeleted(dbc *DbClient, clusterNames ...string) (count int64, err error) {
-	// LEFT OFF
-	return int64(0), nil // TODO: impl me
+	return getClusterCount(dbc, true, clusterNames)
 }
 
 //
@@ -328,6 +375,10 @@ func GetClusterCountIncludingDeleted(dbc *DbClient, clusterNames ...string) (cou
 // the count including deleted records
 //
 func GetClusterCount(dbc *DbClient, clusterNames ...string) (count int64, err error) {
+	return getClusterCount(dbc, false, clusterNames)
+}
+
+func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string) (count int64, err error) {
 	dbc.buf.Reset()
 
 	clusterIds := make([]int16, len(clusterNames))
@@ -364,7 +415,11 @@ func GetClusterCount(dbc *DbClient, clusterNames ...string) (count int64, err er
 	}
 
 	// count-tombstones
-	err = WriteByte(dbc.buf, byte(0)) // presuming that 0 means "false"
+	var ct byte
+	if countTombstones {
+		ct = byte(1)
+	}
+	err = WriteByte(dbc.buf, ct) // presuming that 0 means "false"
 	if err != nil {
 		return int64(0), err
 	}
@@ -391,6 +446,10 @@ func GetClusterCount(dbc *DbClient, clusterNames ...string) (count int64, err er
 }
 
 func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
+	if dbc.sessionId == NoSessionId {
+		return SessionNotInitialized{}
+	}
+
 	err := WriteByte(dbc.buf, cmd)
 	if err != nil {
 		return err
@@ -407,18 +466,7 @@ func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
 func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 	dbc.buf.Reset()
 
-	if dbc.sessionId == NoSessionId {
-		return int64(-1), SessionNotInitialized{}
-	}
-
-	// cmd
-	err := WriteByte(dbc.buf, cmd)
-	if err != nil {
-		return int64(-1), err
-	}
-
-	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err := writeCommandAndSessionId(dbc, cmd)
 	if err != nil {
 		return int64(-1), err
 	}
@@ -431,26 +479,9 @@ func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 
 	/* ---[ Read Response ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
 		return int64(-1), err
-	}
-
-	sessionId, err := ReadInt(dbc.conx)
-	if err != nil {
-		return int64(-1), err
-	}
-	if sessionId != dbc.sessionId {
-		return int64(-1), fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
-			sessionId, dbc.sessionId)
-	}
-
-	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
-		if err != nil {
-			return int64(-1), err
-		}
-		return int64(-1), fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
 
 	// the answer to the query

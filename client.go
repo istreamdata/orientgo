@@ -93,6 +93,24 @@ func dbCommands(dbc *obinary.DbClient) {
 		fmt.Printf("cluster %v dropped successfully\n", name)
 	}
 
+	cnt, err = obinary.GetClusterCountIncludingDeleted(dbc, "person", "v", "ouser")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("ClusterCount w/ deleted: %v\n", cnt)
+
+	cnt, err = obinary.GetClusterCount(dbc, "person", "v", "ouser")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("ClusterCount w/o deleted: %v\n", cnt)
+
+	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
+
 	obinary.CloseDatabase(dbc)
 }
 

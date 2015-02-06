@@ -68,6 +68,7 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 	return readbuf, nil
 }
 
+// TODO: this should return an int32
 func ReadInt(rdr io.Reader) (int, error) {
 	intSz := 4
 	readbuf := make([]byte, intSz)

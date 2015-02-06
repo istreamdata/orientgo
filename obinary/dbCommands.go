@@ -1,8 +1,10 @@
 package obinary
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"ogonori/obinary/binser"
 	"strconv"
 	"strings"
 )
@@ -279,14 +281,49 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 
 		databytes, err := ReadBytes(dbc.conx)
 		fmt.Printf("D8: len:databytes: %v\n", len(databytes))
+		fmt.Printf("D8: databytes: %v\n", databytes)
+		fmt.Printf("D8: data[1]: %#v\n", databytes[1])
 		if err != nil {
 			fmt.Printf("D9: ERROR: %v\n", err)
 		}
-		// err = readRecord(dbc)
-		// if err != nil {
-		// 	return err
-		// }
+		err = parseSerializedData(databytes)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
+}
+
+func parseSerializedData(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	serializationVersion, err := binser.ParseSerializationVersion(buf)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("serializationVersion: %v\n", serializationVersion)
+
+	className, err := binser.ParseClassname(buf)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("className: %v\n", className)
+
+	recordHdr, err := binser.ParseHeader(buf)
+	fmt.Printf("recHeader: %v\n", recordHdr)
+
+	// var (
+	// 	encodedLen   uint32
+	// 	classNameLen int32
+	// )
+
+	// err = varint.ReadVarIntBuf(buf, &encodedLen)
+	// if err != nil {
+	// 	return err
+	// }7
+	// classNameLen = varint.ZigzagDecodeInt32(encodedLen)
+	// fmt.Printf("encodedLen: %v\n", encodedLen)
+	// fmt.Printf("classNameLen: %v\n", classNameLen)
 
 	return nil
 }

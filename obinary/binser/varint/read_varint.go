@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 )
 
 //
@@ -20,6 +21,30 @@ import (
 //
 func IsFinalVarIntByte(b byte) bool {
 	return (b >> 7) == 0x0
+}
+
+func ReadVarIntBuf(buf *bytes.Buffer, data interface{}) error {
+	switch data.(type) {
+	case *uint32:
+		v, err := ReadVarIntToUint32Buf(buf)
+		if err != nil {
+			return err
+		}
+		*data.(*uint32) = v
+		return nil
+
+	case *uint64:
+		v, err := ReadVarIntToUint64Buf(buf)
+		if err != nil {
+			return err
+		}
+		*data.(*uint64) = v
+		return nil
+
+	default:
+		return errors.New("Must pass in pointer to uint32 or uint64.")
+	}
+	return nil
 }
 
 //
@@ -56,7 +81,59 @@ func ReadVarInt(bs []byte, data interface{}) error {
 	return nil
 }
 
+//
+// extract4Bytes reads up to 4 bytes from buf, reading
+// them into a []byte, retaining little endian order.
+// If high bit is set in a byte before reading 4 bytes,
+// the remaining bytes in the []byte are left as 0x0.
+//
+func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
+	encbytes := make([]byte, 4)
+
+	for i := 0; i < 4; i++ {
+		b, err := buf.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				return encbytes, nil
+			} else {
+				return encbytes, err
+			}
+		}
+		encbytes[i] = b
+		if IsFinalVarIntByte(b) {
+			return encbytes, nil
+		}
+	}
+
+	// if get here then read 4 bytes from buf, but none had the high
+	// bit set to zero - unexpected condition
+	return encbytes,
+		errors.New("varint.extract4Bytes could not find final varint byte in first 4 bytes")
+}
+
+// TODO: delete me
 func ensure4Bytes(bs []byte) []byte {
+	encbytes := make([]byte, 4)
+
+	sz := min(len(bs), 4)
+	for i := 0; i < sz; i++ {
+		encbytes[i] = bs[i]
+		if IsFinalVarIntByte(bs[i]) {
+			break
+		}
+	}
+
+	return encbytes
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func ensure4BytesOLD(bs []byte) []byte {
 	if len(bs) == 1 {
 		return []byte{0x0, 0x0, 0x0, bs[0]}
 	} else if len(bs) == 2 {
@@ -68,14 +145,25 @@ func ensure4Bytes(bs []byte) []byte {
 	}
 }
 
-//
-// ReadVarInt4Bytes DOCUMENT ME
-//
-func ReadVarIntToUint32(bs []byte) (uint32, error) {
-	bs = ensure4Bytes(bs)
-	var a uint32
-	buf := bytes.NewBuffer(bs[0:4])
-	err := binary.Read(buf, binary.BigEndian, &a)
+func ReadVarIntToUint64Buf(buf *bytes.Buffer) (uint64, error) {
+	panic("ReadVarIntToUint64Buf Not Yet Implemented")
+}
+
+func ReadVarIntToUint32Buf(buf *bytes.Buffer) (uint32, error) {
+	var (
+		bs  []byte
+		a   uint32
+		err error
+	)
+
+	bs, err = extract4Bytes(buf)
+	if err != nil {
+		return uint32(0), err
+	}
+	vintbuf := bytes.NewBuffer(bs)
+
+	err = binary.Read(vintbuf, binary.LittleEndian, &a)
+	// err := binary.Read(vintbuf, binary.BigEndian, &a)
 	if err != nil {
 		return uint32(0), err
 	}
@@ -97,6 +185,37 @@ func ReadVarIntToUint32(bs []byte) (uint32, error) {
 	return (i | j | k | l), nil
 }
 
+//
+// ReadVarInt4Bytes DOCUMENT ME
+//
+func ReadVarIntToUint32(bs []byte) (uint32, error) {
+	bs = ensure4Bytes(bs)
+	var a uint32
+	buf := bytes.NewBuffer(bs[0:4])
+	err := binary.Read(buf, binary.LittleEndian, &a)
+	// err := binary.Read(buf, binary.BigEndian, &a)
+	if err != nil {
+		return uint32(0), err
+	}
+
+	b := a >> 1
+	c := a >> 2
+	d := a >> 3
+
+	ma := uint32(0x7f)
+	mb := uint32(0x3f80)
+	mc := uint32(0x1fc000)
+	md := uint32(0x0fe00000)
+
+	i := a & ma
+	j := b & mb
+	k := c & mc
+	l := d & md
+
+	return (i | j | k | l), nil
+}
+
+// FIXME: this is wrong => need to change to be like ensure4Bytes
 func ensure8Bytes(bs []byte) []byte {
 	if len(bs) == 5 {
 		return []byte{0x0, 0x0, 0x0, bs[0], bs[1], bs[2], bs[3], bs[4]}
@@ -113,7 +232,8 @@ func ReadVarIntToUint64(bs []byte) (uint64, error) {
 	bs = ensure8Bytes(bs)
 	var a uint64
 	buf := bytes.NewBuffer(bs[0:8])
-	err := binary.Read(buf, binary.BigEndian, &a)
+	err := binary.Read(buf, binary.LittleEndian, &a)
+	// err := binary.Read(buf, binary.BigEndian, &a)
 	if err != nil {
 		return uint64(0), err
 	}

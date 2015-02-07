@@ -3,6 +3,8 @@ package obinary
 import (
 	"errors"
 	"fmt"
+	"io"
+	"ogonori/obinary/rw"
 )
 
 //
@@ -17,49 +19,49 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	buf.Reset()
 
 	// first byte specifies request type
-	err := WriteByte(buf, REQUEST_CONNECT)
+	err := rw.WriteByte(buf, REQUEST_CONNECT)
 	if err != nil {
 		return err
 	}
 
 	// session-id - send a negative number to create a new server-side conx
-	err = WriteInt(buf, RequestNewSession)
+	err = rw.WriteInt(buf, RequestNewSession)
 	if err != nil {
 		return err
 	}
 
-	err = WriteStrings(buf, DriverName, DriverVersion)
+	err = rw.WriteStrings(buf, DriverName, DriverVersion)
 	if err != nil {
 		return err
 	}
 
-	err = WriteShort(buf, dbc.binaryProtocolVersion)
+	err = rw.WriteShort(buf, dbc.binaryProtocolVersion)
 	if err != nil {
 		return err
 	}
 
 	// dbclient id - send as null, but cannot be null if clustered config
 	// TODO: change to use dbc.clusteredConfig once that is added
-	err = WriteNull(buf)
+	err = rw.WriteNull(buf)
 	if err != nil {
 		return err
 	}
 
 	// serialization-impl
-	err = WriteString(buf, dbc.serializationImpl)
+	err = rw.WriteString(buf, dbc.serializationImpl)
 	if err != nil {
 		return err
 	}
 
 	// token-session  // TODO: hardcoded as false for now -> change later based on ClientOptions settings
-	err = WriteBool(buf, false)
+	err = rw.WriteBool(buf, false)
 	if err != nil {
 		return err
 	}
 
 	// TODO: up to this point, the calls have been the same between REQUEST_CONNECT and REQUEST_DB_OPEN
 	// admin username, password
-	err = WriteStrings(buf, adminUser, adminPassw)
+	err = rw.WriteStrings(buf, adminUser, adminPassw)
 	if err != nil {
 		return err
 	}
@@ -73,13 +75,13 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	/* ---[ Read Server Response ]--- */
 
 	// first byte indicates success/error
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
-	sessionValSent, err := ReadInt(dbc.conx)
+	sessionValSent, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 
 	// if status returned was ERROR, then the rest of server data is the exception info
 	if status != SUCCESS {
-		exceptions, err := ReadErrorResponse(dbc.conx)
+		exceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -97,7 +99,7 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	}
 
 	// for the REQUEST_CONNECT case, another int is returned which is the new sessionId
-	sessionId, err := ReadInt(dbc.conx)
+	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	dbc.sessionId = sessionId
 	fmt.Printf("sessionId just set to: %v\n", dbc.sessionId) // DEBUG
 
-	tokenBytes, err := ReadBytes(dbc.conx)
+	tokenBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -136,18 +138,18 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 	/* ---[ build request and send to server ]--- */
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_CREATE)
+	err := rw.WriteByte(dbc.buf, REQUEST_DB_CREATE)
 	if err != nil {
 		return err
 	}
 
 	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
 		return err
 	}
 
-	err = WriteStrings(dbc.buf, dbname, dbtype, storageType)
+	err = rw.WriteStrings(dbc.buf, dbname, dbtype, storageType)
 	if err != nil {
 		return err
 	}
@@ -160,18 +162,18 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 
 	/* ---[ read response from server ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
 
-	err = ReadAndValidateSessionId(dbc.conx, dbc.sessionId)
+	err = readAndValidateSessionId(dbc.conx, dbc.sessionId)
 	if err != nil {
 		return err
 	}
 
 	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -193,19 +195,19 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 	}
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_DROP)
+	err := rw.WriteByte(dbc.buf, REQUEST_DB_DROP)
 	if err != nil {
 		return err
 	}
 
 	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
 		return err
 	}
 
 	// database name, storage-type
-	err = WriteStrings(dbc.buf, dbname, dbtype)
+	err = rw.WriteStrings(dbc.buf, dbname, dbtype)
 	if err != nil {
 		return err
 	}
@@ -218,18 +220,18 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 
 	/* ---[ read response from server ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
 
-	err = ReadAndValidateSessionId(dbc.conx, dbc.sessionId)
+	err = readAndValidateSessionId(dbc.conx, dbc.sessionId)
 	if err != nil {
 		return err
 	}
 
 	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -256,19 +258,19 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 	}
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_EXIST)
+	err := rw.WriteByte(dbc.buf, REQUEST_DB_EXIST)
 	if err != nil {
 		return false, err
 	}
 
 	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
 		return false, err
 	}
 
 	// database name, storage-type
-	err = WriteStrings(dbc.buf, dbname, storageType)
+	err = rw.WriteStrings(dbc.buf, dbname, storageType)
 	if err != nil {
 		return false, err
 	}
@@ -281,18 +283,18 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 
 	/* ---[ Read Response From Server ]--- */
 
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return false, err
 	}
 
-	err = ReadAndValidateSessionId(dbc.conx, dbc.sessionId)
+	err = readAndValidateSessionId(dbc.conx, dbc.sessionId)
 	if err != nil {
 		return false, err
 	}
 
 	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return false, err
 		}
@@ -300,7 +302,7 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 	}
 
 	// the answer to the query
-	dbexists, err := ReadBool(dbc.conx)
+	dbexists, err := rw.ReadBool(dbc.conx)
 	if err != nil {
 		return false, err
 	}
@@ -324,13 +326,13 @@ func RequestDbList(dbc *DbClient) error {
 	}
 
 	// cmd
-	err := WriteByte(dbc.buf, REQUEST_DB_LIST)
+	err := rw.WriteByte(dbc.buf, REQUEST_DB_LIST)
 	if err != nil {
 		return err
 	}
 
 	// session id
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
 		return err
 	}
@@ -341,18 +343,18 @@ func RequestDbList(dbc *DbClient) error {
 		return err
 	}
 
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
 
-	err = ReadAndValidateSessionId(dbc.conx, dbc.sessionId)
+	err = readAndValidateSessionId(dbc.conx, dbc.sessionId)
 	if err != nil {
 		return err
 	}
 
 	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -360,12 +362,24 @@ func RequestDbList(dbc *DbClient) error {
 	}
 
 	// TODO: have to figure out how to read the bytes returned
-	responseBytes, err := ReadBytes(dbc.conx)
+	responseBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("DB_LIST response size: %d; as str: %v\n", len(responseBytes),
 		string(responseBytes)) // DEBUG
 
+	return nil
+}
+
+func readAndValidateSessionId(rdr io.Reader, currentSessionId int) error {
+	sessionId, err := rw.ReadInt(rdr)
+	if err != nil {
+		return err
+	}
+	if sessionId != currentSessionId {
+		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
+			sessionId, currentSessionId)
+	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"ogonori/obinary/binser"
+	"ogonori/obinary/rw"
 	"strconv"
 	"strings"
 )
@@ -20,48 +21,48 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	buf.Reset()
 
 	// first byte specifies request type
-	err := WriteByte(buf, REQUEST_DB_OPEN)
+	err := rw.WriteByte(buf, REQUEST_DB_OPEN)
 	if err != nil {
 		return err
 	}
 
 	// session-id - send a negative number to create a new server-side conx
-	err = WriteInt(buf, RequestNewSession)
+	err = rw.WriteInt(buf, RequestNewSession)
 	if err != nil {
 		return err
 	}
 
-	err = WriteStrings(buf, DriverName, DriverVersion)
+	err = rw.WriteStrings(buf, DriverName, DriverVersion)
 	if err != nil {
 		return err
 	}
 
-	err = WriteShort(buf, dbc.binaryProtocolVersion)
+	err = rw.WriteShort(buf, dbc.binaryProtocolVersion)
 	if err != nil {
 		return err
 	}
 
 	// dbclient id - send as null, but cannot be null if clustered config
 	// TODO: change to use dbc.clusteredConfig once that is added
-	err = WriteNull(buf)
+	err = rw.WriteNull(buf)
 	if err != nil {
 		return err
 	}
 
 	// serialization-impl
-	err = WriteString(buf, dbc.serializationImpl)
+	err = rw.WriteString(buf, dbc.serializationImpl)
 	if err != nil {
 		return err
 	}
 
 	// token-session  // TODO: hardcoded as false for now -> change later based on ClientOptions settings
-	err = WriteBool(buf, false)
+	err = rw.WriteBool(buf, false)
 	if err != nil {
 		return err
 	}
 
 	// dbname, dbtype, username, password
-	err = WriteStrings(buf, dbname, dbtype, username, passw)
+	err = rw.WriteStrings(buf, dbname, dbtype, username, passw)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	/* ---[ read back response ]--- */
 
 	// first byte indicates success/error
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	dbc.currDb = &ODatabase{Name: dbname, Typ: dbtype}
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
-	sessionValSent, err := ReadInt(dbc.conx)
+	sessionValSent, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 
 	// if status returned was ERROR, then the rest of server data is the exception info
 	if status != SUCCESS {
-		exceptions, err := ReadErrorResponse(dbc.conx)
+		exceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -102,7 +103,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	}
 
 	// for the REQUEST_DB_OPEN case, another int is returned which is the new sessionId
-	sessionId, err := ReadInt(dbc.conx)
+	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	fmt.Printf("sessionId just set to: %v\n", dbc.sessionId) // DEBUG
 
 	// next is the token, which may be null
-	tokenBytes, err := ReadBytes(dbc.conx)
+	tokenBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -119,7 +120,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	dbc.token = tokenBytes
 
 	// array of cluster info in this db // TODO: do we need to retain all this in memory?
-	numClusters, err := ReadShort(dbc.conx)
+	numClusters, err := rw.ReadShort(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -127,11 +128,11 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	clusters := make([]OCluster, 0, numClusters)
 
 	for i := 0; i < int(numClusters); i++ {
-		clusterName, err := ReadString(dbc.conx)
+		clusterName, err := rw.ReadString(dbc.conx)
 		if err != nil {
 			return err
 		}
-		clusterId, err := ReadShort(dbc.conx)
+		clusterId, err := rw.ReadShort(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -141,14 +142,14 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 
 	// cluster-config - bytes - null unless running server in clustered config
 	// TODO: treating this as an opaque blob for now
-	clusterCfg, err := ReadBytes(dbc.conx)
+	clusterCfg, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
 		return err
 	}
 	dbc.currDb.ClustCfg = clusterCfg
 
 	// orientdb server release - throwing away for now // TODO: need this?
-	_, err = ReadString(dbc.conx)
+	_, err = rw.ReadString(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -204,13 +205,97 @@ func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
 }
 
+func DeleteRecordByRIDAsync(dbc *DbClient, rid string, recVersion int32) error {
+	return deleteByRID(dbc, rid, recVersion, true)
+}
+
+//
+// DeleteRecordByRID deletes a record specified by its RID and its version.
+// This is the synchronous version where the server confirms whether the
+// delete was successful and the client reports that back to the caller.
+// See DeleteRecordByRIDAsync for the async version.
+//
+// If nil is returned, delete succeeded.
+// If error is returned, delete request was either never issued, or there was
+// a problem on the server end or the record did not exist in the database.
+//
+func DeleteRecordByRID(dbc *DbClient, rid string, recVersion int32) error {
+	return deleteByRID(dbc, rid, recVersion, false)
+}
+
+func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error {
+	dbc.buf.Reset()
+	var (
+		clusterId  int16
+		clusterPos int64
+		err        error
+	)
+	clusterId, clusterPos, err = parseRid(rid)
+
+	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_DELETE)
+	if err != nil {
+		return err
+	}
+
+	err = rw.WriteShort(dbc.buf, clusterId)
+	if err != nil {
+		return err
+	}
+
+	err = rw.WriteLong(dbc.buf, clusterPos)
+	if err != nil {
+		return err
+	}
+
+	err = rw.WriteInt(dbc.buf, int(recVersion)) // FIXME: WriteInt should take int32
+	if err != nil {
+		return err
+	}
+
+	// sync mode ; 0 = synchronous; 1 = asynchronous
+	var syncMode byte
+	if async {
+		syncMode = byte(1)
+	}
+	err = rw.WriteByte(dbc.buf, syncMode)
+	if err != nil {
+		return err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return err
+	}
+
+	payloadStatus, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	// status 1 means record was deleted;
+	// status 0 means record was not deleted (either failed or didn't exist)
+	if payloadStatus == byte(0) {
+		return fmt.Errorf("Server reports record %s was not deleted. Either failed or did not exist.",
+			rid)
+	}
+
+	return nil
+}
+
 //
 // TODO: this probably needs to map a record into a JSON obj?  Or some other datastructure
 // TODO: put fetchPlan, ignoreCache and loadTombstons into a map or Options obj?
 //
 func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, loadTombstones bool) error {
 	dbc.buf.Reset()
-	// LEFT OFF -> first thing: parse rid into cluster-id (short) and cluster-pos (long)
 	var (
 		clusterId  int16
 		clusterPos int64
@@ -223,27 +308,27 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 		return err
 	}
 
-	err = WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
 		return err
 	}
 
-	err = WriteLong(dbc.buf, clusterPos)
+	err = rw.WriteLong(dbc.buf, clusterPos)
 	if err != nil {
 		return err
 	}
 
-	err = WriteString(dbc.buf, fetchPlan)
+	err = rw.WriteString(dbc.buf, fetchPlan)
 	if err != nil {
 		return err
 	}
 
-	err = WriteBool(dbc.buf, ignoreCache)
+	err = rw.WriteBool(dbc.buf, ignoreCache)
 	if err != nil {
 		return err
 	}
 
-	err = WriteBool(dbc.buf, loadTombstones)
+	err = rw.WriteBool(dbc.buf, loadTombstones)
 	if err != nil {
 		return err
 	}
@@ -262,7 +347,7 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 	}
 
 	for {
-		payloadStatus, err := ReadByte(dbc.conx)
+		payloadStatus, err := rw.ReadByte(dbc.conx)
 		if err != nil {
 			return err
 		}
@@ -272,14 +357,14 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 			break
 		}
 
-		rectype, err := ReadByte(dbc.conx)
+		rectype, err := rw.ReadByte(dbc.conx)
 		fmt.Printf("D6a: rectype: %T: %v\n", rectype, rectype)
 		fmt.Printf("D6b: rectype as str: %v\n", string(rectype))
 
-		recversion, err := ReadInt(dbc.conx)
+		recversion, err := rw.ReadInt(dbc.conx)
 		fmt.Printf("D7: recversion: %v\n", recversion)
 
-		databytes, err := ReadBytes(dbc.conx)
+		databytes, err := rw.ReadBytes(dbc.conx)
 		fmt.Printf("D8: len:databytes: %v\n", len(databytes))
 		fmt.Printf("D8: databytes: %v\n", databytes)
 		fmt.Printf("D8: data[1]: %#v\n", databytes[1])
@@ -295,6 +380,8 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 	return nil
 }
 
+// FIXME: the server is not returning what I expect
+// question posted: https://groups.google.com/forum/#!topic/orient-database/IDItY72Ze6U
 func parseSerializedData(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	serializationVersion, err := binser.ParseSerializationVersion(buf)
@@ -310,6 +397,9 @@ func parseSerializedData(data []byte) error {
 	fmt.Printf("className: %v\n", className)
 
 	recordHdr, err := binser.ParseHeader(buf)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("recHeader: %v\n", recordHdr)
 
 	// var (
@@ -331,19 +421,19 @@ func parseSerializedData(data []byte) error {
 // TODO: needs to read record into some datastructure
 func readRecord(dbc *DbClient) error {
 	fmt.Printf("%v\n", "DEBUG 10")
-	recType, err := ReadByte(dbc.buf)
+	recType, err := rw.ReadByte(dbc.buf)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("D11: recType: %v\n", recType)
 
-	recVersion, err := ReadInt(dbc.buf)
+	recVersion, err := rw.ReadInt(dbc.buf)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("D12: recVersion: %v\n", recVersion)
 
-	recData, err := ReadBytes(dbc.buf)
+	recData, err := rw.ReadBytes(dbc.buf)
 	if err != nil {
 		return err
 	}
@@ -398,7 +488,7 @@ func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, e
 		return begin, end, err
 	}
 
-	err = WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
 		return begin, end, err
 	}
@@ -416,12 +506,12 @@ func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, e
 		return begin, end, err
 	}
 
-	begin, err = ReadLong(dbc.conx)
+	begin, err = rw.ReadLong(dbc.conx)
 	if err != nil {
 		return begin, end, err
 	}
 
-	end, err = ReadLong(dbc.conx)
+	end, err = rw.ReadLong(dbc.conx)
 	return begin, end, err
 }
 
@@ -441,12 +531,12 @@ func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) 
 
 	cname := strings.ToLower(clusterName)
 
-	err = WriteString(dbc.buf, cname)
+	err = rw.WriteString(dbc.buf, cname)
 	if err != nil {
 		return int16(0), err
 	}
 
-	err = WriteShort(dbc.buf, -1) // -1 means generate new cluster id
+	err = rw.WriteShort(dbc.buf, -1) // -1 means generate new cluster id
 	if err != nil {
 		return int16(0), err
 	}
@@ -464,7 +554,7 @@ func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) 
 		return int16(0), err
 	}
 
-	clusterId, err = ReadShort(dbc.conx)
+	clusterId, err = rw.ReadShort(dbc.conx)
 	if err != nil {
 		return clusterId, err
 	}
@@ -498,7 +588,7 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 		return err
 	}
 
-	err = WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
 		return err
 	}
@@ -516,7 +606,7 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 		return err
 	}
 
-	delStatus, err := ReadByte(dbc.conx)
+	delStatus, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -571,13 +661,13 @@ func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string)
 	}
 
 	// specify number of clusterIds being sent and then write the clusterIds
-	err = WriteShort(dbc.buf, int16(len(clusterIds)))
+	err = rw.WriteShort(dbc.buf, int16(len(clusterIds)))
 	if err != nil {
 		return int64(0), err
 	}
 
 	for _, cid := range clusterIds {
-		err = WriteShort(dbc.buf, cid)
+		err = rw.WriteShort(dbc.buf, cid)
 		if err != nil {
 			return int64(0), err
 		}
@@ -588,7 +678,7 @@ func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string)
 	if countTombstones {
 		ct = byte(1)
 	}
-	err = WriteByte(dbc.buf, ct) // presuming that 0 means "false"
+	err = rw.WriteByte(dbc.buf, ct) // presuming that 0 means "false"
 	if err != nil {
 		return int64(0), err
 	}
@@ -606,7 +696,7 @@ func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string)
 		return int64(0), err
 	}
 
-	nrecs, err := ReadLong(dbc.conx)
+	nrecs, err := rw.ReadLong(dbc.conx)
 	if err != nil {
 		return int64(0), err
 	}
@@ -619,12 +709,12 @@ func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
 		return SessionNotInitialized{}
 	}
 
-	err := WriteByte(dbc.buf, cmd)
+	err := rw.WriteByte(dbc.buf, cmd)
 	if err != nil {
 		return err
 	}
 
-	err = WriteInt(dbc.buf, dbc.sessionId)
+	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
 		return err
 	}
@@ -654,7 +744,7 @@ func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
 	}
 
 	// the answer to the query
-	longFromDb, err := ReadLong(dbc.conx)
+	longFromDb, err := rw.ReadLong(dbc.conx)
 	if err != nil {
 		return int64(-1), err
 	}
@@ -676,12 +766,12 @@ func findClusterWithName(clusters []OCluster, clusterName string) int16 {
 }
 
 func readStatusCodeAndSessionId(dbc *DbClient) error {
-	status, err := ReadByte(dbc.conx)
+	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
 	}
 
-	sessionId, err := ReadInt(dbc.conx)
+	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
@@ -691,7 +781,7 @@ func readStatusCodeAndSessionId(dbc *DbClient) error {
 	}
 
 	if status == ERROR {
-		serverExceptions, err := ReadErrorResponse(dbc.conx)
+		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
 		}

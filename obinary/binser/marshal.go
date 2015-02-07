@@ -3,8 +3,8 @@ package binser
 import (
 	"bytes"
 	"fmt"
-	"ogonori/obinary"
 	"ogonori/obinary/binser/varint"
+	"ogonori/obinary/rw"
 )
 
 /* ---[ data types ]--- */
@@ -57,6 +57,7 @@ func ParseHeader(buf *bytes.Buffer) (Header, error) {
 		return Header{},
 			fmt.Errorf("Varint for field name len in binary serialization was negative: ", nameLen)
 	}
+	fmt.Printf(">>> nameLen: %v\n", nameLen) // DEBUG
 
 	fieldNameBytes := buf.Next(int(nameLen))
 	if len(fieldNameBytes) != int(nameLen) {
@@ -64,18 +65,23 @@ func ParseHeader(buf *bytes.Buffer) (Header, error) {
 			fmt.Errorf("Could not read expected number of bytes for fieldname in header. Expected %d; Read: %d",
 				nameLen, len(fieldNameBytes))
 	}
+	fmt.Printf(">>> fieldNameBytes: %v\n", fieldNameBytes) // DEBUG
 
-	ptr, err := obinary.ReadInt(buf)
+	ptr, err := rw.ReadInt(buf)
 	if err != nil {
 		return Header{}, err
 	}
 
-	dataType, err := obinary.ReadByte(buf)
+	fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
+
+	dataType, err := rw.ReadByte(buf)
 	if err != nil {
 		return Header{}, err
 	}
 
-	hdr := Header{field: string(fieldNameBytes),
+	fmt.Printf(">>> dataType: %v\n", dataType) // DEBUG
+
+	hdr := Header{fieldName: string(fieldNameBytes),
 		dataPtr:  ptr,
 		dataType: dataType,
 	}

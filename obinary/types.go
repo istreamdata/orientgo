@@ -25,10 +25,3 @@ type ClientOptions struct {
 	ServerPort      string
 	ClusteredConfig string // TODO: needs research - what goes here?; currently not used
 }
-
-// --------
-
-type OServerException struct {
-	Class   string
-	Message string
-}

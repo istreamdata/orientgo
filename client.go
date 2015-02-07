@@ -73,51 +73,64 @@ func dbCommands(dbc *obinary.DbClient) {
 	}
 	fmt.Printf("%v\n", dbc) // DEBUG
 
-	clusterId, err := obinary.AddCluster(dbc, "bigapple")
+	// clusterId, err := obinary.AddCluster(dbc, "bigapple")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("bigapple cluster added => clusterId in `cars`: %v\n", clusterId)
+
+	// cnt, err := obinary.GetClusterCount(dbc, "bigapple")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("bigapple cluster count = %d\n", cnt)
+
+	// for _, name := range []string{"bigApple"} {
+	// 	err = obinary.DropCluster(dbc, name)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Printf("cluster %v dropped successfully\n", name)
+	// }
+
+	// cnt, err = obinary.GetClusterCountIncludingDeleted(dbc, "person", "v", "ouser")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("ClusterCount w/ deleted: %v\n", cnt)
+
+	// cnt, err = obinary.GetClusterCount(dbc, "person", "v", "ouser")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("ClusterCount w/o deleted: %v\n", cnt)
+
+	// begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
+
+	// fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
+	// err = obinary.GetRecordByRID(dbc, "11:0", "", false, false)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	fmt.Println("Deleting (sync) record #11:3")
+	err = obinary.DeleteRecordByRID(dbc, "11:3", 3)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("bigapple cluster added => clusterId in `cars`: %v\n", clusterId)
 
-	cnt, err := obinary.GetClusterCount(dbc, "bigapple")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("bigapple cluster count = %d\n", cnt)
-
-	for _, name := range []string{"bigApple"} {
-		err = obinary.DropCluster(dbc, name)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("cluster %v dropped successfully\n", name)
-	}
-
-	cnt, err = obinary.GetClusterCountIncludingDeleted(dbc, "person", "v", "ouser")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("ClusterCount w/ deleted: %v\n", cnt)
-
-	cnt, err = obinary.GetClusterCount(dbc, "person", "v", "ouser")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("ClusterCount w/o deleted: %v\n", cnt)
-
-	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
-
-	fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
-	err = obinary.GetRecordByRID(dbc, "11:0", "", false, false)
+	fmt.Println("Deleting (Async) record #11:4")
+	err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	obinary.CloseDatabase(dbc)
+
 }
 
 func main() {

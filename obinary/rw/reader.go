@@ -1,4 +1,4 @@
-package obinary
+package rw
 
 import (
 	"bytes"
@@ -8,6 +8,25 @@ import (
 )
 
 const DEFAULT_RETVAL = 255
+
+/* ---[ types ]--- */
+
+type OServerException struct {
+	Class   string
+	Message string
+}
+
+// ------
+
+type IncorrectNetworkRead struct {
+	expected int
+	actual   int
+}
+
+func (e IncorrectNetworkRead) Error() string {
+	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
+		e.expected, e.actual)
+}
 
 /* -------------------------------- */
 /* ---[ Lower Level Functions ]--- */
@@ -147,8 +166,6 @@ func ReadBool(rdr io.Reader) (bool, error) {
 	return b != byte(0), nil
 }
 
-// func ReadVarInt
-
 /* -------------------------------- */
 /* ---[ Higher Level Functions ]--- */
 /* -------------------------------- */
@@ -191,19 +208,4 @@ func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
 	}
 
 	return exs, nil
-}
-
-//
-//
-//
-func ReadAndValidateSessionId(rdr io.Reader, currentSessionId int) error {
-	sessionId, err := ReadInt(rdr)
-	if err != nil {
-		return err
-	}
-	if sessionId != currentSessionId {
-		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
-			sessionId, currentSessionId)
-	}
-	return nil
 }

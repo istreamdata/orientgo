@@ -14,10 +14,10 @@ func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	actualInt, err := ReadVarIntToUint32(bs)
 	ok(t, err)
 
-	expectedBytes := []byte{0x0, 0x0, 0x0, 0x39}
+	expectedBytes := []byte{0x39, 0x0, 0x0, 0x0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -31,7 +31,7 @@ func TestReadVarInt1ByteAllOnes(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x7f}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -45,7 +45,7 @@ func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -59,7 +59,7 @@ func TestReadVarInt2BytesRandomInputA(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x00, 0x07, 0xf0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -73,7 +73,7 @@ func TestReadVarInt3BytesRandomInputA(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x03, 0xc7, 0xf0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -87,7 +87,7 @@ func TestReadVarInt3BytesRandomInputB(t *testing.T) {
 	expectedBytes := []byte{0x00, 0x16, 0xd5, 0x23}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -101,7 +101,7 @@ func TestReadVarInt3BytesAllOnes(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x1f, 0xff, 0xff}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -115,7 +115,7 @@ func TestReadVarInt3BytesAllZeros(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -129,7 +129,7 @@ func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	expectedBytes := []byte{0x01, 0xe3, 0xc7, 0xf0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -143,7 +143,7 @@ func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 	expectedBytes := []byte{0x02, 0xaf, 0x66, 0x46}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -157,7 +157,7 @@ func TestReadVarInt4BytesAllOnes(t *testing.T) {
 	expectedBytes := []byte{0x0f, 0xff, 0xff, 0xff}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -171,7 +171,7 @@ func TestReadVarInt4BytesAllZeros(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -200,7 +200,7 @@ func TestReadVarInt5BytesRandomInputA(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x02, 0xa8, 0x33, 0x01, 0xfe}
 	var expectedInt uint64
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -214,7 +214,7 @@ func TestReadVarInt5BytesAllOnes(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x07, 0xff, 0xff, 0xff, 0xff}
 	var expectedInt uint64
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -228,7 +228,7 @@ func TestReadVarInt5BytesAllZeros(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
 	var expectedInt uint64
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actualInt)
@@ -244,7 +244,7 @@ func TestReadVarIntAndZigzagDecode(t *testing.T) {
 	)
 	zzencoded, err = ReadVarIntToUint32(bs)
 	ok(t, err)
-	actualVal = zigzagDecodeInt32(zzencoded)
+	actualVal = ZigzagDecodeInt32(zzencoded)
 
 	equals(t, uint32(100), zzencoded)
 	equals(t, int32(50), actualVal)
@@ -261,7 +261,7 @@ func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
 	orig = int32(-18923)
 
 	// first zigzag encode the orig val
-	zzorig = zigzagEncodeUInt32(orig)
+	zzorig = ZigzagEncodeUInt32(orig)
 
 	// write it to varint format
 	buf := new(bytes.Buffer)
@@ -283,7 +283,7 @@ func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
 	equals(t, zzorig, zzreadback)
 
 	// finally zigzag decode back to orig
-	result = zigzagDecodeInt32(zzreadback)
+	result = ZigzagDecodeInt32(zzreadback)
 	equals(t, orig, result)
 }
 
@@ -296,7 +296,7 @@ func TestReadVarInt(t *testing.T) {
 	expectedBytes := []byte{0x0, 0x03, 0xc7, 0xf0}
 	var expectedInt uint32
 	buf := bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedInt)
+	err = binary.Read(buf, binary.LittleEndian, &expectedInt)
 	ok(t, err)
 
 	equals(t, expectedInt, actual)

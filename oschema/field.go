@@ -1,9 +1,6 @@
-package binser
+package oschema
 
-// TODO: remove this and reference the one in schema pkg
-
-// DataType values for OrientDB binary schemaless serialization format
-// From: https://github.com/orientechnologies/orientdb/wiki/Types
+// in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
 const (
 	BOOLEAN         = 0
 	INTEGER         = 1
@@ -13,7 +10,7 @@ const (
 	DOUBLE          = 5
 	DATETIME        = 6
 	STRING          = 7
-	BINARY          = 8
+	BINARY          = 8 // means []byte
 	EMBEDDED_RECORD = 9
 	EMBEDDED_LIST   = 10
 	EMBEDDED_SET    = 11
@@ -30,3 +27,12 @@ const (
 	LINK_BAG        = 22
 	ANY             = 23
 )
+
+// roughly corresponds to OProperty in Java client
+type OField struct {
+	Id       int32 // TODO: is the size specified in OrientDB docs?
+	Name     string
+	Fullname string
+	Typ      int // corresponds to one of the type constants above
+	Value    interface{}
+}

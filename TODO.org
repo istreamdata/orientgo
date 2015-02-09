@@ -6,3 +6,59 @@
 * TODO Re-evaluate db/network reader API
 * TODO Get back to the db call that is returning what looks like serialized content
 ** If can't make sense of it, change to the csv-serialization and see if that helps figure out the schemaless serialized version
+* TODO Try multi-byte varint to determine if encoding is little or big-endian
+* TODO Need to dependency inject the record serialization rdr (schemaless or csv) into all dbCommands that need it
+** need to build an Interface for this and then do two impls
+* TODO Rename binser and csvser to binserde and csvserde
+
+* TODO REQUEST_SHUTDOWN                       = 1
+* DONE REQUEST_CONNECT                        = 2
+* DONE REQUEST_DB_OPEN                        = 3
+* DONE REQUEST_DB_CREATE                      = 4
+* DONE REQUEST_DB_CLOSE                       = 5
+* DONE REQUEST_DB_EXIST                       = 6
+* DONE REQUEST_DB_DROP                        = 7
+* DONE REQUEST_DB_SIZE                        = 8
+* DONE REQUEST_DB_COUNTRECORDS                = 9
+* DONE REQUEST_DATACLUSTER_ADD                = 10
+* DONE REQUEST_DATACLUSTER_DROP               = 11
+* DONE REQUEST_DATACLUSTER_COUNT              = 12
+* DONE REQUEST_DATACLUSTER_DATARANGE          = 13
+* TODO REQUEST_DATACLUSTER_COPY               = 14
+* TODO REQUEST_DATACLUSTER_LH_CLUSTER_IS_USED = 16 // since 1.2.0
+* TODO REQUEST_DATASEGMENT_ADD                = 20
+* TODO REQUEST_DATASEGMENT_DROP               = 21
+* TODO REQUEST_RECORD_METADATA                = 29 // since 1.4.0
+* DEFERRED REQUEST_RECORD_LOAD                    = 30
+* TODO REQUEST_RECORD_CREATE                  = 31
+* TODO REQUEST_RECORD_UPDATE                  = 32
+* DONE REQUEST_RECORD_DELETE                  = 33
+* TODO REQUEST_RECORD_COPY                    = 34
+* TODO REQUEST_POSITIONS_HIGHER               = 36 // since 1.3.0
+* TODO REQUEST_POSITIONS_LOWER                = 37 // since 1.3.0
+* TODO REQUEST_RECORD_CLEAN_OUT               = 38 // since 1.3.0
+* TODO REQUEST_POSITIONS_FLOOR                = 39 // since 1.3.0
+* DEFERRED REQUEST_COUNT                          = 40 // DEPRECATED: USE REQUEST_DATACLUSTER_COUNT
+* TODO REQUEST_COMMAND                        = 41
+* TODO REQUEST_POSITIONS_CEILING              = 42 // since 1.3.0
+* TODO REQUEST_RECORD_HIDE                    = 43 // since 1.7
+* TODO REQUEST_TX_COMMIT                      = 60
+* TODO REQUEST_CONFIG_GET                     = 70
+* TODO REQUEST_CONFIG_SET                     = 71
+* TODO REQUEST_CONFIG_LIST                    = 72
+* TODO REQUEST_DB_RELOAD                      = 73 // SINCE 1.0rc4
+* DONE REQUEST_DB_LIST                        = 74 // SINCE 1.0rc6
+* TODO REQUEST_PUSH_DISTRIB_CONFIG            = 80
+* TODO REQUEST_DB_COPY     = 90 // SINCE 1.0rc8
+* TODO REQUEST_REPLICATION = 91 // SINCE 1.0
+* TODO REQUEST_CLUSTER     = 92 // SINCE 1.0
+* TODO REQUEST_DB_TRANSFER = 93 // SINCE 1.0.2
+* TODO REQUEST_DB_FREEZE           = 94 // SINCE 1.1.0
+* TODO REQUEST_DB_RELEASE          = 95 // SINCE 1.1.0
+* TODO REQUEST_DATACLUSTER_FREEZE  = 96
+* TODO REQUEST_DATACLUSTER_RELEASE = 97
+* TODO REQUEST_CREATE_SBTREE_BONSAI            = 110
+* TODO REQUEST_SBTREE_BONSAI_GET               = 111
+* TODO REQUEST_SBTREE_BONSAI_FIRST_KEY         = 112
+* TODO REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR = 113
+* TODO REQUEST_RIDBAG_GET_SIZE                 = 114

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"ogonori/obinary/binser"
 	"os"
 )
 
@@ -14,9 +15,10 @@ type DbClient struct {
 	buf                   *bytes.Buffer
 	sessionId             int
 	token                 []byte // orientdb token when not using sessionId
-	serializationImpl     string
+	serializationType     string
 	binaryProtocolVersion int16
 	currDb                *ODatabase
+	RecordSerializer      binser.ORecordSerializer
 }
 
 //
@@ -56,7 +58,11 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		return nil, err
 	}
 
-	var svrProtocolNum int16
+	var (
+		svrProtocolNum int16
+		serializer     binser.ORecordSerializer
+		serializerType string
+	)
 	binary.Read(buf, binary.BigEndian, &svrProtocolNum)
 	if svrProtocolNum < MinSupportedBinaryProtocolVersion {
 		return nil, UnsupportedVersionError{serverVersion: svrProtocolNum}
@@ -64,9 +70,13 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		return nil, UnsupportedVersionError{serverVersion: svrProtocolNum}
 	}
 
-	serializerImpl := BinarySerialization
+	serializerType = BinarySerialization
+	serializer = binser.ORecordSerializerV0{}
 	if svrProtocolNum < MinBinarySerializerVersion {
-		serializerImpl = CsvSerialization
+		serializerType = CsvSerialization
+		// TODO: change serializer to ORecordSerializerCsvVxxx once that is built
+		panic(fmt.Sprintf("Server Binary Protocol Version (%v) is less than the Min Binary Serializer Version supported by this driver (%v)",
+			svrProtocolNum, MinBinarySerializerVersion))
 	}
 
 	// DEBUG
@@ -76,8 +86,9 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 	dbc := &DbClient{
 		conx:                  conx,
 		buf:                   new(bytes.Buffer),
-		serializationImpl:     serializerImpl,
+		serializationType:     serializerType,
 		binaryProtocolVersion: svrProtocolNum,
+		RecordSerializer:      serializer,
 		sessionId:             NoSessionId,
 	}
 	return dbc, nil

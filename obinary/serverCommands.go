@@ -48,7 +48,7 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	}
 
 	// serialization-impl
-	err = rw.WriteString(buf, dbc.serializationImpl)
+	err = rw.WriteString(buf, dbc.serializationType)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 	}
 
 	// if status returned was ERROR, then the rest of server data is the exception info
-	if status != SUCCESS {
+	if status != RESPONSE_STATUS_OK {
 		exceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
@@ -172,7 +172,7 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 		return err
 	}
 
-	if status == ERROR {
+	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
@@ -230,7 +230,7 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 		return err
 	}
 
-	if status == ERROR {
+	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
@@ -293,7 +293,7 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 		return false, err
 	}
 
-	if status == ERROR {
+	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return false, err
@@ -353,7 +353,7 @@ func RequestDbList(dbc *DbClient) error {
 		return err
 	}
 
-	if status == ERROR {
+	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err

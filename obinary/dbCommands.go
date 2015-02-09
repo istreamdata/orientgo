@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"ogonori/obinary/binser"
 	"ogonori/obinary/rw"
+	"ogonori/oschema"
 	"strconv"
 	"strings"
 )
@@ -50,7 +50,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	}
 
 	// serialization-impl
-	err = rw.WriteString(buf, dbc.serializationImpl)
+	err = rw.WriteString(buf, dbc.serializationType)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	}
 
 	// if status returned was ERROR, then the rest of server data is the exception info
-	if status != SUCCESS {
+	if status != RESPONSE_STATUS_OK {
 		exceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err
@@ -230,6 +230,7 @@ func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error 
 		clusterPos int64
 		err        error
 	)
+	rid = strings.TrimPrefix(rid, "#")
 	clusterId, clusterPos, err = parseRid(rid)
 
 	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_DELETE)
@@ -291,65 +292,75 @@ func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error 
 }
 
 //
-// TODO: this probably needs to map a record into a JSON obj?  Or some other datastructure
-// TODO: put fetchPlan, ignoreCache and loadTombstons into a map or Options obj?
+// GetRecordById takes an RID of the form N:M or #N:M and reads that record from
+// the database.
+// NOTE: for now I'm assuming all records are Documents (they can also be "raw bytes" or "flat data")
+// and for some reason I don't understand, multiple records can be returned, so I'm returning
+// a slice of ODocument
 //
-func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, loadTombstones bool) error {
+// TODO: may also want to expose options: ignoreCache, loadTombstones bool
+func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 	var (
 		clusterId  int16
 		clusterPos int64
 		err        error
 	)
+	rid = strings.TrimPrefix(rid, "#")
 	clusterId, clusterPos, err = parseRid(rid)
 
 	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = rw.WriteLong(dbc.buf, clusterPos)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = rw.WriteString(dbc.buf, fetchPlan)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	ignoreCache := true // hardcoding for now
 	err = rw.WriteBool(dbc.buf, ignoreCache)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	loadTombstones := false // hardcoding for now
 	err = rw.WriteBool(dbc.buf, loadTombstones)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	// this query can return multiple records (though I don't understand why)
+	// so must do this in a loop
+	docs := make([]*oschema.ODocument, 0, 1)
 	for {
 		payloadStatus, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		fmt.Printf("D5: payloadStatus: %v\n", payloadStatus)
 
@@ -371,52 +382,65 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string, ignoreCache, lo
 		if err != nil {
 			fmt.Printf("D9: ERROR: %v\n", err)
 		}
-		err = parseSerializedData(databytes)
-		if err != nil {
-			return err
+
+		if rectype == 'd' {
+			// we don't know the classname so set empty value
+			doc := oschema.NewDocument("")
+			doc.Rid = rid
+			doc.Version = recversion
+
+			err = dbc.RecordSerializer.Deserialize(doc, bytes.NewBuffer(databytes))
+			if err != nil {
+				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)
+			}
+			docs = append(docs, doc)
+
+		} else {
+			return nil,
+				fmt.Errorf("Only document records are supported by the client. Record returned was type: %s", rectype)
 		}
 	}
 
-	return nil
+	return docs, nil
 }
 
-// FIXME: the server is not returning what I expect
-// question posted: https://groups.google.com/forum/#!topic/orient-database/IDItY72Ze6U
-func parseSerializedData(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	serializationVersion, err := binser.ParseSerializationVersion(buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("serializationVersion: %v\n", serializationVersion)
+// // FIXME: the server is not returning what I expect
+// // question posted: https://groups.google.com/forum/#!topic/orient-database/IDItY72Ze6U
+// func parseSerializedData(data []byte) error {
+// 	buf := bytes.NewBuffer(data)
+// 	serializationVersion, err := binser.ParseSerializationVersion(buf)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("serializationVersion: %v\n", serializationVersion)
 
-	className, err := binser.ParseClassname(buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("className: %v\n", className)
+// 	className, err := binser.ParseClassname(buf)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("className: %v\n", className)
 
-	recordHdr, err := binser.ParseHeader(buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("recHeader: %v\n", recordHdr)
+// 	recordHdr, err := binser.ParseHeader(buf)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("recHeader: %v\n", recordHdr)
 
-	// var (
-	// 	encodedLen   uint32
-	// 	classNameLen int32
-	// )
+// 	// var (
+// 	// 	encodedLen   uint32
+// 	// 	classNameLen int32
+// 	// )
 
-	// err = varint.ReadVarIntBuf(buf, &encodedLen)
-	// if err != nil {
-	// 	return err
-	// }7
-	// classNameLen = varint.ZigzagDecodeInt32(encodedLen)
-	// fmt.Printf("encodedLen: %v\n", encodedLen)
-	// fmt.Printf("classNameLen: %v\n", classNameLen)
+// 	// err = varint.ReadVarIntBuf(buf, &encodedLen)
+// 	// if err != nil {
+// 	// 	return err
+// 	// }7
+// 	// classNameLen = varint.ZigzagDecodeInt32(encodedLen)
+// 	// fmt.Printf("encodedLen: %v\n", encodedLen)
+// 	// fmt.Printf("classNameLen: %v\n", classNameLen)
 
-	return nil
-}
+// 	return nil
+// }
 
 // TODO: needs to read record into some datastructure
 func readRecord(dbc *DbClient) error {
@@ -449,13 +473,15 @@ func readRecord(dbc *DbClient) error {
 	return nil
 }
 
+//
+// parseRid splits an OrientDB RID into its components parts - clusterId
+// and clusterPos, returning the integer value of each. Note that the rid
+// passed in must NOT have a leading '#'.
+//
 func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 	parts := strings.Split(rid, ":")
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("RID %s is not of form x:y", rid)
-	}
-	if strings.HasPrefix(parts[0], "#") {
-		parts[0] = parts[0][1:]
 	}
 	id64, err := strconv.ParseInt(parts[0], 10, 16)
 	if err != nil {
@@ -780,7 +806,7 @@ func readStatusCodeAndSessionId(dbc *DbClient) error {
 			sessionId, dbc.sessionId)
 	}
 
-	if status == ERROR {
+	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return err

@@ -23,6 +23,32 @@ func IsFinalVarIntByte(b byte) bool {
 	return (b >> 7) == 0x0
 }
 
+//
+// ReadVarIntAndDecode32 reads a varint from buf to a uint32
+// and then zigzag decodes it to an int32 value.
+//
+func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) { // TODO: not consistent with ReadVarIntBuf style ...
+	var encodedLen uint32
+	err := ReadVarIntBuf(buf, &encodedLen)
+	if err != nil {
+		return 0, err
+	}
+	return ZigzagDecodeInt32(encodedLen), nil
+}
+
+//
+// ReadVarIntAndDecode64 reads a varint from buf to a uint64
+// and then zigzag decodes it to an int64 value.
+//
+func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
+	var encodedLen uint64
+	err := ReadVarIntBuf(buf, &encodedLen)
+	if err != nil {
+		return 0, err
+	}
+	return ZigzagDecodeInt64(encodedLen), nil
+}
+
 func ReadVarIntBuf(buf *bytes.Buffer, data interface{}) error {
 	switch data.(type) {
 	case *uint32:

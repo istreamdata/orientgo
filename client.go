@@ -111,23 +111,24 @@ func dbCommands(dbc *obinary.DbClient) {
 	// }
 	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
-	// fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
-	// err = obinary.GetRecordByRID(dbc, "11:0", "", false, false)
+	fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
+	docs, err := obinary.GetRecordByRID(dbc, "11:0", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("docs returned by RID: %v\n", docs)
+
+	// fmt.Println("Deleting (sync) record #11:3")
+	// err = obinary.DeleteRecordByRID(dbc, "11:3", 3)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// }
 
-	fmt.Println("Deleting (sync) record #11:3")
-	err = obinary.DeleteRecordByRID(dbc, "11:3", 3)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Deleting (Async) record #11:4")
-	err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// fmt.Println("Deleting (Async) record #11:4")
+	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	obinary.CloseDatabase(dbc)
 

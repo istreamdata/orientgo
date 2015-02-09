@@ -19,13 +19,13 @@ type OServerException struct {
 // ------
 
 type IncorrectNetworkRead struct {
-	expected int
-	actual   int
+	Expected int
+	Actual   int
 }
 
 func (e IncorrectNetworkRead) Error() string {
 	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
-		e.expected, e.actual)
+		e.Expected, e.Actual)
 }
 
 /* -------------------------------- */
@@ -39,7 +39,7 @@ func ReadByte(rdr io.Reader) (byte, error) {
 		return DEFAULT_RETVAL, err
 	}
 	if n != 1 {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{expected: 1, actual: n}
+		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: 1, Actual: n}
 	}
 	return readbuf[0], nil
 }
@@ -82,7 +82,7 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if n != sz {
-		return nil, IncorrectNetworkRead{expected: sz, actual: n}
+		return nil, IncorrectNetworkRead{Expected: sz, Actual: n}
 	}
 	return readbuf, nil
 }
@@ -96,7 +96,7 @@ func ReadInt(rdr io.Reader) (int, error) {
 		return DEFAULT_RETVAL, err
 	}
 	if n != intSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{expected: intSz, actual: n}
+		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: intSz, Actual: n}
 	}
 
 	var intval int32
@@ -106,8 +106,7 @@ func ReadInt(rdr io.Reader) (int, error) {
 		return DEFAULT_RETVAL, err
 	}
 
-	return int(intval), nil
-	// return ToIntBigEndian(readbuf), nil
+	return int(intval), nil // TODO: stop casting to int -> leave as int32
 }
 
 func ReadLong(rdr io.Reader) (int64, error) {
@@ -119,7 +118,7 @@ func ReadLong(rdr io.Reader) (int64, error) {
 		return DEFAULT_RETVAL, err
 	}
 	if n != longSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{expected: longSz, actual: n}
+		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: longSz, Actual: n}
 	}
 
 	var longval int64
@@ -140,7 +139,7 @@ func ReadShort(rdr io.Reader) (int16, error) {
 		return DEFAULT_RETVAL, err
 	}
 	if n != shortSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{expected: shortSz, actual: n}
+		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: shortSz, Actual: n}
 	}
 
 	var shortval int16

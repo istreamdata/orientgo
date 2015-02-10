@@ -369,18 +369,18 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 		}
 
 		rectype, err := rw.ReadByte(dbc.conx)
-		fmt.Printf("D6a: rectype: %T: %v\n", rectype, rectype)
-		fmt.Printf("D6b: rectype as str: %v\n", string(rectype))
+		if err != nil {
+			return nil, err
+		}
 
 		recversion, err := rw.ReadInt(dbc.conx)
-		fmt.Printf("D7: recversion: %v\n", recversion)
+		if err != nil {
+			return nil, err
+		}
 
 		databytes, err := rw.ReadBytes(dbc.conx)
-		fmt.Printf("D8: len:databytes: %v\n", len(databytes))
-		fmt.Printf("D8: databytes: %v\n", databytes)
-		fmt.Printf("D8: data[1]: %#v\n", databytes[1])
 		if err != nil {
-			fmt.Printf("D9: ERROR: %v\n", err)
+			return nil, err
 		}
 
 		if rectype == 'd' {
@@ -397,50 +397,12 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 
 		} else {
 			return nil,
-				fmt.Errorf("Only document records are supported by the client. Record returned was type: %s", rectype)
+				fmt.Errorf("Only `document` records are currently supported by the client. Record returned was type: %s", rectype)
 		}
 	}
 
 	return docs, nil
 }
-
-// // FIXME: the server is not returning what I expect
-// // question posted: https://groups.google.com/forum/#!topic/orient-database/IDItY72Ze6U
-// func parseSerializedData(data []byte) error {
-// 	buf := bytes.NewBuffer(data)
-// 	serializationVersion, err := binser.ParseSerializationVersion(buf)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Printf("serializationVersion: %v\n", serializationVersion)
-
-// 	className, err := binser.ParseClassname(buf)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Printf("className: %v\n", className)
-
-// 	recordHdr, err := binser.ParseHeader(buf)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Printf("recHeader: %v\n", recordHdr)
-
-// 	// var (
-// 	// 	encodedLen   uint32
-// 	// 	classNameLen int32
-// 	// )
-
-// 	// err = varint.ReadVarIntBuf(buf, &encodedLen)
-// 	// if err != nil {
-// 	// 	return err
-// 	// }7
-// 	// classNameLen = varint.ZigzagDecodeInt32(encodedLen)
-// 	// fmt.Printf("encodedLen: %v\n", encodedLen)
-// 	// fmt.Printf("classNameLen: %v\n", classNameLen)
-
-// 	return nil
-// }
 
 // TODO: needs to read record into some datastructure
 func readRecord(dbc *DbClient) error {

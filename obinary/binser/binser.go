@@ -214,13 +214,15 @@ func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
 	// TODO: add more cases
 	switch field.Typ {
 	case oschema.STRING:
-		val, err = rw.ReadString(buf)
+		val, err = varint.ReadString(buf)
 	case oschema.INTEGER:
 		val, err = rw.ReadInt(buf)
 	case oschema.SHORT:
 		val, err = rw.ReadShort(buf)
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)
+	case oschema.BINARY:
+		val, err = varint.ReadBytes(buf)
 	default:
 		err = errors.New("UnsupportedType: binser.readDataValue doesn't support all types yet ...")
 	}

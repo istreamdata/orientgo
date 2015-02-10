@@ -7,7 +7,7 @@ import (
 )
 
 func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
-	// the first four bytes give the length of the remaining byte array
+	// an encoded varint give the length of the remaining byte array
 	sz, err := ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, err
@@ -27,4 +27,12 @@ func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 		return nil, rw.IncorrectNetworkRead{Expected: size, Actual: len(data)}
 	}
 	return data, nil
+}
+
+func ReadString(buf *bytes.Buffer) (string, error) {
+	bs, err := ReadBytes(buf)
+	if err != nil {
+		return "", err
+	}
+	return string(bs), nil
 }

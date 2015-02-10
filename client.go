@@ -116,7 +116,7 @@ func dbCommands(dbc *obinary.DbClient) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("docs returned by RID: %v\n", docs)
+	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	// fmt.Println("Deleting (sync) record #11:3")
 	// err = obinary.DeleteRecordByRID(dbc, "11:3", 3)

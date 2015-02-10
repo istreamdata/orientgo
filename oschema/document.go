@@ -50,6 +50,17 @@ func (doc *ODocument) GetFieldById(id int32) *OField {
 }
 
 //
+// AddField adds a fully created field directly rather than by some of its
+// attributes, as the other "Field" methods do.
+// The same *ODocument is returned to allow call chaining.
+//
+func (doc *ODocument) AddField(name string, field *OField) *ODocument {
+	doc.Fields[name] = field
+	doc.dirty = true
+	return doc
+}
+
+//
 // Field is used to add a new field to a document. This will usually be done just
 // before calling Save and sending it to the database.  The field type will be inferred
 // via type switch analysis on `val`.  Use FieldWithType to specify the type directly.
@@ -93,12 +104,13 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType int) *ODocument {
-	doc.Fields[name] = &OField{
+	fld := &OField{
 		Name:     name,
 		Fullname: doc.Classname + "." + name,
 		Value:    val,
 		Typ:      fieldType,
 	}
-	doc.dirty = true
-	return doc
+	return doc.AddField(name, fld)
 }
+
+// TODO: need to add String() method

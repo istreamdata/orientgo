@@ -94,6 +94,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 				Name: fmt.Sprintf("foo%d", i),
 				Typ:  oschema.STRING,
 			}
+			doc.AddField(ofield.Name, ofield)
 		}
 		err = readDataValue(buf, ofield)
 		if err != nil {
@@ -104,6 +105,10 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	return nil
 }
 
+//
+// TODO: need to study what exactly this method is supposed to do and not do
+//       -> check the Java driver version
+//
 func (ser ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
 	buf *bytes.Buffer, fields []string) error {
 
@@ -206,6 +211,11 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 	return hdr, nil
 }
 
+//
+// readDataValue reads the next data section from `buf` according
+// to the type of the field (field.Typ) and updates the OField object
+// to have the value.
+//
 func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
 	var (
 		val interface{}

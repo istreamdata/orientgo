@@ -29,7 +29,7 @@
 * TODO REQUEST_DATASEGMENT_ADD                = 20
 * TODO REQUEST_DATASEGMENT_DROP               = 21
 * TODO REQUEST_RECORD_METADATA                = 29 // since 1.4.0
-* DEFERRED REQUEST_RECORD_LOAD                    = 30
+* IN-PROGRESS REQUEST_RECORD_LOAD             = 30  => partially done; not filling in OFields yet
 * TODO REQUEST_RECORD_CREATE                  = 31
 * TODO REQUEST_RECORD_UPDATE                  = 32
 * DONE REQUEST_RECORD_DELETE                  = 33

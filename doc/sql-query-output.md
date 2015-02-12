@@ -1,0 +1,114 @@
+### When using Java client
+
+    /127.0.0.1:44332 - Read byte: 41 [OChannelBinaryServer]
+    /127.0.0.1:44332 - Reading int (4 bytes)... [OChannelBinaryServer]
+    /127.0.0.1:44332 - Read int: 112 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Reading byte (1 byte)... [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Read byte: 115 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Read chunk lenght: 69 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Reading 69 bytes... [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Read 69 bytes: q(select * from Person where name = 'Luke'���� [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing byte (1 byte): 0 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing int (4 bytes): 112 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing byte (1 byte): 108 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing short (2 bytes): 11 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing long (8 bytes): 0 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing bytes (4+19=23 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 1, 0, 0, 0, 14, 0, 8, 76, 117, 107, 101] [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Writing byte (1 byte): 0 [OChannelBinaryServer]
+    {db=cars} /127.0.0.1:44332 - Flush [OChannelBinaryServer]
+    /127.0.0.1:44332 - Reading byte (1 byte)... [OChannelBinaryServer]
+
+
+
+
+### Bytes Written by go client
+                                                    
+    [113 0 0 0 40 115 101 108 101 99 116 32 42 32 102 114 111 109 32 80 101 114 115 111 110
+     32 119 104 101 114 101 32 110 97 109 101 32 61 32 39 76 117 107 101 39 
+     255 255 255 255 0 0 0 0 255 255 255 255]
+
+### Bytes Written by Java client
+
+               sz |----------- bytes array --->
+        [0 0 0 40 115 101 108 101 99 116 32 42 32 102 114 111 109 32 80 101 114 115 111 110 
+     32 119 104 101 114 101 32 110 97 109 101 32 61 32 39 76 117 107 101 39 
+     -1 -1 -1 -1    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ...
+     |--limit--|   fetch-plan serialized-params
+                                                    
+     1 2 3  4   5   6   7   8  9  10 11 12 13  14  15  16  17 18 19  20  21  22  23  24 25  26  27  28  29  30
+    [0 0 0 40 115 101 108 101 99 116 32 42 32 102 114 111 109 32 80 101 114 115 111 110 32 119 104 101 114 101
+     31  32 33  34  35 36 37 38 39 40  41  42  43 44 45 46 47 48 49  51  53  55  57  59  61  63 64
+    [32 110 97 109 101 32 61 32 39 76 117 107 101 39 -1 -1 -1 -1  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  0
+    
+    [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                                    
+
+objectContent.toStream() ->
+[0, 0, 0, 40, 115, 101, 108, 101, 99, 116, 32, 42, 32, 102, 114, 111, 109, 32, 80, 101, 114, 115, 111, 110, 32, 119, 104, 101, 114, 101, 32, 110, 97, 109, 101, 32, 61, 32, 39, 76, 117, 107, 101, 39, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]    
+    
+final bytes returned:
+
+    |--- classname--|
+    |--- len --| "p"
+    [0, 0, 0, 1, 113, 
+
+    |------------------ SQL query ----> 
+    |--- len --| "select * from Person where name = 'Luke'"
+    0, 0, 0, 40, 115, 101, 108, 101, 99, 116, 32, 42, 32, 102, 114, 111, 109, 32, 80, 101, 114, 115, 111, 110, 32, 119, 104, 101, 114, 101, 32, 110, 97, 109, 101, 32, 61, 32, 39, 76, 117, 107, 101, 39,
+    
+    |--- limit --| (48)
+    -1, -1, -1, -1, 
+    
+    |-fetchplan-| (52)   
+    0, 0, 0, 0,     
+    
+    |-qparams-| (56)
+    0, 0, 0, 0,   
+    
+    |-nextPageRID-| (60)
+    0,  0,  0,  0,
+
+    |-prev qparams-| (64)
+    0,  0,  0,  0 ]
+    
+    
+[41 0 0 0 28 115 
+[0, 0, 0, 1, 113, 
+ 0  0  0  1  113 
+ 
+0, 0, 0, 40, 115, 101, 108, 101, 99, 116, 32, 42, 32, 102, 114, 111, 109, 32, 80, 101, 114, 115, 111, 110, 32, 119, 104, 101, 114, 101, 32, 110, 97, 109, 101, 32, 61, 32, 39, 76, 117, 107, 101, 39, 
+0  0  0  40  115  101  108  101  99  116  32  42  32  102  114  111  109  32  80  101  114  115  111  110  32  119  104  101  114  101  32  110  97  109  101  32  61  32  39  76  117  107  101  39
+
+-1, -1, -1, -1
+255 255 255 255
+
+0, 0, 0, 0,
+0  0  0  0 
+
+0, 0, 0, 0,
+0  0  0  0 
+
+0, 0, 0, 0
+0  0  0  0 
+
+0, 0, 0, 0 ]
+0  0  0  0]    
+    
+    
+    
+    
+    final OMemoryStream buffer = super.queryToStream();
+
+    buffer.setUtf8(nextPageRID != null ? nextPageRID.toString() : "");
+
+    // extras added here
+    final byte[] queryParams = serializeQueryParameters(previousQueryParams);
+    buffer.set(queryParams);
+
+    return buffer;
+

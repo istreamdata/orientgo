@@ -111,12 +111,12 @@ func dbCommands(dbc *obinary.DbClient) {
 	// }
 	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
-	fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
-	docs, err := obinary.GetRecordByRID(dbc, "11:0", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
+	// fmt.Printf("\n+++ Attempting to fetch record now +++\n cmd num = %v\n", obinary.REQUEST_RECORD_LOAD)
+	// docs, err := obinary.GetRecordByRID(dbc, "11:0", "")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	// fmt.Println("Deleting (sync) record #11:3")
 	// err = obinary.DeleteRecordByRID(dbc, "11:3", 3)
@@ -129,6 +129,13 @@ func dbCommands(dbc *obinary.DbClient) {
 	// if err != nil {
 	// 	log.Fatal(err)
 	// }
+
+	sql := "select * from Person where name = 'Luke'"
+	fmt.Println("Issuing command query: " + sql)
+	err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+	}
 
 	obinary.CloseDatabase(dbc)
 

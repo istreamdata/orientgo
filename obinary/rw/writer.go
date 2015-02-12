@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -52,9 +53,15 @@ func WriteString(buf *bytes.Buffer, s string) error {
 	return err
 }
 
-// TODO: impl WriteRawBytes that just writes the bytes, not prefixed by the size of the []byte
+//
+// WriteRawBytes just writes the bytes, not prefixed by the size of the []byte
+//
 func WriteRawBytes(buf *bytes.Buffer, bs []byte) error {
-	panic("WriteRawBytes: not yet implemented")
+	n, err := buf.Write(bs)
+	if n != len(bs) {
+		return fmt.Errorf("ERROR: Incorrect number of bytes written: %d", n)
+	}
+	return err
 }
 
 //

@@ -25,15 +25,15 @@ For this code:
 
 The serialized record {Person[name=Han, surname=Solo]} gets written out like this:
 
-           |---------- className ---------|                                  
-        V   6   P    e    r    s    o    n     
-bytes: [0, 12, 80, 101, 114, 115, 111, 110, 
-idx:    0   1   2    3    4    5    6    7  
+               |---------- className ---------|                                  
+            V   6   P    e    r    s    o    n     
+    bytes: [0, 12, 80, 101, 114, 115, 111, 110, 
+    idx:    0   1   2    3    4    5    6    7  
 
-         |------------- Header ------------|---------------- Data ---------------|
-         0  <---ptr--->  20  <---ptr---> EOH 3   H   a    n  4   S    o    l    o      
-bytes:   1, 0, 0, 0, 19, 41, 0, 0, 0, 23, 0, 6, 72, 97, 110, 8, 83, 111, 108, 111]
-idx:     8  9 10 11  12  13 14 15 16  17 18 19  20  21   22 23  24   25   26   27
+             |------------- Header ------------|---------------- Data ---------------|
+             0  <---ptr--->  20  <---ptr---> EOH 3   H   a    n  4   S    o    l    o      
+    bytes:   1, 0, 0, 0, 19, 41, 0, 0, 0, 23, 0, 6, 72, 97, 110, 8, 83, 111, 108, 111]
+    idx:     8  9 10 11  12  13 14 15 16  17 18 19  20  21   22 23  24   25   26   27
 
 
 --------------------------------------------------------------------------
@@ -74,22 +74,19 @@ Thank you
       
 # Misc Notes
 
-ODocument class has fieldNames() and fieldValues() methods
-      
-      
-  /**
-   * Encodes a value using the variable-length encoding from <a
-   * href="http://code.google.com/apis/protocolbuffers/docs/encoding.html"> Google Protocol Buffers</a>. It uses zig-zag encoding to
-   * efficiently encode signed values. If values are known to be nonnegative, {@link #writeUnsignedVarLong(long, DataOutput)} should
-   * be used.
-   * 
-   * @param value
-   *          value to encode
-   * @param out
-   *          to write bytes to
-   * @throws IOException
-   *           if {@link DataOutput} throws {@link IOException}
-   */
-  private static long signedToUnsigned(long value) {
-    return (value << 1) ^ (value >> 63);
-  }      
+    /**
+     * Encodes a value using the variable-length encoding from <a
+     * href="http://code.google.com/apis/protocolbuffers/docs/encoding.html"> Google Protocol Buffers</a>. It uses zig-zag encoding to
+     * efficiently encode signed values. If values are known to be nonnegative, {@link #writeUnsignedVarLong(long, DataOutput)} should
+     * be used.
+     * 
+     * @param value
+     *          value to encode
+     * @param out
+     *          to write bytes to
+     * @throws IOException
+     *           if {@link DataOutput} throws {@link IOException}
+     */
+    private static long signedToUnsigned(long value) {
+      return (value << 1) ^ (value >> 63);
+    }      

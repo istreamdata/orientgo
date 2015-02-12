@@ -404,37 +404,6 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 	return docs, nil
 }
 
-// TODO: needs to read record into some datastructure
-func readRecord(dbc *DbClient) error {
-	fmt.Printf("%v\n", "DEBUG 10")
-	recType, err := rw.ReadByte(dbc.buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("D11: recType: %v\n", recType)
-
-	recVersion, err := rw.ReadInt(dbc.buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("D12: recVersion: %v\n", recVersion)
-
-	recData, err := rw.ReadBytes(dbc.buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("D13: len:recData: %v\n", len(recData))
-
-	recTypeStr := string(recType)
-
-	// DEBUG
-	fmt.Printf("record type is: %v\n", recTypeStr)
-	fmt.Printf("record version is: %v\n", recVersion)
-	fmt.Printf("record data is: %v\n", string(recData))
-	// END DEBUG
-	return nil
-}
-
 //
 // parseRid splits an OrientDB RID into its components parts - clusterId
 // and clusterPos, returning the integer value of each. Note that the rid
@@ -453,6 +422,129 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 
 	clusterPos, err = strconv.ParseInt(parts[1], 10, 64)
 	return clusterId, clusterPos, err
+}
+
+// TODO: what is this going to return? a cursor?
+func SQLQuery(dbc *DbClient, sql string) error {
+	dbc.buf.Reset()
+
+	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
+	if err != nil {
+		return err
+	}
+
+	mode := byte('s') // synchronous only supported for now
+
+	err = rw.WriteByte(dbc.buf, mode)
+	if err != nil {
+		return err
+	}
+
+	err = rw.WriteString(dbc.buf, "q") // q for query
+	if err != nil {
+		return err
+	}
+
+	// need a separate buffer to write the command-payload to, so
+	// we can calculate its length before writing it to main dbc.buf
+	commandBuf := new(bytes.Buffer)
+
+	err = rw.WriteString(commandBuf, sql)
+	if err != nil {
+		return err
+	}
+
+	// non-text-limit (-1 = use limit from query text)
+	err = rw.WriteInt(commandBuf, -1)
+	if err != nil {
+		return err
+	}
+
+	// fetch plan // TODO: need to support fetch plans
+	err = rw.WriteString(commandBuf, "")
+	if err != nil {
+		return err
+	}
+
+	// serialized-params => NONE currently supported => TODO: add support for these; see note below
+	//// --------------------------------------- ////
+	//// Serialized Parameters ODocument content ////
+	//// --------------------------------------- ////
+	// The ODocument have to contain a field called "params" of type Map.
+	// The Map should have as key, in case of positional perameters the numeric
+	// position of the parameter, in case of named parameters the name of the
+	// parameter and as value the value of the parameter.
+	err = rw.WriteBytes(commandBuf, make([]byte, 0, 0))
+	if err != nil {
+		return err
+	}
+
+	serializedCmd := commandBuf.Bytes()
+	fmt.Printf("serializedCmd:\n%v\n", serializedCmd) // DEBUG
+
+	// command-payload-length and command-payload
+	// LEFT OFF -> try writing the bytes WITHOUT the length preceding
+	//             not sure this is right -> worth trying
+	//             if fails, need to go back to the Java code and
+	//             determine if before being sent over the network
+	//             it prepends the length of the "serializedCmd"
+	err = rw.WriteRawBytes(dbc.buf, serializedCmd)
+	if err != nil {
+		return err
+	}
+
+	// nextPageRID
+	err = rw.WriteInt(dbc.buf, 0)
+	if err != nil {
+		return err
+	}
+
+	// prev QueryParams
+	err = rw.WriteInt(dbc.buf, 0)
+	if err != nil {
+		return err
+	}
+
+	// An entire record serialized. The format depends if a RID is passed or an entire record with its content. In case of null record then -2 as short is passed. In case of RID -3 is passes as short and then the RID: (-3:short)(cluster-id:short)(cluster-position:long). In case of record: (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
+
+	// send to the OrientDB server
+	finalBytes := dbc.buf.Bytes()
+	fmt.Printf("finalBytes:\n%v\n", finalBytes) // DEBUG
+
+	_, err = dbc.conx.Write(finalBytes)
+	if err != nil {
+		return err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return err
+	}
+
+	resType, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	resultType := int32(resType)
+	fmt.Println("------------- RESULT ------------")
+	fmt.Printf("resultType: %v\n", string(resultType))
+	if resultType == 'n' {
+		fmt.Println("resultVal: Null")
+	} else if resultType == 'r' {
+		fmt.Println("Now need to parse a record")
+		record, err := rw.ReadBytes(dbc.conx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("record: %v\n", record)
+	} else {
+		fmt.Println(">> Not yet supported")
+	}
+
+	return nil
 }
 
 //

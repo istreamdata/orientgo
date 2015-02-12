@@ -4,12 +4,12 @@
 * DONE Need to add SUCCESS checks and server error reading to every network command
 * DEFERRED ReadVar API / unit test needs cleanup
 * TODO Re-evaluate db/network reader API
-* TODO Get back to the db call that is returning what looks like serialized content
-** If can't make sense of it, change to the csv-serialization and see if that helps figure out the schemaless serialized version
+* TODO Fix failing tests and get better test coverage for code written so far
 * TODO Try multi-byte varint to determine if encoding is little or big-endian
 * TODO Need to dependency inject the record serialization rdr (schemaless or csv) into all dbCommands that need it
 ** need to build an Interface for this and then do two impls
 * TODO Rename binser and csvser to binserde and csvserde
+* TODO Put under github.com/quux00 location so is "go gettable"
 
 * TODO REQUEST_SHUTDOWN                       = 1
 * DONE REQUEST_CONNECT                        = 2
@@ -38,8 +38,8 @@
 * TODO REQUEST_POSITIONS_LOWER                = 37 // since 1.3.0
 * TODO REQUEST_RECORD_CLEAN_OUT               = 38 // since 1.3.0
 * TODO REQUEST_POSITIONS_FLOOR                = 39 // since 1.3.0
-* DEFERRED REQUEST_COUNT                          = 40 // DEPRECATED: USE REQUEST_DATACLUSTER_COUNT
-* TODO REQUEST_COMMAND                        = 41
+* DEFERRED REQUEST_COUNT                      = 40 // DEPRECATED: USE REQUEST_DATACLUSTER_COUNT
+* IN-PROGRESS REQUEST_COMMAND                 = 41
 * TODO REQUEST_POSITIONS_CEILING              = 42 // since 1.3.0
 * TODO REQUEST_RECORD_HIDE                    = 43 // since 1.7
 * TODO REQUEST_TX_COMMIT                      = 60

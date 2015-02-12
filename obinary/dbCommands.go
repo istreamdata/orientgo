@@ -440,14 +440,14 @@ func SQLQuery(dbc *DbClient, sql string) error {
 		return err
 	}
 
-	err = rw.WriteString(dbc.buf, "q") // q for query
-	if err != nil {
-		return err
-	}
-
 	// need a separate buffer to write the command-payload to, so
 	// we can calculate its length before writing it to main dbc.buf
 	commandBuf := new(bytes.Buffer)
+
+	err = rw.WriteString(commandBuf, "q") // q for query
+	if err != nil {
+		return err
+	}
 
 	err = rw.WriteString(commandBuf, sql)
 	if err != nil {
@@ -479,33 +479,27 @@ func SQLQuery(dbc *DbClient, sql string) error {
 		return err
 	}
 
-	serializedCmd := commandBuf.Bytes()
-	fmt.Printf("serializedCmd:\n%v\n", serializedCmd) // DEBUG
-
-	// command-payload-length and command-payload
-	// LEFT OFF -> try writing the bytes WITHOUT the length preceding
-	//             not sure this is right -> worth trying
-	//             if fails, need to go back to the Java code and
-	//             determine if before being sent over the network
-	//             it prepends the length of the "serializedCmd"
-	err = rw.WriteRawBytes(dbc.buf, serializedCmd)
-	if err != nil {
-		return err
-	}
-
+	// TODO: need to try WITHOUT nextPageRID and prevQueryParams => if those are required, then send post to OrientDB google group
 	// nextPageRID
-	err = rw.WriteInt(dbc.buf, 0)
+	err = rw.WriteInt(commandBuf, 0)
 	if err != nil {
 		return err
 	}
 
 	// prev QueryParams
-	err = rw.WriteInt(dbc.buf, 0)
+	err = rw.WriteInt(commandBuf, 0)
 	if err != nil {
 		return err
 	}
 
-	// An entire record serialized. The format depends if a RID is passed or an entire record with its content. In case of null record then -2 as short is passed. In case of RID -3 is passes as short and then the RID: (-3:short)(cluster-id:short)(cluster-position:long). In case of record: (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
+	serializedCmd := commandBuf.Bytes()
+	fmt.Printf("serializedCmd:\n%v\n", serializedCmd) // DEBUG
+
+	// command-payload-length and command-payload
+	err = rw.WriteBytes(dbc.buf, serializedCmd)
+	if err != nil {
+		return err
+	}
 
 	// send to the OrientDB server
 	finalBytes := dbc.buf.Bytes()
@@ -529,6 +523,14 @@ func SQLQuery(dbc *DbClient, sql string) error {
 	}
 
 	resultType := int32(resType)
+	if resultType == 'l' {
+		err = readResultSet(dbc) // TODO: need to devise what a ResultSet is going to look like
+		if err != nil {
+			return err
+		}
+	}
+
+	// DEBUG
 	fmt.Println("------------- RESULT ------------")
 	fmt.Printf("resultType: %v\n", string(resultType))
 	if resultType == 'n' {
@@ -540,6 +542,9 @@ func SQLQuery(dbc *DbClient, sql string) error {
 			return err
 		}
 		fmt.Printf("record: %v\n", record)
+	} else if resultType == 'l' {
+		fmt.Println(">> A collection returned -> need to build a ResultSet model")
+
 	} else {
 		fmt.Println(">> Not yet supported")
 	}
@@ -868,5 +873,82 @@ func readStatusCodeAndSessionId(dbc *DbClient) error {
 		return fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
 
+	return nil
+}
+
+// TODO: needs to actually return something =>
+//       it will work like an external iterator where the user passes in the type to read into
+func readResultSet(dbc *DbClient) error {
+	// for Collection
+	// next val is: (collection-size:int)
+	// and then each record is serialized according to format:
+	//          (record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
+	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
+
+	rsetSz, err := rw.ReadInt(dbc.conx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("++ Number of records returned: %v\n", rsetSz)
+
+	// this apparent should always be zero for serialized records -> not sure it's meaning
+	zero, err := rw.ReadShort(dbc.conx)
+	if err != nil {
+		return err
+	}
+	if zero != int16(0) {
+		return fmt.Errorf("ERROR: readResultSet: expected short value of 0 but is %d", zero)
+	}
+
+	for {
+		recType, err := rw.ReadByte(dbc.conx)
+		if err != nil {
+			return err
+		}
+		if recType == byte(0) { // TODO: I think this signals end of records => could also hv for loop over rsetSz
+			return nil
+		}
+		fmt.Printf("!!recType: %v\n", recType)
+
+		// TODO: move code below to readRecordInResultSet
+		clusterId, err := rw.ReadShort(dbc.conx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("!!clusterId: %v\n", clusterId)
+
+		clusterPos, err := rw.ReadLong(dbc.conx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("!!clusterPos: %v\n", clusterPos)
+
+		recVersion, err := rw.ReadInt(dbc.conx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("!!recVersion: %v\n", recVersion)
+		if recType == byte('d') { // Document
+			var doc *oschema.ODocument
+			doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
+			doc.Rid = fmt.Sprintf("%d:%d", clusterId, clusterPos)
+			doc.Version = recVersion
+
+			recBytes, err := rw.ReadBytes(dbc.conx)
+			if err != nil {
+				return err
+			}
+			recBuf := bytes.NewBuffer(recBytes)
+			err = dbc.RecordSerializer.Deserialize(doc, recBuf)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("ResultSet Doc: %v\n", doc) // DEBUG
+		}
+	}
+}
+
+func readRecordInResultSet(dbc *DbClient) error {
 	return nil
 }

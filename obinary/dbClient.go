@@ -18,7 +18,7 @@ type DbClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	currDb                *ODatabase
-	RecordSerializer      binser.ORecordSerializer
+	RecordSerializer      binser.ORecordSerializer // this is for de/serializing ODocument -> may also need separate one for Graph objects?
 }
 
 //

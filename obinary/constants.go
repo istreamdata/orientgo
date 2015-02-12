@@ -14,9 +14,9 @@ const (
 	NoSessionId                       = -1
 	MaxSupportedBinaryProtocolVersion = 28 // max protocol supported by this client
 	MinSupportedBinaryProtocolVersion = 21 // min protocol supported by this client
-	MinBinarySerializerVersion        = 22 // if server protocol version is less, use csv ser, not binary ser
+	MinBinarySerializerVersion        = 22 // if server protocol version is less, use csv serde, not binary serde
 	RequestNewSession                 = -4 // arbitrary negative number sent to start session
-	DriverName                        = "ogonori: OrientDB Go client"
+	DriverName                        = "ogonori OrientDB Go client"
 	DriverVersion                     = "1.0"
 	BinarySerialization               = "ORecordSerializerBinary" // do not change: required by server
 	CsvSerialization                  = "ORecordDocument2csv"     // do not change: required by server

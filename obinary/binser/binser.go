@@ -20,7 +20,7 @@ type ORecordSerializer interface {
 	// ODocument object.  The ODocument must already be created; nil cannot be
 	// passed in for the `doc` field.
 	//
-	Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error
+	Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error // TODO: should this take an io.Reader instead of *bytes.Buffer ???
 
 	//
 	// Deserialize reads bytes from the bytes.Buffer and updates the ODocument object
@@ -94,7 +94,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 				Name: fmt.Sprintf("foo%d", i),
 				Typ:  oschema.STRING,
 			}
-			doc.AddField(ofield.Name, ofield)
+			doc.Fields[ofield.Name] = ofield // can't use AddField(), since it sets the dirty flag
 		}
 		err = readDataValue(buf, ofield)
 		if err != nil {

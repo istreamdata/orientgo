@@ -6,10 +6,12 @@ package oschema
 type ODocument struct {
 	Rid     string
 	Version int
-	dirty   bool               // TODO: probably need to track which fields are dirty
 	Fields  map[string]*OField // TODO: would probably be faster to just keep an array of *OField
 	// TODO: may want a mapping of ids => OField
-	Classname string // TODO: probably needs to change to a reference to OlCass
+	Classname string // TODO: probably needs to change *OClass (once that is built)
+
+	// private fields
+	dirty bool // TODO: probably need to track which fields are dirty
 }
 
 //
@@ -74,7 +76,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 	case bool:
 		ftype = BOOLEAN
 	case int:
-		ftype = INTEGER // TODO: probably need to check the size of the int => might be LONG
+		ftype = INTEGER // TODO: need to check the size of the int => might be LONG
 	case int32:
 		ftype = INTEGER
 	case int64:

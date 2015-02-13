@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"ogonori/obinary/rw"
 	"ogonori/oschema"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -444,12 +445,7 @@ func SQLQuery(dbc *DbClient, sql string) error {
 	// we can calculate its length before writing it to main dbc.buf
 	commandBuf := new(bytes.Buffer)
 
-	err = rw.WriteString(commandBuf, "q") // q for query
-	if err != nil {
-		return err
-	}
-
-	err = rw.WriteString(commandBuf, sql)
+	err = rw.WriteStrings(commandBuf, "q", sql) // q for query
 	if err != nil {
 		return err
 	}
@@ -461,7 +457,8 @@ func SQLQuery(dbc *DbClient, sql string) error {
 	}
 
 	// fetch plan // TODO: need to support fetch plans
-	err = rw.WriteString(commandBuf, "")
+	fetchPlan := ""
+	err = rw.WriteString(commandBuf, fetchPlan)
 	if err != nil {
 		return err
 	}
@@ -475,19 +472,6 @@ func SQLQuery(dbc *DbClient, sql string) error {
 	// position of the parameter, in case of named parameters the name of the
 	// parameter and as value the value of the parameter.
 	err = rw.WriteBytes(commandBuf, make([]byte, 0, 0))
-	if err != nil {
-		return err
-	}
-
-	// TODO: need to try WITHOUT nextPageRID and prevQueryParams => if those are required, then send post to OrientDB google group
-	// nextPageRID
-	err = rw.WriteInt(commandBuf, 0)
-	if err != nil {
-		return err
-	}
-
-	// prev QueryParams
-	err = rw.WriteInt(commandBuf, 0)
 	if err != nil {
 		return err
 	}
@@ -523,18 +507,11 @@ func SQLQuery(dbc *DbClient, sql string) error {
 	}
 
 	resultType := int32(resType)
-	if resultType == 'l' {
-		err = readResultSet(dbc) // TODO: need to devise what a ResultSet is going to look like
-		if err != nil {
-			return err
-		}
-	}
-
-	// DEBUG
-	fmt.Println("------------- RESULT ------------")
 	fmt.Printf("resultType: %v\n", string(resultType))
+
 	if resultType == 'n' {
 		fmt.Println("resultVal: Null")
+
 	} else if resultType == 'r' {
 		fmt.Println("Now need to parse a record")
 		record, err := rw.ReadBytes(dbc.conx)
@@ -542,8 +519,12 @@ func SQLQuery(dbc *DbClient, sql string) error {
 			return err
 		}
 		fmt.Printf("record: %v\n", record)
+
 	} else if resultType == 'l' {
-		fmt.Println(">> A collection returned -> need to build a ResultSet model")
+		err = readResultSet(dbc) // TODO: need to devise what a ResultSet is going to look like
+		if err != nil {
+			return err
+		}
 
 	} else {
 		fmt.Println(">> Not yet supported")
@@ -882,7 +863,6 @@ func readResultSet(dbc *DbClient) error {
 	// for Collection
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:
-	//          (record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 
 	rsetSz, err := rw.ReadInt(dbc.conx)
@@ -892,26 +872,23 @@ func readResultSet(dbc *DbClient) error {
 
 	fmt.Printf("++ Number of records returned: %v\n", rsetSz)
 
-	// this apparent should always be zero for serialized records -> not sure it's meaning
-	zero, err := rw.ReadShort(dbc.conx)
-	if err != nil {
-		return err
-	}
-	if zero != int16(0) {
-		return fmt.Errorf("ERROR: readResultSet: expected short value of 0 but is %d", zero)
-	}
+	for i := 0; i < rsetSz; i++ {
+		// TODO: move code below to readRecordInResultSet
+		// this apparently should always be zero for serialized records -> not sure it's meaning
+		zero, err := rw.ReadShort(dbc.conx)
+		if err != nil {
+			return err
+		}
+		if zero != int16(0) {
+			return fmt.Errorf("ERROR: readResultSet: expected short value of 0 but is %d", zero)
+		}
 
-	for {
 		recType, err := rw.ReadByte(dbc.conx)
 		if err != nil {
 			return err
 		}
-		if recType == byte(0) { // TODO: I think this signals end of records => could also hv for loop over rsetSz
-			return nil
-		}
 		fmt.Printf("!!recType: %v\n", recType)
 
-		// TODO: move code below to readRecordInResultSet
 		clusterId, err := rw.ReadShort(dbc.conx)
 		if err != nil {
 			return err
@@ -931,24 +908,28 @@ func readResultSet(dbc *DbClient) error {
 		fmt.Printf("!!recVersion: %v\n", recVersion)
 		if recType == byte('d') { // Document
 			var doc *oschema.ODocument
-			doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
-			doc.Rid = fmt.Sprintf("%d:%d", clusterId, clusterPos)
-			doc.Version = recVersion
-
+			rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
 			recBytes, err := rw.ReadBytes(dbc.conx)
 			if err != nil {
 				return err
 			}
-			recBuf := bytes.NewBuffer(recBytes)
-			err = dbc.RecordSerializer.Deserialize(doc, recBuf)
+			doc, err = createDocument(rid, recVersion, recBytes, dbc)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("ResultSet Doc: %v\n", doc) // DEBUG
+		} else {
+			_, file, line, _ := runtime.Caller(0)
+			return fmt.Errorf("%v: %v: Record type %v is not yet supported", file, line+1, recType)
 		}
-	}
-}
+	} // end for loop
 
-func readRecordInResultSet(dbc *DbClient) error {
+	end, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return err
+	}
+	if end != byte(0) {
+		return fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+	}
 	return nil
 }

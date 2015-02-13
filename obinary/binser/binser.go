@@ -69,7 +69,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG 1: classname%v\n", classname)
+	fmt.Printf("DEBUG 1: classname: %v\n", classname)
 
 	if doc.Classname == "" {
 		doc.Classname = classname
@@ -236,6 +236,7 @@ func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
 	default:
 		err = errors.New("UnsupportedType: binser.readDataValue doesn't support all types yet ...")
 	}
+	fmt.Printf("DEBUG +readDataValue val: %v\n", val)
 
 	if err == nil {
 		field.Value = val

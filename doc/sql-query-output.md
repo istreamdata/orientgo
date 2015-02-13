@@ -129,3 +129,28 @@ Writing int (4 bytes): 1 [OChannelBinaryServer]    => int:record-version
                                 V   6   P    e    r    s    o    n     <-- ptr -->     4   L   u    k    e
 Writing bytes (4+19=23 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 1, 0, 0, 0, 14, 0, 8, 76, 117, 107, 101] [OChannelBinaryServer]  => record-content                                            ^              EOH
 Writing byte (1 byte): 0 [OChannelBinaryServer] => EOColl??         field-id=0
+
+
+
+### query with 2 records returning
+
+Read 38 bytes: qselect * from Foo���� [OChannelBinaryServer]
+Writing byte (1 byte): 0 [OChannelBinaryServer]
+Writing int (4 bytes): 67 [OChannelBinaryServer]
+Writing byte (1 byte): 108 [OChannelBinaryServer]  -> 'l' (Collection)
+Writing int (4 bytes): 2 [OChannelBinaryServer]    -> 2 records
+Writing short (2 bytes): 0 [OChannelBinaryServer]
+Writing byte (1 byte): 100 [OChannelBinaryServer]  -> record-type 'd'
+Writing short (2 bytes): 12 [OChannelBinaryServer] -> cluster-id
+Writing long (8 bytes): 0 [OChannelBinaryServer]    -> cluster-pos (#12:0)
+Writing int (4 bytes): 1 [OChannelBinaryServer]
+Writing bytes (4+25=29 bytes): 
+  [0, 6, 70, 111, 111, 43, 0, 0, 0, 16, 45, 0, 0, 0, 24, 0, 14, 75, 111, 111, 45, 108, 105, 111, 10] [OChannelBinaryServer]
+Writing short (2 bytes): 0 [OChannelBinaryServer]  -> short=0 start of new record
+Writing byte (1 byte): 100 [OChannelBinaryServer]  -> record-type 'd'
+Writing short (2 bytes): 12 [OChannelBinaryServer]
+Writing long (8 bytes): 1 [OChannelBinaryServer]   (#12:1)
+Writing int (4 bytes): 1 [OChannelBinaryServer]    -> version 1
+Writing bytes (4+25=29 bytes): 
+  [0, 6, 70, 111, 111, 43, 0, 0, 0, 16, 45, 0, 0, 0, 24, 0, 14, 77, 105, 99, 104, 97, 101, 108, 92] [OChannelBinaryServer]
+Writing byte (1 byte): 0 [OChannelBinaryServer]

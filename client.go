@@ -134,8 +134,25 @@ func dbCommands(dbc *obinary.DbClient) {
 	fmt.Println("Issuing command query: " + sql)
 	err = obinary.SQLQuery(dbc, sql)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "PERSON: WARN: %v\n", err)
+	}
+
+	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
+
+	fmt.Println("=+++++++++++++++++++++===")
+
+	sql = "select * from Carz"
+	fmt.Println("Issuing command query: " + sql)
+	err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
 	}
+
+	// select * from Foo			//
 
 	obinary.CloseDatabase(dbc)
 

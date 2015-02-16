@@ -10,6 +10,7 @@
 ** need to build an Interface for this and then do two impls
 * TODO Rename binser and csvser to binserde and csvserde
 * TODO Put under github.com/quux00 location so is "go gettable"
+* TODO Step through Java code `database.getMetadata().getSchema()` to see how it gets the metadata
 
 * TODO REQUEST_SHUTDOWN                       = 1
 * DONE REQUEST_CONNECT                        = 2

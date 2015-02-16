@@ -3,10 +3,15 @@
 //
 package oschema
 
+import (
+	"bytes"
+	"fmt"
+)
+
 type ODocument struct {
 	Rid     string
 	Version int
-	Fields  map[string]*OField // TODO: would probably be faster to just keep an array of *OField
+	Fields  map[string]*OField
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)
 
@@ -52,6 +57,14 @@ func (doc *ODocument) GetFieldById(id int32) *OField {
 }
 
 //
+// GetFieldByName looks up the OField in this document with the specified field.
+// If no field is found with that name, nil is returned.
+//
+func (doc *ODocument) GetFieldByName(fname string) *OField {
+	return doc.Fields[fname]
+}
+
+//
 // AddField adds a fully created field directly rather than by some of its
 // attributes, as the other "Field" methods do.
 // The same *ODocument is returned to allow call chaining.
@@ -69,7 +82,7 @@ func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) Field(name string, val interface{}) *ODocument {
-	var ftype int
+	var ftype byte
 	switch val.(type) {
 	case string:
 		ftype = STRING
@@ -105,7 +118,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
 // The same *ODocument is returned to allow call chaining.
 //
-func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType int) *ODocument {
+func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte) *ODocument {
 	fld := &OField{
 		Name:     name,
 		Fullname: doc.Classname + "." + name,
@@ -115,4 +128,25 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType int)
 	return doc.AddField(name, fld)
 }
 
-// TODO: need to add String() method
+//
+// String implements Stringer interface
+//
+func (doc *ODocument) String() string {
+	buf := new(bytes.Buffer)
+	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; Fields: \n",
+		doc.Classname, doc.Rid, doc.Version))
+	if err != nil {
+		panic(err)
+	}
+
+	for _, fld := range doc.Fields {
+		_, err = buf.WriteString(fmt.Sprintf("  %s\n", fld.String()))
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	buf.Truncate(buf.Len() - 1)
+	buf.WriteRune(']')
+	return buf.String()
+}

@@ -69,7 +69,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG 1: classname: %v\n", classname)
+	fmt.Printf("DEBUG 1: classname: >>%v<< (might be empty string - that's OK!!')\n", classname) // DEBUG
 
 	if doc.Classname == "" {
 		doc.Classname = classname
@@ -85,21 +85,47 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	}
 	fmt.Printf("DEBUG 2: header%v\n", header)
 
-	for i, fid := range header.fieldIds {
-		ofield := doc.GetFieldById(fid)
-		if ofield == nil {
-			// TODO: have to look up the field metadata from the server
-			ofield = &oschema.OField{ // FIXME: BOGUS!!
-				Id:   fid,
-				Name: fmt.Sprintf("foo%d", i),
-				Typ:  oschema.STRING,
+	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
+
+	if len(header.propertyNames) > 0 {
+		// was a property query, not a Document query (classname is empty string)
+		for i, pname := range header.propertyNames {
+			ofield := doc.GetFieldByName(pname)
+			if ofield == nil {
+				ofield = &oschema.OField{
+					Name: pname,
+					Typ:  header.types[i],
+				}
 			}
-			doc.Fields[ofield.Name] = ofield // can't use AddField(), since it sets the dirty flag
+			ofields = append(ofields, ofield)
 		}
-		err = readDataValue(buf, ofield)
+	}
+
+	if len(ofields) == 0 {
+		// was a Document query which returns propertyIds, not property names
+		for i, fid := range header.propertyIds {
+			// this needs to change to look up property name
+			ofield := doc.GetFieldById(fid)
+			if ofield == nil {
+				fname := fmt.Sprintf("foo%d", i) // FIXME: need to look this up from the schema
+				ftype := byte(oschema.STRING)    // FIXME: need to look this up from the schema
+				ofield = &oschema.OField{
+					Id:       fid,
+					Name:     fname,
+					Fullname: classname + "." + fname,
+					Typ:      ftype,
+				}
+			}
+		}
+	}
+
+	// once the fields are created, we can now fill in the values
+	for _, fld := range ofields {
+		err = readDataValue(buf, fld)
 		if err != nil {
 			return err
 		}
+		doc.Fields[fld.Name] = fld
 	}
 
 	return nil
@@ -124,9 +150,14 @@ func (ser ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes
 	return nil
 }
 
+// TODO: might want to make this an interface since headers
+//       either seem to have ids or names and types, but not both (all have dataPtrs)
+//       so we can could two different headers depending on the type of query
 type header struct {
-	fieldIds []int32
-	dataPtrs []int
+	propertyIds   []int32
+	propertyNames []string
+	dataPtrs      []int
+	types         []byte
 }
 
 /* ---[ helper fns ]--- */
@@ -160,52 +191,71 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 }
 
 func readHeader(buf *bytes.Buffer) (header, error) {
-	var (
-		b       byte
-		fieldId int32
-		ptr     int
-		err     error
-	)
 	hdr := header{
-		fieldIds: make([]int32, 0, 8),
-		dataPtrs: make([]int, 0, 8),
+		propertyIds:   make([]int32, 0, 8),
+		propertyNames: make([]string, 0, 8),
+		dataPtrs:      make([]int, 0, 8),
+		types:         make([]byte, 0, 8),
 	}
 
 	for {
-		b, err = buf.ReadByte()
+		// _, _, line, _ := runtime.Caller(0) // TODO: check if this is correct
+
+		decoded, err := varint.ReadVarIntAndDecode32(buf)
 		if err != nil {
-			_, _, line, _ := runtime.Caller(0) // TODO: check if this is correct
+			_, _, line, _ := runtime.Caller(0)
 			return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 		}
-		// 0 marks the end of the header
-		if b == byte(0) {
+
+		if decoded == 0 { // 0 marks end of header
 			break
-		}
 
-		if err = buf.UnreadByte(); err != nil {
-			_, _, line, _ := runtime.Caller(0)
-			return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
-		}
+		} else if decoded > 0 {
+			// have a property, not a document, so the number is a zigzag encoded length for string (property name)
 
-		fieldId, err = decodeFieldIdInHeader(buf)
-		if err != nil {
-			return header{}, err
-		}
-		if fieldId < 0 {
-			return header{},
-				fmt.Errorf("Varint for field name len in binary serialization was negative: ", fieldId)
-		}
-		fmt.Printf(">>> fieldId: %v\n", fieldId) // DEBUG
+			// read property name
+			size := int(decoded)
+			data := buf.Next(size)
+			if len(data) != size {
+				return header{}, rw.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+			}
+			hdr.propertyNames = append(hdr.propertyNames, string(data))
 
-		ptr, err = rw.ReadInt(buf)
-		if err != nil {
-			_, _, line, _ := runtime.Caller(0)
-			return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
-		}
-		fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
+			// read data pointer
+			ptr, err := rw.ReadInt(buf)
+			if err != nil {
+				_, _, line, _ := runtime.Caller(0)
+				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+			}
+			fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
 
-		hdr.fieldIds = append(hdr.fieldIds, fieldId)
-		hdr.dataPtrs = append(hdr.dataPtrs, ptr)
+			// read data type
+			dataType, err := buf.ReadByte()
+			if err != nil {
+				_, _, line, _ := runtime.Caller(0)
+				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+			}
+			fmt.Printf(">>> dataType: %v\n", dataType) // DEBUG
+			hdr.types = append(hdr.types, dataType)
+
+		} else {
+			// have a document, not a property, so the number is an encoded property id,
+			// convert to (positive) property-id
+			propertyId := decodeFieldIdInHeader(decoded)
+			fmt.Printf(">>> propertyId: %v\n", propertyId) // DEBUG
+
+			ptr, err := rw.ReadInt(buf)
+			if err != nil {
+				_, _, line, _ := runtime.Caller(0)
+				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+			}
+			fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
+
+			hdr.propertyIds = append(hdr.propertyIds, propertyId)
+			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
+
+			// TODO: need to look up name and type => should we do it here?
+		}
 	}
 
 	return hdr, nil
@@ -213,16 +263,16 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 
 //
 // readDataValue reads the next data section from `buf` according
-// to the type of the field (field.Typ) and updates the OField object
+// to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
+func readDataValue(buf *bytes.Buffer, property *oschema.OField) error {
 	var (
 		val interface{}
 		err error
 	)
 	// TODO: add more cases
-	switch field.Typ {
+	switch property.Typ {
 	case oschema.STRING:
 		val, err = varint.ReadString(buf)
 	case oschema.INTEGER:
@@ -239,7 +289,7 @@ func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
 	fmt.Printf("DEBUG +readDataValue val: %v\n", val)
 
 	if err == nil {
-		field.Value = val
+		property.Value = val
 	}
 	return err
 }
@@ -247,18 +297,12 @@ func readDataValue(buf *bytes.Buffer, field *oschema.OField) error {
 func encodeFieldIdForHeader(id int32) []byte {
 	// TODO: impl me
 	// formulate for encoding is:
-	// zigzagEncode( (fieldId+1) * -1 )
+	// zigzagEncode( (propertyId+1) * -1 )
 	// and then turn in varint []byte
 	return nil
 }
 
-func decodeFieldIdInHeader(buf *bytes.Buffer) (int32, error) {
-	var uencoded uint32
-	err := varint.ReadVarIntBuf(buf, &uencoded)
-	if err != nil {
-		return 0, err
-	}
-	iencoded := varint.ZigzagDecodeInt32(uencoded)
-	fieldId := (iencoded * -1) + 1
-	return fieldId, nil
+func decodeFieldIdInHeader(decoded int32) int32 {
+	propertyId := (decoded * -1) + 1
+	return propertyId
 }

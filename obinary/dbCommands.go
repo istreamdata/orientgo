@@ -544,7 +544,7 @@ func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, e
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
-		//       2) provide a DropClusterById(dbc, clusterId)
+		//       2) provide a GetClusterRangeById(dbc, clusterId)
 		return begin, end,
 			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
 	}
@@ -917,7 +917,7 @@ func readResultSet(dbc *DbClient) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("ResultSet Doc: %v\n", doc) // DEBUG
+			fmt.Printf("ResultSet Doc: \n%v\n", doc) // DEBUG
 		} else {
 			_, file, line, _ := runtime.Caller(0)
 			return fmt.Errorf("%v: %v: Record type %v is not yet supported", file, line+1, recType)

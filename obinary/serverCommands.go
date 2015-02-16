@@ -7,6 +7,13 @@ import (
 	"ogonori/obinary/rw"
 )
 
+///
+/// In the Java client the "server command" functionality is encapsulated
+/// the OServerAdmin class.  TODO: may want to follow suit rather than
+/// using the same DbClient for both server-commands and db-commands,
+/// especially since (I think) they have separate logins.
+///
+
 //
 // CreateServerSession logs into the OrientDB server with the appropriate
 // admin privileges in order to execute server-level commands (as opposed

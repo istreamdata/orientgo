@@ -66,6 +66,8 @@ func serverCommands(dbc *obinary.DbClient) {
 func dbCommands(dbc *obinary.DbClient) {
 	fmt.Println("\n-------- database-level commands --------")
 
+	var sql string
+
 	fmt.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, "cars", obinary.DocumentDbType, "admin", "admin")
 	if err != nil {
@@ -130,29 +132,36 @@ func dbCommands(dbc *obinary.DbClient) {
 	// 	log.Fatal(err)
 	// }
 
-	sql := "select * from Person where name = 'Luke'"
-	fmt.Println("Issuing command query: " + sql)
-	err = obinary.SQLQuery(dbc, sql)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "PERSON: WARN: %v\n", err)
-	}
+	// sql := "select * from Person where name = 'Luke'"
+	// fmt.Println("Issuing command query: " + sql)
+	// err = obinary.SQLQuery(dbc, sql)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "PERSON: WARN: %v\n", err)
+	// }
 
-	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
+	// begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
+
+	// fmt.Println("=+++++++++++++++++++++===")
+
+	// sql = "select * from Carz"
+	// fmt.Println("Issuing command query: " + sql)
+	// err = obinary.SQLQuery(dbc, sql)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+	// }
 
 	fmt.Println("=+++++++++++++++++++++===")
 
-	sql = "select * from Carz"
+	sql = "select model, make from Carz"
 	fmt.Println("Issuing command query: " + sql)
 	err = obinary.SQLQuery(dbc, sql)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+		fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
 	}
-
-	// select * from Foo			//
 
 	obinary.CloseDatabase(dbc)
 

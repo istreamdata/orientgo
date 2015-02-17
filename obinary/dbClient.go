@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"ogonori/obinary/binser"
 	"os"
+
+	"github.com/quux00/ogonori/obinary/binser"
 )
 
 // TODO: pattern this after OStorageRemote ?

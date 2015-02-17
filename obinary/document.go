@@ -2,7 +2,8 @@ package obinary
 
 import (
 	"bytes"
-	"ogonori/oschema"
+
+	"github.com/quux00/ogonori/oschema"
 )
 
 //

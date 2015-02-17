@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"ogonori/obinary/rw"
+
+	"github.com/quux00/ogonori/obinary/rw"
 )
 
 ///

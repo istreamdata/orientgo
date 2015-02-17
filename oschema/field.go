@@ -43,6 +43,6 @@ type OField struct {
 // String implements Stringer interface
 //
 func (fld *OField) String() string {
-	return fmt.Sprintf("OField[id: %d; name: %s; fullname: %s, typ: %d; value: %v]",
+	return fmt.Sprintf("OField[id: %d; name: %s; fullname: %s, datatype: %d; value: %v]",
 		fld.Id, fld.Name, fld.Fullname, fld.Typ, fld.Value)
 }

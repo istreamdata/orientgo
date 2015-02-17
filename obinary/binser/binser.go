@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"ogonori/obinary/binser/varint"
-	"ogonori/obinary/rw"
-	"ogonori/oschema"
 	"runtime"
+
+	"github.com/quux00/ogonori/obinary/binser/varint"
+	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oschema"
 )
 
 //
@@ -116,6 +117,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 					Typ:      ftype,
 				}
 			}
+			ofields = append(ofields, ofield)
 		}
 	}
 

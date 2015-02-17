@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"ogonori/obinary"
 	"os"
+
+	"github.com/quux00/ogonori/obinary"
 )
 
 func serverCommands(dbc *obinary.DbClient) {
@@ -145,16 +146,16 @@ func dbCommands(dbc *obinary.DbClient) {
 	// }
 	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
-	// fmt.Println("=+++++++++++++++++++++===")
-
-	// sql = "select * from Carz"
-	// fmt.Println("Issuing command query: " + sql)
-	// err = obinary.SQLQuery(dbc, sql)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
-	// }
-
 	fmt.Println("=+++++++++++++++++++++===")
+
+	sql = "select * from Carz"
+	fmt.Println("Issuing command query: " + sql)
+	err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+	}
+
+	fmt.Println("\n\n=+++++++++++++++++++++===")
 
 	sql = "select model, make from Carz"
 	fmt.Println("Issuing command query: " + sql)

@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"ogonori/obinary/rw"
-	"ogonori/oschema"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oschema"
 )
 
 //

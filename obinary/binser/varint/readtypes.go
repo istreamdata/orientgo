@@ -3,7 +3,8 @@ package varint
 import (
 	"bytes"
 	"fmt"
-	"ogonori/obinary/rw"
+
+	"github.com/quux00/ogonori/obinary/rw"
 )
 
 func ReadBytes(buf *bytes.Buffer) ([]byte, error) {

@@ -146,23 +146,34 @@ func dbCommands(dbc *obinary.DbClient) {
 	// }
 	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
-	fmt.Println("=+++++++++++++++++++++===")
+	// fmt.Println("=+++++++++++++++++++++===")
 
-	sql = "select * from Carz"
-	fmt.Println("Issuing command query: " + sql)
-	err = obinary.SQLQuery(dbc, sql)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
-	}
+	// sql = "select * from Carz"
+	// fmt.Println("Issuing command query: " + sql)
+	// err = obinary.SQLQuery(dbc, sql)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+	// }
+
+	// fmt.Println("\n\n=+++++++++++++++++++++===")
+
+	// sql = "select model, make from Carz"
+	// fmt.Println("Issuing command query: " + sql)
+	// err = obinary.SQLQuery(dbc, sql)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
+	// }
 
 	fmt.Println("\n\n=+++++++++++++++++++++===")
+	// GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
 
-	sql = "select model, make from Carz"
-	fmt.Println("Issuing command query: " + sql)
-	err = obinary.SQLQuery(dbc, sql)
+	sql = "#0:1"
+
+	docs, err := obinary.GetRecordByRID(dbc, sql, "")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
+		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
 	}
+	fmt.Printf("len(docs):: %v\n", len(docs))
 
 	obinary.CloseDatabase(dbc)
 

@@ -19,7 +19,9 @@ type ORecordSerializer interface {
 	//
 	// Deserialize reads bytes from the bytes.Buffer and puts the data into the
 	// ODocument object.  The ODocument must already be created; nil cannot be
-	// passed in for the `doc` field.
+	// passed in for the `doc` field.  The serialization version (the first byte
+	// of the serialized record) should be stripped off (already read) from the
+	// bytes.Buffer being passed in
 	//
 	Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error // TODO: should this take an io.Reader instead of *bytes.Buffer ???
 
@@ -52,18 +54,13 @@ type ORecordSerializerV0 struct {
 	// TODO: need any internal data?
 }
 
-func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+//
+// The serialization version (the first byte of the serialized record) should
+// be stripped off (already read) from the bytes.Buffer being passed in
+//
+func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
-	}
-
-	version, err := readSerializationVersion(buf)
-	if err != nil {
-		return err
-	}
-	if version != byte(0) {
-		return fmt.Errorf("ORecordSerializerBinaryV0 can only de/serialize version 0. Serialization version from server was %d",
-			version)
 	}
 
 	classname, err := readClassname(buf)
@@ -72,13 +69,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	}
 	fmt.Printf("DEBUG 1: classname: >>%v<< (might be empty string - that's OK!!')\n", classname) // DEBUG
 
-	if doc.Classname == "" {
-		doc.Classname = classname
-
-	} else if doc.Classname != classname {
-		return fmt.Errorf("Classname clash. Classname in ODocument is %s; classname in serialized record is %s",
-			doc.Classname, classname)
-	}
+	doc.Classname = classname
 
 	header, err := readHeader(buf)
 	if err != nil {
@@ -89,7 +80,7 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
 
 	if len(header.propertyNames) > 0 {
-		// was a property query, not a Document query (classname is empty string)
+		// we are deserializing properties (classname is empty string)
 		for i, pname := range header.propertyNames {
 			ofield := doc.GetFieldByName(pname)
 			if ofield == nil {
@@ -122,11 +113,15 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 	}
 
 	// once the fields are created, we can now fill in the values
-	for _, fld := range ofields {
-		err = readDataValue(buf, fld)
-		if err != nil {
-			return err
+	for i, fld := range ofields {
+		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
+		if header.dataPtrs[i] != 0 {
+			err = serde.readDataValue(buf, fld)
+			if err != nil {
+				return err
+			}
 		}
+
 		doc.Fields[fld.Name] = fld
 	}
 
@@ -137,18 +132,18 @@ func (ser ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Bu
 // TODO: need to study what exactly this method is supposed to do and not do
 //       -> check the Java driver version
 //
-func (ser ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
+func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
 	buf *bytes.Buffer, fields []string) error {
 
 	// TODO: impl me
 	return nil
 }
 
-func (ser ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
 }
 
-func (ser ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
 }
 
@@ -163,10 +158,6 @@ type header struct {
 }
 
 /* ---[ helper fns ]--- */
-
-func readSerializationVersion(buf *bytes.Buffer) (byte, error) {
-	return buf.ReadByte()
-}
 
 func readClassname(buf *bytes.Buffer) (string, error) {
 	var (
@@ -229,7 +220,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
+			fmt.Printf(">>>ptr: %v\n", ptr) // DEBUG
 
 			// read data type
 			dataType, err := buf.ReadByte()
@@ -237,21 +228,22 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf(">>> dataType: %v\n", dataType) // DEBUG
+			fmt.Printf(">>>dataType: %v\n", dataType) // DEBUG
 			hdr.types = append(hdr.types, dataType)
+			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 
 		} else {
 			// have a document, not a property, so the number is an encoded property id,
 			// convert to (positive) property-id
 			propertyId := decodeFieldIdInHeader(decoded)
-			fmt.Printf(">>> propertyId: %v\n", propertyId) // DEBUG
+			fmt.Printf("<<< propertyId: %v\n", propertyId) // DEBUG
 
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf(">>> ptr: %v\n", ptr) // DEBUG
+			fmt.Printf("<<< ptr: %v\n", ptr) // DEBUG
 
 			hdr.propertyIds = append(hdr.propertyIds, propertyId)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
@@ -268,7 +260,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func readDataValue(buf *bytes.Buffer, property *oschema.OField) error {
+func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, property *oschema.OField) error {
 	var (
 		val interface{}
 		err error
@@ -277,23 +269,84 @@ func readDataValue(buf *bytes.Buffer, property *oschema.OField) error {
 	switch property.Typ {
 	case oschema.STRING:
 		val, err = varint.ReadString(buf)
+		fmt.Printf("DEBUG STR: +readDataValue val: %v\n", val) // DEBUG
 	case oschema.INTEGER:
-		val, err = rw.ReadInt(buf)
+		val, err = varint.ReadVarIntAndDecode32(buf)
+		fmt.Printf("DEBUG INT: +readDataValue val: %v\n", val) // DEBUG
+	case oschema.LONG:
+		val, err = varint.ReadVarIntAndDecode64(buf)
+		fmt.Printf("DEBUG LONG: +readDataValue val: %v\n", val) // DEBUG
 	case oschema.SHORT:
 		val, err = rw.ReadShort(buf)
+		fmt.Printf("DEBUG SHORT: +readDataValue val: %v\n", val) // DEBUG
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)
+		fmt.Printf("DEBUG BOOL: +readDataValue val: %v\n", val) // DEBUG
 	case oschema.BINARY:
 		val, err = varint.ReadBytes(buf)
+		fmt.Printf("DEBUG BINARY: +readDataValue val: %v\n", val) // DEBUG
+	case oschema.EMBEDDED_LIST:
+		val, err = serde.readEmbeddedCollection(buf)
+		fmt.Printf("DEBUG EMBD-LIST: +readDataValue val: %v\n", val) // DEBUG
+	case oschema.EMBEDDED_SET:
+		val, err = serde.readEmbeddedCollection(buf)                // TODO: may need to create a set type as well
+		fmt.Printf("DEBUG EMBD-SET: +readDataValue val: %v\n", val) // DEBUG
 	default:
-		err = errors.New("UnsupportedType: binser.readDataValue doesn't support all types yet ...")
+		err = fmt.Errorf("UnsupportedType: %v binser.readDataValue doesn't support all types yet ...", property.Typ)
 	}
-	fmt.Printf("DEBUG +readDataValue val: %v\n", val)
 
 	if err == nil {
 		property.Value = val
 	}
 	return err
+}
+
+//
+// readEmbeddedCollection handles both EMBEDDED_LIST and EMBEDDED_SET types.
+// Java client API:
+//     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
+//     `found`` gets added to during the recursive iterations
+//
+func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]*oschema.ODocument, error) {
+	nrecs, err := varint.ReadVarIntAndDecode32(buf)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Number of recs in EMBEDDED LIST:: %v\n", nrecs) // DEBUG
+
+	datatype, err := rw.ReadByte(buf)
+	if err != nil {
+		return nil, err
+	}
+	if datatype != oschema.ANY {
+		// NOTE: currently the Java client doesn't handle this case either, so safe for now
+		panic(fmt.Sprintf("ReadEmbeddedList got a datatype %v - currently that datatype is not supported", datatype))
+	}
+
+	docs := make([]*oschema.ODocument, int(nrecs))
+
+	// loop over all recs
+	for i := range docs {
+		// if type is ANY (unknown), then the next byte specifies the type of record to follow
+		itemtype, err := rw.ReadByte(buf)
+		if itemtype == oschema.ANY {
+			docs[i] = nil // this is what the Java client does
+			continue
+		}
+
+		// TODO: here the Java version recurses to readSingleValue -> does our readDataValue work here?
+		//   no -> readSingleValue ends up called OSerilizer#deserialize
+		var doc *oschema.ODocument
+		doc = oschema.NewDocument("")
+		fmt.Printf("\n(((((((((((((RECURSE DESERIALIZE %d)))))))))))))\n", i) // DEBUG
+		err = serde.Deserialize(doc, buf)
+		if err != nil {
+			return nil, err
+		}
+		docs[i] = doc
+	}
+
+	return docs, nil
 }
 
 func encodeFieldIdForHeader(id int32) []byte {

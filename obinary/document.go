@@ -18,8 +18,11 @@ func createDocument(rid string, recVersion int, serializedDoc []byte, dbc *DbCli
 
 	// TODO: here need to make a query to look up the schema of the doc if we don't have it already cached
 
-	recBuf := bytes.NewBuffer(serializedDoc)
-	err := dbc.RecordSerializer.Deserialize(doc, recBuf)
+	// the first byte specifies record serialization version
+	// use it to look up serializer and strip off that byte
+	serde := dbc.RecordSerDes[int(serializedDoc[0])]
+	recBuf := bytes.NewBuffer(serializedDoc[1:])
+	err := serde.Deserialize(doc, recBuf)
 	if err != nil {
 		return nil, err
 	}

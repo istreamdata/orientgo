@@ -385,13 +385,20 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 			return nil, err
 		}
 
+		// DEBUG
+		fmt.Printf("rectype:%v, recversion:%v, len(databytes):%v\n", rectype, recversion, len(databytes))
+		// END DEBUG
+
 		if rectype == 'd' {
 			// we don't know the classname so set empty value
 			doc := oschema.NewDocument("")
 			doc.Rid = rid
 			doc.Version = recversion
 
-			err = dbc.RecordSerializer.Deserialize(doc, bytes.NewBuffer(databytes))
+			// the first byte specifies record serialization version
+			// use it to look up serializer and strip off that byte
+			serde := dbc.RecordSerDes[int(databytes[0])]
+			err = serde.Deserialize(doc, bytes.NewBuffer(databytes[1:]))
 			if err != nil {
 				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)
 			}

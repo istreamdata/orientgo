@@ -3,6 +3,7 @@ package oschema
 import "fmt"
 
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
+// Note: I'm treating these as type byte - they are Enum objects in the Java code
 const (
 	BOOLEAN         = 0
 	INTEGER         = 1
@@ -27,10 +28,12 @@ const (
 	CUSTOM          = 20
 	DECIMAL         = 21
 	LINK_BAG        = 22
-	ANY             = 23
+	ANY             = 23 // BTW: ANY == UNKNOWN/UNSPECIFIED
 )
 
-// roughly corresponds to OProperty in Java client
+//
+// OField roughly corresponds to OProperty in Java client.
+//
 type OField struct {
 	Id       int32 // TODO: is the size specified in OrientDB docs?
 	Name     string

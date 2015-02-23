@@ -7,6 +7,7 @@ type ODatabase struct {
 	Typ      string // DocumentDbType or GraphDbType
 	Clusters []OCluster
 	ClustCfg []byte
+	// TODO: should GlobalProperties be added here rather than DbClient?
 }
 
 type OCluster struct {

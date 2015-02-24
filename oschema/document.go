@@ -11,7 +11,7 @@ import (
 type ODocument struct {
 	Rid     string
 	Version int
-	Fields  map[string]*OField
+	Fields  map[string]*OField // key: property-name
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)
 
@@ -147,6 +147,6 @@ func (doc *ODocument) String() string {
 	}
 
 	buf.Truncate(buf.Len() - 1)
-	buf.WriteRune(']')
+	buf.WriteString("]\n")
 	return buf.String()
 }

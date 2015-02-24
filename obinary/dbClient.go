@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/quux00/ogonori/obinary/binser"
-	"github.com/quux00/ogonori/oschema"
 )
 
 // TODO: pattern this after OStorageRemote ?
@@ -20,8 +19,7 @@ type DbClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	currDb                *ODatabase
-	RecordSerDes          []binser.ORecordSerializer      // this is for de/serializing ODocument -> separate one for Graph objects?
-	GlobalProperties      map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
+	RecordSerDes          []binser.ORecordSerializer // this is for de/serializing ODocument -> separate one for Graph objects?
 }
 
 //
@@ -93,7 +91,6 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		binaryProtocolVersion: svrProtocolNum,
 		sessionId:             NoSessionId,
 		RecordSerDes:          []binser.ORecordSerializer{serdeV0},
-		GlobalProperties:      make(map[int]oschema.OGlobalProperty),
 	}
 	return dbc, nil
 }

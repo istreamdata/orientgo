@@ -1,13 +1,22 @@
 package obinary
 
+import "github.com/quux00/ogonori/oschema"
+
 // --------
 
 type ODatabase struct {
-	Name     string
-	Typ      string // DocumentDbType or GraphDbType
-	Clusters []OCluster
-	ClustCfg []byte
-	// TODO: should GlobalProperties be added here rather than DbClient?
+	Name             string
+	Typ              string // DocumentDbType or GraphDbType
+	Clusters         []OCluster
+	ClustCfg         []byte // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
+	SchemaVersion    int32
+	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
+}
+
+func NewDatabase(name, dbtype string) *ODatabase {
+	gp := make(map[int]oschema.OGlobalProperty)
+
+	return &ODatabase{Name: name, Typ: dbtype, SchemaVersion: -1, GlobalProperties: gp}
 }
 
 type OCluster struct {

@@ -86,7 +86,7 @@ func TestReadBytesWithTooFewEntries(t *testing.T) {
 
 	bs, err = ReadBytes(rdr)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{expected: 12, actual: 5}, err)
+	equals(t, IncorrectNetworkRead{Expected: 12, Actual: 5}, err)
 	assert(t, bs == nil, "bs should be nil")
 }
 
@@ -133,7 +133,7 @@ func TestReadLongWithBadInputs(t *testing.T) {
 	buf = bytes.NewBuffer(data)
 	outval, err = ReadLong(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{expected: 8, actual: 4}, err)
+	equals(t, IncorrectNetworkRead{Expected: 8, Actual: 4}, err)
 	equals(t, int64(DEFAULT_RETVAL), outval)
 }
 
@@ -155,6 +155,44 @@ func TestReadInt(t *testing.T) {
 	}
 }
 
+func TestReadFloat(t *testing.T) {
+	var outval float32
+	data := []float32{0, -0.00003, 893421.883472, -88842.255}
+
+	buf := new(bytes.Buffer)
+	for _, inval := range data {
+		buf.Reset()
+
+		// turn float32 into bytes
+		err = binary.Write(buf, binary.BigEndian, inval)
+		ok(t, err)
+
+		// bytes -> float32
+		outval, err = ReadFloat(buf)
+		ok(t, err)
+		equals(t, inval, outval)
+	}
+}
+
+func TestReadDouble(t *testing.T) {
+	var outval float64
+	data := []float64{0, -0.0000000000000003, 9000000088880000000893421.8838800472, -388842.255}
+
+	buf := new(bytes.Buffer)
+	for _, inval := range data {
+		buf.Reset()
+
+		// turn float32 into bytes
+		err = binary.Write(buf, binary.BigEndian, inval)
+		ok(t, err)
+
+		// bytes -> float64
+		outval, err = ReadDouble(buf)
+		ok(t, err)
+		equals(t, inval, outval)
+	}
+}
+
 func TestReadIntWithBadInputs(t *testing.T) {
 	// no input
 	var outval int
@@ -168,7 +206,7 @@ func TestReadIntWithBadInputs(t *testing.T) {
 	buf = bytes.NewBuffer(data)
 	outval, err = ReadInt(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{expected: 4, actual: 3}, err)
+	equals(t, IncorrectNetworkRead{Expected: 4, Actual: 3}, err)
 	equals(t, int(DEFAULT_RETVAL), outval)
 }
 
@@ -212,13 +250,16 @@ func TestReadStringWithSizeLargerThanString(t *testing.T) {
 
 	outstr, err := ReadString(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{expected: 200, actual: 3}, err)
+	equals(t, IncorrectNetworkRead{Expected: 200, Actual: 3}, err)
 	equals(t, "", outstr)
 }
 
 func TestReadErrorResponseWithSingleException(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
+	err = WriteByte(buf, byte(1)) // indicates continue of exception class/msg array
+	ok(t, err)
+
+	err := WriteStrings(buf, "org.foo.BlargException", "wibble wibble!!")
 	ok(t, err)
 
 	err = WriteByte(buf, byte(0)) // indicates end of exception class/msg array
@@ -233,11 +274,14 @@ func TestReadErrorResponseWithSingleException(t *testing.T) {
 
 	var serverExc OServerException = exceptions[0]
 	equals(t, "org.foo.BlargException", serverExc.Class)
-	equals(t, "Too many blorgles!!", serverExc.Message)
+	equals(t, "wibble wibble!!", serverExc.Message)
 }
 
 func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
 	buf := new(bytes.Buffer)
+	err = WriteByte(buf, byte(1)) // indicates more exceptions to come
+	ok(t, err)
+
 	err := WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
 	ok(t, err)
 

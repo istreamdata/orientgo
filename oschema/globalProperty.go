@@ -16,7 +16,7 @@ type OGlobalProperty struct {
 //
 // based on how the Java client does it ; TODO: document usage
 //
-func NewFromDocument(doc *ODocument) OGlobalProperty {
+func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
 	// set defaults
 	id := int32(-1)
 	name := ""
@@ -29,10 +29,63 @@ func NewFromDocument(doc *ODocument) OGlobalProperty {
 		name = fld.Value.(string)
 	}
 	if fld, ok := doc.Fields["type"]; ok {
-		typ = fld.Value.(byte)
+		typ = typeFromString(fld.Value.(string))
 	}
 
 	return OGlobalProperty{id, name, typ}
+}
+
+func typeFromString(typ string) byte {
+	switch typ {
+	case "BOOLEAN":
+		return BOOLEAN
+	case "INTEGER":
+		return INTEGER
+	case "LONG":
+		return LONG
+	case "FLOAT":
+		return FLOAT
+	case "DOUBLE":
+		return DOUBLE
+	case "DATETIME":
+		return DATETIME
+	case "STRING":
+		return STRING
+	case "BINARY":
+		return BINARY
+	case "EMBEDDEDRECORD":
+		return EMBEDDEDRECORD
+	case "EMBEDDEDLIST":
+		return EMBEDDEDLIST
+	case "EMBEDDEDSET":
+		return EMBEDDEDSET
+	case "EMBEDDEDMAP":
+		return EMBEDDEDMAP
+	case "LINK":
+		return LINK
+	case "LINKLIST":
+		return LINKLIST
+	case "LINKSET":
+		return LINKSET
+	case "LINKMAP":
+		return LINKMAP
+	case "BYTE":
+		return BYTE
+	case "TRANSIENT":
+		return TRANSIENT
+	case "DATE":
+		return DATE
+	case "CUSTOM":
+		return CUSTOM
+	case "DECIMAL":
+		return DECIMAL
+	case "LINKBAG":
+		return LINKBAG
+	case "ANY":
+		return ANY
+	default:
+		panic("Unkwown type: " + typ)
+	}
 }
 
 // TODO: Java client also has `toDocument`

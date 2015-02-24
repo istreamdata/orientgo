@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -84,7 +85,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 		return err
 	}
 
-	dbc.currDb = &ODatabase{Name: dbname, Typ: dbtype}
+	dbc.currDb = NewDatabase(dbname, dbtype)
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
 	sessionValSent, err := rw.ReadInt(dbc.conx)
@@ -155,6 +156,45 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO: now we have to query records #0:0 and #1:0 (and maybe others??)
+	// TODO: put this in a different helper fn
+	fmt.Println("=======================================\n=======================================\n=======================================")
+	docs, err := GetRecordByRID(dbc, "#0:1", "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
+	}
+	fmt.Printf("len(docs):: %v\n", len(docs))
+	doc0 := docs[0]
+	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+	fmt.Println("Field names:")
+	for k, _ := range doc0.Fields {
+		fmt.Printf("  %v\n", k)
+	}
+	schemaVersion := doc0.Fields["schemaVersion"]
+	fmt.Printf("%v\n", schemaVersion)
+	dbc.currDb.SchemaVersion = schemaVersion.Value.(int32)
+	fmt.Printf("%v\n", *dbc.currDb)
+
+	globalPropsFld := doc0.Fields["globalProperties"]
+	fmt.Printf("\nglobalPropsFld.Typ: %v; type of Value: %T\n", globalPropsFld.Typ, globalPropsFld.Value)
+	gpFld0 := globalPropsFld.Value.([]interface{})[0].(*oschema.ODocument)
+	fmt.Printf("%v\n", gpFld0)
+	var globalProperty oschema.OGlobalProperty = oschema.NewGlobalPropertyFromDocument(gpFld0)
+	fmt.Printf("++ %v\n", globalProperty)
+
+	for _, pfield := range globalPropsFld.Value.([]interface{}) {
+		pdoc := pfield.(*oschema.ODocument)
+		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
+		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
+	}
+
+	fmt.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
+	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
+	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[2].Type)
+	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[23].Name)
+
+	fmt.Println("=======================================\n=======================================\n=======================================")
 
 	return nil
 }

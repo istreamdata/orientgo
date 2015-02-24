@@ -5,30 +5,30 @@ import "fmt"
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
 // Note: I'm treating these as type byte - they are Enum objects in the Java code
 const (
-	BOOLEAN         = 0
-	INTEGER         = 1
-	SHORT           = 2
-	LONG            = 3
-	FLOAT           = 4
-	DOUBLE          = 5
-	DATETIME        = 6
-	STRING          = 7
-	BINARY          = 8 // means []byte
-	EMBEDDED_RECORD = 9
-	EMBEDDED_LIST   = 10
-	EMBEDDED_SET    = 11
-	EMBEDDED_MAP    = 12
-	LINK            = 13
-	LINK_LIST       = 14
-	LINK_SET        = 15
-	LINK_MAP        = 16
-	BYTE            = 17
-	TRANSIENT       = 18
-	DATE            = 19
-	CUSTOM          = 20
-	DECIMAL         = 21
-	LINK_BAG        = 22
-	ANY             = 23 // BTW: ANY == UNKNOWN/UNSPECIFIED
+	BOOLEAN        = 0
+	INTEGER        = 1
+	SHORT          = 2
+	LONG           = 3
+	FLOAT          = 4
+	DOUBLE         = 5
+	DATETIME       = 6
+	STRING         = 7
+	BINARY         = 8 // means []byte
+	EMBEDDEDRECORD = 9
+	EMBEDDEDLIST   = 10
+	EMBEDDEDSET    = 11
+	EMBEDDEDMAP    = 12
+	LINK           = 13
+	LINKLIST       = 14
+	LINKSET        = 15
+	LINKMAP        = 16
+	BYTE           = 17
+	TRANSIENT      = 18
+	DATE           = 19
+	CUSTOM         = 20
+	DECIMAL        = 21
+	LINKBAG        = 22
+	ANY            = 23 // BTW: ANY == UNKNOWN/UNSPECIFIED
 )
 
 //

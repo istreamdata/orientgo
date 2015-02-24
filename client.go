@@ -67,7 +67,7 @@ func serverCommands(dbc *obinary.DbClient) {
 func dbCommands(dbc *obinary.DbClient) {
 	fmt.Println("\n-------- database-level commands --------")
 
-	var sql string
+	// var sql string
 
 	fmt.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, "cars", obinary.DocumentDbType, "admin", "admin")
@@ -167,13 +167,22 @@ func dbCommands(dbc *obinary.DbClient) {
 	fmt.Println("\n\n=+++++++++++++++++++++===")
 	// GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
 
-	sql = "#0:1"
+	// sql = "#0:1"
 
-	docs, err := obinary.GetRecordByRID(dbc, sql, "")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
-	}
-	fmt.Printf("len(docs):: %v\n", len(docs))
+	// docs, err := obinary.GetRecordByRID(dbc, sql, "")
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
+	// }
+	// fmt.Println("=======================================\n=======================================\n=======================================")
+	// fmt.Printf("len(docs):: %v\n", len(docs))
+	// doc0 := docs[0]
+	// fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+	// fmt.Println("Field names:")
+	// for k, _ := range doc0.Fields {
+	// 	fmt.Printf("  %v\n", k)
+	// }
+	// schemaVersion := doc0.Fields["schemaVersion"]
+	// fmt.Printf("%v\n", schemaVersion)
 
 	obinary.CloseDatabase(dbc)
 

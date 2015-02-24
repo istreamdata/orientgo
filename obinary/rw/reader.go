@@ -152,6 +152,52 @@ func ReadShort(rdr io.Reader) (int16, error) {
 	return shortval, nil
 }
 
+// LEFT OFF ==> TODO: write unit tests for these two
+// TODO: what would these methods look with bytes.Buffer as args -> more efficient?
+func ReadFloat(rdr io.Reader) (float32, error) {
+	floatSz := 4
+	readbuf := make([]byte, floatSz)
+
+	n, err := rdr.Read(readbuf)
+	if err != nil {
+		return 0.0, err
+	}
+	if n != floatSz {
+		return 0.0, IncorrectNetworkRead{Expected: floatSz, Actual: n}
+	}
+
+	var floatval float32
+	buf := bytes.NewBuffer(readbuf)
+	err = binary.Read(buf, binary.BigEndian, &floatval)
+	if err != nil {
+		return 0.0, err
+	}
+
+	return floatval, nil
+}
+
+func ReadDouble(rdr io.Reader) (float64, error) {
+	doubleSz := 8
+	readbuf := make([]byte, doubleSz)
+
+	n, err := rdr.Read(readbuf)
+	if err != nil {
+		return 0.0, err
+	}
+	if n != doubleSz {
+		return 0.0, IncorrectNetworkRead{Expected: doubleSz, Actual: n}
+	}
+
+	var doubleval float64
+	buf := bytes.NewBuffer(readbuf)
+	err = binary.Read(buf, binary.BigEndian, &doubleval)
+	if err != nil {
+		return 0.0, err
+	}
+
+	return doubleval, nil
+}
+
 //
 // Reads one byte from the Reader. If the byte is zero, then false is returned,
 // otherwise true.  If error is non-nil, then the bool value is undefined.

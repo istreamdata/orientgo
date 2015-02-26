@@ -11,6 +11,7 @@ type ODatabase struct {
 	ClustCfg         []byte // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	SchemaVersion    int32
 	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
+	Classes          map[string]*oschema.OClass      // key: class name (TODO: check how Java client does it)
 }
 
 func NewDatabase(name, dbtype string) *ODatabase {

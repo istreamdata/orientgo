@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -157,44 +156,58 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 		return err
 	}
 
-	// TODO: now we have to query records #0:0 and #1:0 (and maybe others??)
-	// TODO: put this in a different helper fn
-	fmt.Println("=======================================\n=======================================\n=======================================")
-	docs, err := GetRecordByRID(dbc, "#0:1", "")
+	err = loadSchema(dbc)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
+		return err
 	}
-	fmt.Printf("len(docs):: %v\n", len(docs))
-	doc0 := docs[0]
-	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-	fmt.Println("Field names:")
-	for k, _ := range doc0.Fields {
-		fmt.Printf("  %v\n", k)
+
+	return nil
+}
+
+//
+// loadSchema loads record #0:1 for the current database, caching the
+// SchemaVersion, GlobalProperties and Classes info in the current ODatabase
+// object (dbc.currDb).
+//
+func loadSchema(dbc *DbClient) error {
+	docs, err := GetRecordByRID(dbc, "#0:1", "*:-1 index:0") // fetchPlan used by the Java client
+	if err != nil {
+		return err
 	}
-	schemaVersion := doc0.Fields["schemaVersion"]
-	fmt.Printf("%v\n", schemaVersion)
-	dbc.currDb.SchemaVersion = schemaVersion.Value.(int32)
-	fmt.Printf("%v\n", *dbc.currDb)
+	// TODO: this idea of returning multiple docs has to be wrong
+	if len(docs) != 1 {
+		return fmt.Errorf("Load Record #0:1 should only return one record. Returned: %d", len(docs))
+	}
 
-	globalPropsFld := doc0.Fields["globalProperties"]
-	fmt.Printf("\nglobalPropsFld.Typ: %v; type of Value: %T\n", globalPropsFld.Typ, globalPropsFld.Value)
-	gpFld0 := globalPropsFld.Value.([]interface{})[0].(*oschema.ODocument)
-	fmt.Printf("%v\n", gpFld0)
-	var globalProperty oschema.OGlobalProperty = oschema.NewGlobalPropertyFromDocument(gpFld0)
-	fmt.Printf("++ %v\n", globalProperty)
+	/* ---[ schemaVersion ]--- */
+	dbc.currDb.SchemaVersion = docs[0].Fields["schemaVersion"].Value.(int32)
 
+	/* ---[ globalProperties ]--- */
+	globalPropsFld := docs[0].Fields["globalProperties"]
+
+	var globalProperty oschema.OGlobalProperty
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
 		pdoc := pfield.(*oschema.ODocument)
 		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
 		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
+	fmt.Println("=======================================\n=======================================\n=======================================")
+	fmt.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
 	fmt.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
 	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
 	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[2].Type)
 	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[23].Name)
-
 	fmt.Println("=======================================\n=======================================\n=======================================")
+
+	/* ---[ classes ]--- */
+	var oclass *oschema.OClass
+	classesFld := docs[0].Fields["classes"]
+	for _, cfield := range classesFld.Value.([]interface{}) {
+		cdoc := cfield.(*oschema.ODocument)
+		oclass = oschema.NewOClassFromDocument(cdoc)
+		fmt.Printf("\noclass =>> %v\n", *oclass)
+	}
 
 	return nil
 }

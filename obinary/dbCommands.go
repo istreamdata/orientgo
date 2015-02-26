@@ -156,10 +156,160 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 		return err
 	}
 
-	err = loadSchema(dbc)
+	// load #0:0
+	schemaRID, err := loadConfigRecord(dbc)
 	if err != nil {
 		return err
 	}
+
+	// load schemaRecord (usually #0:1)
+	err = loadSchema(dbc, schemaRID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//
+// loadConfigRecord loads record #0:0 for the current database, caching
+// some of the information returned into OStorageConfiguration
+//
+func loadConfigRecord(dbc *DbClient) (schemaRID string, err error) {
+	// The config record comes back as type 'b' (binary?), which should just be converted
+	// to a string then tokenized by the pipe char
+
+	dbc.buf.Reset()
+	var (
+		clusterId  int16
+		clusterPos int64
+	)
+	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	clusterId = 0
+	err = rw.WriteShort(dbc.buf, clusterId)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	clusterPos = 0
+	err = rw.WriteLong(dbc.buf, clusterPos)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	fetchPlan := "*:-1 index:0"
+	err = rw.WriteString(dbc.buf, fetchPlan)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	ignoreCache := true
+	err = rw.WriteBool(dbc.buf, ignoreCache)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	loadTombstones := true // based on Java client code
+	err = rw.WriteBool(dbc.buf, loadTombstones)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return schemaRID, err
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	payloadStatus, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return schemaRID, err
+	}
+	fmt.Printf("xxD5: payloadStatus: %v\n", payloadStatus)
+
+	if payloadStatus == byte(0) {
+		return schemaRID, errors.New("Payload status for #0:0 load was 0. No config data returned.")
+	}
+
+	rectype, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	// this is the record version - don't see a reason to check or cache it right now
+	_, err = rw.ReadInt(dbc.conx)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	databytes, err := rw.ReadBytes(dbc.conx)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	if rectype != 'b' {
+		if err != nil {
+			return schemaRID, fmt.Errorf("Expected rectype %d, but was: %d", 'b', rectype)
+		}
+	}
+
+	payloadStatus, err = rw.ReadByte(dbc.conx)
+	if err != nil {
+		return schemaRID, err
+	}
+
+	if payloadStatus != byte(0) {
+		return schemaRID, errors.New("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
+	}
+
+	err = parseConfigRecord(dbc.currDb, string(databytes))
+	if err != nil {
+		return schemaRID, err
+	}
+
+	schemaRID = dbc.currDb.StorageCfg.schemaRID
+	return schemaRID, err
+}
+
+//
+// parseConfigRecord takes the pipe-separate values that comes back
+// from reading record #0:0 and turns it into an OStorageConfiguration
+// object, which it adds to the db database object.
+// TODO: move this function to be a method of OStorageConfiguration?
+//
+func parseConfigRecord(db *ODatabase, psvData string) error {
+	sc := OStorageConfiguration{}
+
+	toks := strings.Split(psvData, "|")
+
+	version, err := strconv.ParseInt(toks[0], 10, 8)
+	if err != nil {
+		return err
+	}
+
+	sc.version = byte(version)
+	sc.name = strings.TrimSpace(toks[1])
+	sc.schemaRID = strings.TrimSpace(toks[2])
+	sc.dictionaryRID = strings.TrimSpace(toks[3])
+	sc.idxMgrRID = strings.TrimSpace(toks[4])
+	sc.localeLang = strings.TrimSpace(toks[5])
+	sc.localeCountry = strings.TrimSpace(toks[6])
+	sc.dateFmt = strings.TrimSpace(toks[7])
+	sc.dateTimeFmt = strings.TrimSpace(toks[8])
+	sc.timezone = strings.TrimSpace(toks[9])
+
+	db.StorageCfg = sc
 
 	return nil
 }
@@ -169,14 +319,14 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
 //
-func loadSchema(dbc *DbClient) error {
-	docs, err := GetRecordByRID(dbc, "#0:1", "*:-1 index:0") // fetchPlan used by the Java client
+func loadSchema(dbc *DbClient, schemaRID string) error {
+	docs, err := GetRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
 	if err != nil {
 		return err
 	}
 	// TODO: this idea of returning multiple docs has to be wrong
 	if len(docs) != 1 {
-		return fmt.Errorf("Load Record #0:1 should only return one record. Returned: %d", len(docs))
+		return fmt.Errorf("Load Record %s should only return one record. Returned: %d", schemaRID, len(docs))
 	}
 
 	/* ---[ schemaVersion ]--- */
@@ -459,7 +609,7 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 
 		} else {
 			return nil,
-				fmt.Errorf("Only `document` records are currently supported by the client. Record returned was type: %s", rectype)
+				fmt.Errorf("Only `document` records are currently supported by the client. Record returned was type: %v", rectype)
 		}
 	}
 

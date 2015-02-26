@@ -67,7 +67,6 @@ func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG 1: classname: >>%v<< (might be empty string - that's OK!!')\n", classname) // DEBUG
 
 	doc.Classname = classname
 
@@ -75,7 +74,6 @@ func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG 2: header%v\n", header)
 
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
 
@@ -225,7 +223,6 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf(">>>ptr: %v\n", ptr) // DEBUG
 
 			// read data type
 			dataType, err := buf.ReadByte()
@@ -233,7 +230,6 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf(">>>dataType: %v\n", dataType) // DEBUG
 			hdr.types = append(hdr.types, dataType)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 
@@ -241,14 +237,12 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			// have a document, not a property, so the number is an encoded property id,
 			// convert to (positive) property-id
 			propertyId := decodeFieldIdInHeader(decoded)
-			fmt.Printf("<<< propertyId: %v\n", propertyId) // DEBUG
 
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
 				_, _, line, _ := runtime.Caller(0)
 				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
 			}
-			fmt.Printf("<<< ptr: %v\n", ptr) // DEBUG
 
 			hdr.propertyIds = append(hdr.propertyIds, propertyId)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
@@ -358,7 +352,6 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]in
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Number of recs in EMBEDDED LIST:: %v\n", nrecs) // DEBUG
 
 	datatype, err := rw.ReadByte(buf)
 	if err != nil {
@@ -380,7 +373,6 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]in
 			continue
 		}
 
-		fmt.Printf("\n(((((((((((((RECURSE +readDataValue+ %d)))))))))))))\n", i) // DEBUG
 		val, err := serde.readDataValue(buf, itemtype)
 		if err != nil {
 			return nil, err

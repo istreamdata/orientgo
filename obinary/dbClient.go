@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/quux00/ogonori/obinary/binser"
+	"github.com/quux00/ogonori/obinary/binserde"
 )
 
 // TODO: pattern this after OStorageRemote ?
@@ -19,7 +19,7 @@ type DbClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	currDb                *ODatabase
-	RecordSerDes          []binser.ORecordSerializer // this is for de/serializing ODocument -> separate one for Graph objects?
+	RecordSerDes          []binserde.ORecordSerializer // this is for de/serializing ODocument -> separate one for Graph objects?
 }
 
 //
@@ -61,7 +61,7 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 
 	var (
 		svrProtocolNum int16
-		serdeV0        binser.ORecordSerializer
+		serdeV0        binserde.ORecordSerializer
 		serializerType string
 	)
 	binary.Read(buf, binary.BigEndian, &svrProtocolNum)
@@ -72,7 +72,7 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 	}
 
 	serializerType = BinarySerialization
-	serdeV0 = binser.ORecordSerializerV0{}
+	serdeV0 = binserde.ORecordSerializerV0{}
 	if svrProtocolNum < MinBinarySerializerVersion {
 		serializerType = CsvSerialization
 		// TODO: change serializer to ORecordSerializerCsvVxxx once that is built
@@ -90,7 +90,7 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		serializationType:     serializerType,
 		binaryProtocolVersion: svrProtocolNum,
 		sessionId:             NoSessionId,
-		RecordSerDes:          []binser.ORecordSerializer{serdeV0},
+		RecordSerDes:          []binserde.ORecordSerializer{serdeV0},
 	}
 	return dbc, nil
 }

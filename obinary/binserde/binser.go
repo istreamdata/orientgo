@@ -1,4 +1,4 @@
-package binser
+package binserde
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/quux00/ogonori/obinary/binser/varint"
+	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -200,7 +200,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 		decoded, err := varint.ReadVarIntAndDecode32(buf)
 		if err != nil {
 			_, _, line, _ := runtime.Caller(0)
-			return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+			return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
 		}
 
 		if decoded == 0 { // 0 marks end of header
@@ -221,14 +221,14 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
 				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
 			}
 
 			// read data type
 			dataType, err := buf.ReadByte()
 			if err != nil {
 				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
 			}
 			hdr.types = append(hdr.types, dataType)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
@@ -241,7 +241,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
 				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binser.readHeader (line %d): %v", line-2, err)
+				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
 			}
 
 			hdr.propertyIds = append(hdr.propertyIds, propertyId)

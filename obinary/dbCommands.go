@@ -384,10 +384,10 @@ func CloseDatabase(dbc *DbClient) error {
 
 	// the server has no response to a DB_CLOSE
 
-	// mark this session as gone
+	// remove session, token and currDb info
 	dbc.sessionId = NoSessionId
-	// TODO: probably need to set token to nil as well?
-	dbc.currDb = nil
+	dbc.token = nil
+	dbc.currDb = nil // TODO: anything in currDb that needs to be closed?
 
 	return nil
 }
@@ -453,7 +453,7 @@ func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error 
 		return err
 	}
 
-	err = rw.WriteInt(dbc.buf, int(recVersion)) // FIXME: WriteInt should take int32
+	err = rw.WriteInt(dbc.buf, recVersion)
 	if err != nil {
 		return err
 	}
@@ -1076,14 +1076,15 @@ func readResultSet(dbc *DbClient) error {
 	// and then each record is serialized according to format:
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 
-	rsetSz, err := rw.ReadInt(dbc.conx)
+	resultSetSize, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("++ Number of records returned: %v\n", rsetSz)
+	fmt.Printf("++ Number of records returned: %v\n", resultSetSize)
 
-	for i := 0; i < rsetSz; i++ {
+	rsize := int(resultSetSize)
+	for i := 0; i < rsize; i++ {
 		// TODO: move code below to readRecordInResultSet
 		// this apparently should always be zero for serialized records -> not sure it's meaning
 		zero, err := rw.ReadShort(dbc.conx)

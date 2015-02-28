@@ -5,3 +5,4 @@ ogonori
 tmp/
 *BUFFER*
 out
+*.out

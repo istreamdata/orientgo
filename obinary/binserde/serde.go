@@ -156,7 +156,7 @@ func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *byt
 type header struct {
 	propertyIds   []int32
 	propertyNames []string
-	dataPtrs      []int
+	dataPtrs      []int32
 	types         []byte
 }
 
@@ -190,7 +190,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 	hdr := header{
 		propertyIds:   make([]int32, 0, 8),
 		propertyNames: make([]string, 0, 8),
-		dataPtrs:      make([]int, 0, 8),
+		dataPtrs:      make([]int32, 0, 8),
 		types:         make([]byte, 0, 8),
 	}
 

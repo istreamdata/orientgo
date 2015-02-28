@@ -14,7 +14,7 @@ import (
 type DbClient struct {
 	conx                  net.Conn
 	buf                   *bytes.Buffer
-	sessionId             int
+	sessionId             int32
 	token                 []byte // orientdb token when not using sessionId
 	serializationType     string
 	binaryProtocolVersion int16

@@ -81,14 +81,13 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if n != sz {
-		return nil, IncorrectNetworkRead{Expected: sz, Actual: n}
+	if n != int(sz) {
+		return nil, IncorrectNetworkRead{Expected: int(sz), Actual: n}
 	}
 	return readbuf, nil
 }
 
-// TODO: this should return an int32
-func ReadInt(rdr io.Reader) (int, error) {
+func ReadInt(rdr io.Reader) (int32, error) {
 	intSz := 4
 	readbuf := make([]byte, intSz)
 	n, err := rdr.Read(readbuf)
@@ -106,7 +105,7 @@ func ReadInt(rdr io.Reader) (int, error) {
 		return DEFAULT_RETVAL, err
 	}
 
-	return int(intval), nil // TODO: stop casting to int -> leave as int32
+	return intval, nil
 }
 
 func ReadLong(rdr io.Reader) (int64, error) {

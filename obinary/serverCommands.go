@@ -67,7 +67,6 @@ func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
 		return err
 	}
 
-	// TODO: up to this point, the calls have been the same between REQUEST_CONNECT and REQUEST_DB_OPEN
 	// admin username, password
 	err = rw.WriteStrings(buf, adminUser, adminPassw)
 	if err != nil {
@@ -380,7 +379,7 @@ func RequestDbList(dbc *DbClient) error {
 	return nil
 }
 
-func readAndValidateSessionId(rdr io.Reader, currentSessionId int) error {
+func readAndValidateSessionId(rdr io.Reader, currentSessionId int32) error {
 	sessionId, err := rw.ReadInt(rdr)
 	if err != nil {
 		return err

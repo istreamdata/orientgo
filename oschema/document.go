@@ -10,7 +10,7 @@ import (
 
 type ODocument struct {
 	Rid     string
-	Version int
+	Version int32
 	Fields  map[string]*OField // key: property-name
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)

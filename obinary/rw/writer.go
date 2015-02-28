@@ -22,8 +22,8 @@ func WriteShort(buf *bytes.Buffer, n int16) error {
 
 // let's assume big endian for now
 // Note: this method assumes the int can be safely cast to int32
-func WriteInt(buf *bytes.Buffer, n int) error {
-	return binary.Write(buf, binary.BigEndian, int32(n))
+func WriteInt(buf *bytes.Buffer, n int32) error {
+	return binary.Write(buf, binary.BigEndian, n)
 }
 
 func WriteLong(buf *bytes.Buffer, n int64) error {
@@ -42,7 +42,7 @@ func WriteStrings(buf *bytes.Buffer, ss ...string) error {
 
 func WriteString(buf *bytes.Buffer, s string) error {
 	// len(string) returns the number of bytes, not runes, so it is correct here
-	err := WriteInt(buf, len(s))
+	err := WriteInt(buf, int32(len(s)))
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func WriteRawBytes(buf *bytes.Buffer, bs []byte) error {
 // to write bytes without the the size prefix, use WriteRawBytes instead.
 //
 func WriteBytes(buf *bytes.Buffer, bs []byte) error {
-	err := WriteInt(buf, len(bs))
+	err := WriteInt(buf, int32(len(bs)))
 	if err != nil {
 		return err
 	}

@@ -11,57 +11,58 @@ import (
 func serverCommands(dbc *obinary.DbClient) {
 	fmt.Println("\n-------- server commands --------")
 
-	err := obinary.CreateServerSession(dbc, "root", "A406A900E578DC7094FBA78001A45BE611DB06B25F593026CCDF737A31A9D0E9")
+	err := obinary.ConnectToServer(dbc, "root", "jiffylube")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN s1: %v\n", err)
 		return
 	}
 
-	// err = obinary.RequestDbList(dbc)
+	mapDbs, err := obinary.RequestDbList(dbc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARN s2: %v\n", err)
+		return
+	}
+	fmt.Printf("mapDbs: %v\n", mapDbs)
+
+	// var status bool
+	// status, err = obinary.DatabaseExists(dbc, "cars", obinary.PersistentStorageType)
 	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "WARN s2: %v\n", err)
-	// 	return
+	// 	fmt.Println(err)
+	// } else {
+	// 	fmt.Printf("`cars` persistent db exists?: %v\n", status)
 	// }
 
-	var status bool
-	status, err = obinary.DatabaseExists(dbc, "cars", obinary.PersistentStorageType)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("`cars` persistent db exists?: %v\n", status)
-	}
+	// dbexists, err := obinary.DatabaseExists(dbc, "cars", obinary.VolatileStorageType)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("`cars` volatile db exists?: %v\n", dbexists)
 
-	dbexists, err := obinary.DatabaseExists(dbc, "cars", obinary.VolatileStorageType)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("`cars` volatile db exists?: %v\n", dbexists)
+	// dbexists, err = obinary.DatabaseExists(dbc, "clammy", obinary.VolatileStorageType)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("`clammy` volatile db exists?: %v\n", dbexists)
 
-	dbexists, err = obinary.DatabaseExists(dbc, "clammy", obinary.VolatileStorageType)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("`clammy` volatile db exists?: %v\n", dbexists)
+	// if !dbexists {
+	// 	fmt.Println("attemping to create clammy db ... ")
+	// 	err = obinary.CreateDatabase(dbc, "clammy", obinary.DocumentDbType, obinary.VolatileStorageType)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Println("clammy db created ... ")
+	// }
 
-	if !dbexists {
-		fmt.Println("attemping to create clammy db ... ")
-		err = obinary.CreateDatabase(dbc, "clammy", obinary.DocumentDbType, obinary.VolatileStorageType)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("clammy db created ... ")
-	}
+	// status, err = obinary.DatabaseExists(dbc, "clammy", obinary.VolatileStorageType)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("`clammy` volatile db exists?: %v\n", status)
 
-	status, err = obinary.DatabaseExists(dbc, "clammy", obinary.VolatileStorageType)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("`clammy` volatile db exists?: %v\n", status)
-
-	err = obinary.DropDatabase(dbc, "clammy", obinary.PersistentStorageType)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// err = obinary.DropDatabase(dbc, "clammy", obinary.PersistentStorageType)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 }
 
 func dbCommands(dbc *obinary.DbClient) {
@@ -200,8 +201,8 @@ func main() {
 	}
 	defer dbc.Close()
 
-	// serverCommands(dbc)
-	dbCommands(dbc)
+	serverCommands(dbc)
+	// dbCommands(dbc)
 
 	fmt.Println("DONE")
 }

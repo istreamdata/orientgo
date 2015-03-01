@@ -8,6 +8,7 @@ import (
 
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -171,11 +172,13 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 
 	cnameLen, err = varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
-		return "", err
+		return "", oerror.NewTrace(err)
 	}
 	if cnameLen < 0 {
-		return "", fmt.Errorf("Varint for classname len in binary serialization was negative: ", cnameLen)
+		return "", oerror.NewTrace(
+			fmt.Errorf("Varint for classname len in binary serialization was negative: ", cnameLen))
 	}
+
 	cnameBytes = buf.Next(int(cnameLen))
 	if len(cnameBytes) != int(cnameLen) {
 		return "",
@@ -308,8 +311,8 @@ func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte)
 		val, err = serde.readEmbeddedCollection(buf)              // TODO: may need to create a set type as well
 		fmt.Printf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDMAP:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue EMBEDDEDMAP NOT YET IMPLEMENTED")
+		val, err = serde.readEmbeddedMap(buf)
+		fmt.Printf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue LINK NOT YET IMPLEMENTED")
@@ -342,6 +345,64 @@ func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte)
 }
 
 //
+// readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
+// types for the map keys, so that is an assumption of this method as well.
+//
+func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
+	numRecs, err := varint.ReadVarIntAndDecode32(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	nrecs := int(numRecs)
+
+	// final map to be returned
+	m := make(map[string]interface{})
+
+	// data structures for reading the map header section, which gives key names and
+	// value types (and value ptrs, but I don't need those for the way I parse the data)
+	keynames := make([]string, nrecs)
+	valtypes := make([]byte, nrecs)
+
+	// read map headers
+	for i := 0; i < nrecs; i++ {
+		keytype, err := rw.ReadByte(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		if keytype != oschema.STRING {
+			panic(fmt.Sprintf("ReadEmbeddedMap got a key datatype %v - but it should be 7 (string)", keytype))
+		}
+		keynames[i], err = varint.ReadString(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		_, err = rw.ReadInt(buf) // pointer - throwing away
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		valtypes[i], err = rw.ReadByte(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+	}
+
+	// read map values
+	for i := 0; i < nrecs; i++ {
+		val, err := serde.readDataValue(buf, valtypes[i])
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		m[keynames[i]] = val
+	}
+
+	return m, nil
+}
+
+//
 // readEmbeddedCollection handles both EMBEDDEDLIST and EMBEDDEDSET types.
 // Java client API:
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
@@ -350,12 +411,12 @@ func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte)
 func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	datatype, err := rw.ReadByte(buf)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 	if datatype != oschema.ANY {
 		// NOTE: currently the Java client doesn't handle this case either, so safe for now
@@ -375,7 +436,7 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]in
 
 		val, err := serde.readDataValue(buf, itemtype)
 		if err != nil {
-			return nil, err
+			return nil, oerror.NewTrace(err)
 		}
 		ary[i] = val
 	}

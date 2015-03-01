@@ -1,11 +1,14 @@
 package obinary
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oerror"
+	"github.com/quux00/ogonori/oschema"
 )
 
 ///
@@ -16,13 +19,13 @@ import (
 ///
 
 //
-// CreateServerSession logs into the OrientDB server with the appropriate
+// ConnectToServer logs into the OrientDB server with the appropriate
 // admin privileges in order to execute server-level commands (as opposed
 // to database-level commands). This must be called to establish a server
 // session before any other server-level commands. The username and password
 // required are for the server (admin) not any particular database.
 //
-func CreateServerSession(dbc *DbClient, adminUser, adminPassw string) error {
+func ConnectToServer(dbc *DbClient, adminUser, adminPassw string) error {
 	buf := dbc.buf
 	buf.Reset()
 
@@ -190,6 +193,16 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 	return nil
 }
 
+//
+// DropDatabase drops the specified database. The caller must provide
+// both the name and the type of the database.  The type should either:
+//
+//     obinary.PersistentStorageType
+//     obinary.VolatileStorageType
+//
+// This is a "server" command, so you must have already called
+// ConnectToServer before calling this function.
+//
 func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 	dbc.buf.Reset()
 
@@ -250,7 +263,7 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 
 //
 // DatabaseExists is a server-level command, so must be preceded by calling
-// CreateServerSession, otherwise an authorization error will be returned.
+// ConnectToServer, otherwise an authorization error will be returned.
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
 //
 func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
@@ -317,66 +330,78 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 	return dbexists, nil
 }
 
-// TODO: this is not fully implemented since I don't understand what data is being returned:
-// Reading byte (1 byte)... [OChannelBinaryServer]
-// Read byte: 74 [OChannelBinaryServer]
-// Reading int (4 bytes)... [OChannelBinaryServer]
-// Read int: 184 [OChannelBinaryServer]
-// Writing byte (1 byte): 0 [OChannelBinaryServer]
-// Writing int (4 bytes): 184 [OChannelBinaryServer]
-// Writing bytes (4+219=223 bytes): [0, 0, 18, 100, 97, 116, 97, 98, 97, 115, 101, 115, 0, 0, 0, 18, 12, 0, 4, 7, 8, 99, 97, 114, 115, 0, 0, 0, 57, 7, 7, 40, 71, 114, 97, 116, 101, 102, 117, 108, 68, 101, 97, 100, 67, 111, 110, 99, 101, 114, 116, 115, 0, 0, 0, -126, 7, -114, 1, 112, 108, 111, 99, 97, 108, 58, 47, 104, 111, 109, 101, 47, 109, 105, 100, 112, 101, 116, 101, 114, 52, 52, 52, 47, 97, 112, 112, 115, 47, 111, 114, 105, 101, 110, 116, 100, 98, 45, 99, 111, 109, 109, 117, 110, 105, 116, 121, 45, 50, 46, 48, 45, 114, 99, 50, 47, 100, 97, 116, 97, 98, 97, 115, 101, 115, 47, 99, 97, 114, 115, -82, 1, 112, 108, 111, 99, 97, 108, 58, 47, 104, 111, 109, 101, 47, 109, 105, 100, 112, 101, 116, 101, 114, 52, 52, 52, 47, 97, 112, 112, 115, 47, 111, 114, 105, 101, 110, 116, 100, 98, 45, 99, 111, 109, 109, 117, 110, 105, 116, 121, 45, 50, 46, 48, 45, 114, 99, 50, 47, 100, 97, 116, 97, 98, 97, 115, 101, 115, 47, 71, 114, 97, 116, 101, 102, 117, 108, 68, 101, 97, 100, 67, 111, 110, 99, 101, 114, 116, 115] [OChannelBinaryServer]
-func RequestDbList(dbc *DbClient) error {
+//
+// RequestDbList works like the "list databases" command from the OrientDB client.
+// The result is put into a map, where the key of the map is the name of the
+// database and the value is the type concatenated with the path, like so:
+//
+//     key:  cars
+//     val:  plocal:/path/to/orientdb-community-2.0.1/databases/cars
+//
+func RequestDbList(dbc *DbClient) (map[string]string, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
-		return SessionNotInitialized{}
+		return nil, SessionNotInitialized{}
 	}
 
 	// cmd
 	err := rw.WriteByte(dbc.buf, REQUEST_DB_LIST)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// session id
 	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	err = readAndValidateSessionId(dbc.conx, dbc.sessionId)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
-		return fmt.Errorf("Server Error(s): %v", serverExceptions)
+		return nil, fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
 
-	// TODO: have to figure out how to read the bytes returned
+	// the bytes returned as a serialized EMBEDDEDMAP, so send it to the SerDe
 	responseBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
-	fmt.Printf("DB_LIST response size: %d; as str: %v\n", len(responseBytes),
-		string(responseBytes)) // DEBUG
 
-	return nil
+	serde := dbc.RecordSerDes[int(responseBytes[0])]
+	buf := bytes.NewBuffer(responseBytes[1:])
+	doc := oschema.NewDocument("")
+	err = serde.Deserialize(doc, buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	m := make(map[string]string)
+	fldMap := doc.Fields["databases"].Value.(map[string]interface{})
+	for k, v := range fldMap {
+		m[k] = v.(string)
+	}
+
+	return m, nil
 }
 
 func readAndValidateSessionId(rdr io.Reader, currentSessionId int32) error {

@@ -12,6 +12,12 @@
 
     create database plocal:../databases/cars admin admin plocal
 
+### Connect to server and list databases
+
+    connect remote:localhost root jiffylube
+    list databases
+
+
 ### Connect to database
 
     connect remote:localhost/cars admin admin

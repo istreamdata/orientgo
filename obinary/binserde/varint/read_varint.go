@@ -15,6 +15,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	"github.com/quux00/ogonori/oerror"
 )
 
 //
@@ -30,11 +32,10 @@ func IsFinalVarIntByte(b byte) bool {
 // ReadVarIntAndDecode32 reads a varint from buf to a uint32
 // and then zigzag decodes it to an int32 value.
 //
-func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) { // TODO: not consistent with ReadVarIntBuf style ...
-	var encodedLen uint32
-	err := ReadVarIntBuf(buf, &encodedLen)
+func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) {
+	encodedLen, err := ReadVarIntToUint32(buf)
 	if err != nil {
-		return 0, err
+		return 0, oerror.NewTrace(err)
 	}
 	return ZigzagDecodeInt32(encodedLen), nil
 }
@@ -44,72 +45,11 @@ func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) { // TODO: not cons
 // and then zigzag decodes it to an int64 value.
 //
 func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
-	var encodedLen uint64
-	err := ReadVarIntBuf(buf, &encodedLen)
+	encodedLen, err := ReadVarIntToUint64(buf)
 	if err != nil {
-		return 0, err
+		return 0, oerror.NewTrace(err)
 	}
 	return ZigzagDecodeInt64(encodedLen), nil
-}
-
-//
-// ReadVarIntBuf reads a variable length integer from the input buffer.
-// The inflated integer is writte to `data`, which must be a pointer
-// to a uint32 or uint64 data structure. This method only "inflates"
-// the varint into a uint32 or uint64; it does NOT zigzag decode it.
-//
-func ReadVarIntBuf(buf *bytes.Buffer, data interface{}) error {
-	switch data.(type) {
-	case *uint32:
-		v, err := ReadVarIntToUint32(buf)
-		if err != nil {
-			return err
-		}
-		*data.(*uint32) = v
-		return nil
-
-	case *uint64:
-		v, err := ReadVarIntToUint64(buf)
-		if err != nil {
-			return err
-		}
-		*data.(*uint64) = v
-		return nil
-
-	default:
-		return errors.New("Must pass in pointer to uint32 or uint64.")
-	}
-	return nil
-}
-
-//
-// extract4Bytes reads up to 4 bytes from buf, reading
-// them into a []byte, retaining little endian order.
-// If high bit is set in a byte before reading 4 bytes,
-// the remaining bytes in the []byte are left as 0x0.
-//
-func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
-	encbytes := make([]byte, 4)
-
-	for i := 0; i < 4; i++ {
-		b, err := buf.ReadByte()
-		if err != nil {
-			if err == io.EOF {
-				return encbytes, nil
-			} else {
-				return encbytes, err
-			}
-		}
-		encbytes[i] = b
-		if IsFinalVarIntByte(b) {
-			return encbytes, nil
-		}
-	}
-
-	// if get here then read 4 bytes from buf, but none had the high
-	// bit set to zero - unexpected condition
-	return encbytes,
-		errors.New("varint.extract4Bytes could not find final varint byte in first 4 bytes")
 }
 
 func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
@@ -155,4 +95,34 @@ func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
 	l := d & md
 
 	return (i | j | k | l), nil
+}
+
+//
+// extract4Bytes reads up to 4 bytes from buf, reading
+// them into a []byte, retaining little endian order.
+// If high bit is set in a byte before reading 4 bytes,
+// the remaining bytes in the []byte are left as 0x0.
+//
+func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
+	encbytes := make([]byte, 4)
+
+	for i := 0; i < 4; i++ {
+		b, err := buf.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				return encbytes, nil
+			} else {
+				return encbytes, err
+			}
+		}
+		encbytes[i] = b
+		if IsFinalVarIntByte(b) {
+			return encbytes, nil
+		}
+	}
+
+	// if get here then read 4 bytes from buf, but none had the high
+	// bit set to zero - unexpected condition
+	return encbytes,
+		errors.New("varint.extract4Bytes could not find final varint byte in first 4 bytes")
 }

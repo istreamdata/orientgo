@@ -11,6 +11,14 @@ import (
 // for details on how I set up these tests and
 // how varint encoding/ordering goes
 
+func TestIsFinalVarIntByte(t *testing.T) {
+	bs := []byte{0xff, 0xe0, 0x81, 0x7f}
+	assert(t, !IsFinalVarIntByte(bs[0]), "")
+	assert(t, !IsFinalVarIntByte(bs[1]), "")
+	assert(t, !IsFinalVarIntByte(bs[2]), "")
+	assert(t, IsFinalVarIntByte(bs[3]), "")
+}
+
 /* ---[ ReadVarInt for int32 results ]--- */
 
 func TestReadVarInt1ByteRandomInputA(t *testing.T) {
@@ -254,6 +262,104 @@ func TestReadVarInt4BytesAllZeros(t *testing.T) {
 
 	equals(t, expectedUint, actualUint)
 }
+
+/* ---[ ReadVarIntAndDecode32 ]--- */
+
+func TestReadVarIntAndDecode32_1Byte_Positive(t *testing.T) {
+	bs := []byte{0x1a} // = 26 (un-zigzag-decoded)
+	buf := bytes.NewBuffer(bs)
+	actualUint, err := ReadVarIntToUint32(buf)
+	ok(t, err)
+	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+
+	buf = bytes.NewBuffer(bs)
+	actualInt, err := ReadVarIntAndDecode32(buf)
+	ok(t, err)
+
+	equals(t, zigzagDecodedInt, actualInt)
+	equals(t, uint32(26), actualUint)
+	equals(t, int32(13), actualInt)
+}
+
+func TestReadVarIntAndDecode32_2Bytes_Positive(t *testing.T) {
+	bs := []byte{0x8c, 0x01}
+	buf := bytes.NewBuffer(bs)
+	actualUint, err := ReadVarIntToUint32(buf)
+	ok(t, err)
+	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+
+	buf = bytes.NewBuffer(bs)
+	actualInt, err := ReadVarIntAndDecode32(buf)
+	ok(t, err)
+
+	equals(t, zigzagDecodedInt, actualInt)
+	equals(t, uint32(140), actualUint)
+	equals(t, int32(70), actualInt)
+}
+
+func TestReadVarIntAndDecode32_2Bytes_Negative(t *testing.T) {
+	bs := []byte{0x8d, 0x01}
+	buf := bytes.NewBuffer(bs)
+	actualUint, err := ReadVarIntToUint32(buf)
+	ok(t, err)
+	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+
+	buf = bytes.NewBuffer(bs)
+	actualInt, err := ReadVarIntAndDecode32(buf)
+	ok(t, err)
+
+	equals(t, zigzagDecodedInt, actualInt)
+	equals(t, uint32(141), actualUint)
+	equals(t, int32(-71), actualInt)
+}
+
+func TestReadVarIntAndDecode32_3Bytes_Negative(t *testing.T) {
+	bs := []byte{0x8d, 0x81, 0x01}
+	buf := bytes.NewBuffer(bs)
+	actualUint, err := ReadVarIntToUint32(buf)
+	ok(t, err)
+	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+
+	buf = bytes.NewBuffer(bs)
+	actualInt, err := ReadVarIntAndDecode32(buf)
+	ok(t, err)
+
+	equals(t, zigzagDecodedInt, actualInt)
+	equals(t, uint32(16525), actualUint)
+	equals(t, int32(-8263), actualInt)
+}
+
+func TestReadVarIntAndDecode32_4Bytes_Zero(t *testing.T) {
+	bs := []byte{0x80, 0x80, 0x80, 0x00}
+	buf := bytes.NewBuffer(bs)
+	actualUint, err := ReadVarIntToUint32(buf)
+	ok(t, err)
+	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+
+	buf = bytes.NewBuffer(bs)
+	actualInt, err := ReadVarIntAndDecode32(buf)
+	ok(t, err)
+
+	equals(t, zigzagDecodedInt, actualInt)
+	equals(t, uint32(0), actualUint)
+	equals(t, int32(0), actualInt)
+}
+
+// func TestReadVarIntFoo(t *testing.T) {
+// 	is := []int8{-116, 1}
+// 	bs := make([]byte, 4)
+// 	for i, v := range is {
+// 		bs[i] = byte(v)
+// 	}
+// 	// bs = 0x8c 0x01 0x00 0x00
+// 	fmt.Printf("*** % #x\n", bs)
+
+// 	buf := bytes.NewBuffer(bs)
+// 	actualUint, err := ReadVarIntToUint32(buf)
+// 	ok(t, err)
+
+// 	fmt.Printf("+++ %v\n", actualUint)
+// }
 
 // /* ---[ ReadVarInt for int64 results ]--- */
 

@@ -1,17 +1,22 @@
-* DONE unit test newly added Read commands in obinary.reader
-* DONE split commands into 'server' and 'database' -> separate files
-* DONE Do the REQUEST_CONNECT command and then see if DB_EXISTS now works after calling that
-* DONE Need to add SUCCESS checks and server error reading to every network command
-* DEFERRED ReadVar API / unit test needs cleanup
+* TODO Determine how to run all unit tests from top level dir
+* TODO Get all existing unit tests working
+* TODO Add unit tests for ReadFloat and ReadDouble (obinary/rw)
 * TODO Re-evaluate db/network reader API
-* TODO Fix failing tests and get better test coverage for code written so far
-* TODO Try multi-byte varint to determine if encoding is little or big-endian
-* TODO Need to dependency inject the record serialization rdr (schemaless or csv) into all dbCommands that need it
-** need to build an Interface for this and then do two impls
-* TODO Rename binser and csvser to binserde and csvserde
-* TODO Put under github.com/quux00 location so is "go gettable"
-* TODO Step through Java code `database.getMetadata().getSchema()` to see how it gets the metadata
+* TODO better test coverage for code written so far
+* TODO Deserialize for a Document query which returns propertyIds, not property names needs to be made correct (serde.go 105)
+* TODO Determine if we can remove Fullname from OField -> that only belongs in OProperty, no?
+* TODO Clean up varint API -> which calls are actually used?  Just ReadVarIntAndDecode32?  Can the others be simplified or made private?
+* TODO Add in use of Trace Error all over the place
+* TODO serde.go line 201 -> clean up
+* TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
+* TODO Update README -> remove / defer support for OrientDB 1.7 and CSV serialization
+* TODO Run the go static analysis tool that checks for places not checking error return values
+* TODO ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
+* TODO Write SerDe Serializer
+* TODO Implement SQL commands (not just queries)
+* TODO Get functional tests in place -> need to script a database set up for this
 
+# ---[ Command Implementations ]--- #
 * TODO REQUEST_SHUTDOWN                       = 1
 * DONE REQUEST_CONNECT                        = 2
 * DONE REQUEST_DB_OPEN                        = 3
@@ -30,7 +35,7 @@
 * TODO REQUEST_DATASEGMENT_ADD                = 20
 * TODO REQUEST_DATASEGMENT_DROP               = 21
 * TODO REQUEST_RECORD_METADATA                = 29 // since 1.4.0
-* IN-PROGRESS REQUEST_RECORD_LOAD             = 30  => partially done; not filling in OFields yet
+* IN-PROGRESS REQUEST_RECORD_LOAD             = 30  => partially done; remaining work to do?
 * TODO REQUEST_RECORD_CREATE                  = 31
 * TODO REQUEST_RECORD_UPDATE                  = 32
 * DONE REQUEST_RECORD_DELETE                  = 33

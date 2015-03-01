@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -270,7 +271,8 @@ func loadConfigRecord(dbc *DbClient) (schemaRID string, err error) {
 	}
 
 	if payloadStatus != byte(0) {
-		return schemaRID, errors.New("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
+		return schemaRID,
+			errors.New("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
 	}
 
 	err = parseConfigRecord(dbc.currDb, string(databytes))
@@ -983,7 +985,7 @@ func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string)
 
 func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
 	if dbc.sessionId == NoSessionId {
-		return SessionNotInitialized{}
+		return oerror.SessionNotInitialized{}
 	}
 
 	err := rw.WriteByte(dbc.buf, cmd)

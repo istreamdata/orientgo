@@ -41,7 +41,7 @@ type OStorageConfiguration struct {
 
 type OCluster struct {
 	Name string
-	Id   int16 // TODO: maybe change to int?
+	Id   int16
 }
 
 // --------

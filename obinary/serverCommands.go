@@ -136,13 +136,13 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 
 	/* ---[ precondition checks ]--- */
 
-	// TODO: may need to change this to serverSessionid
+	// TODO: may need to change this to serverSessionid (can the "sessionId" be used for both server connections and db conx?)
 	if dbc.sessionId == NoSessionId {
-		return SessionNotInitialized{}
+		return oerror.SessionNotInitialized{}
 	}
 
 	if !validStorageType(storageType) {
-		return InvalidStorageType{storageType}
+		return oerror.InvalidStorageType{storageType}
 	}
 
 	/* ---[ build request and send to server ]--- */
@@ -207,11 +207,11 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
-		return SessionNotInitialized{}
+		return oerror.SessionNotInitialized{}
 	}
 
 	if !validDbType(dbtype) {
-		return InvalidDatabaseType{dbtype}
+		return oerror.InvalidDatabaseType{dbtype}
 	}
 
 	// cmd
@@ -270,11 +270,11 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
-		return false, SessionNotInitialized{}
+		return false, oerror.SessionNotInitialized{}
 	}
 
 	if !validStorageType(storageType) {
-		return false, InvalidStorageType{storageType}
+		return false, oerror.InvalidStorageType{storageType}
 	}
 
 	// cmd
@@ -342,7 +342,7 @@ func RequestDbList(dbc *DbClient) (map[string]string, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
-		return nil, SessionNotInitialized{}
+		return nil, oerror.SessionNotInitialized{}
 	}
 
 	// cmd

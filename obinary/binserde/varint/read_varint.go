@@ -3,7 +3,10 @@
 // where variable size integers are used with zigzag encoding to
 // convert negative integers to a positive unsigned int format so
 // that smaller integers (whether negative or positive) can be transmitted
-// in less than 4 bytes on the wire.
+// in less than 4 bytes on the wire.  The variable length zigzag encoding
+// used by OrientDB is the same as that used for Google's Protocol Buffers
+// and is documented here:
+// https://developers.google.com/protocol-buffers/docs/encoding?csw=1
 //
 package varint
 
@@ -49,10 +52,16 @@ func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
 	return ZigzagDecodeInt64(encodedLen), nil
 }
 
+//
+// ReadVarIntBuf reads a variable length integer from the input buffer.
+// The inflated integer is writte to `data`, which must be a pointer
+// to a uint32 or uint64 data structure. This method only "inflates"
+// the varint into a uint32 or uint64; it does NOT zigzag decode it.
+//
 func ReadVarIntBuf(buf *bytes.Buffer, data interface{}) error {
 	switch data.(type) {
 	case *uint32:
-		v, err := ReadVarIntToUint32Buf(buf)
+		v, err := ReadVarIntToUint32(buf)
 		if err != nil {
 			return err
 		}
@@ -60,41 +69,7 @@ func ReadVarIntBuf(buf *bytes.Buffer, data interface{}) error {
 		return nil
 
 	case *uint64:
-		v, err := ReadVarIntToUint64Buf(buf)
-		if err != nil {
-			return err
-		}
-		*data.(*uint64) = v
-		return nil
-
-	default:
-		return errors.New("Must pass in pointer to uint32 or uint64.")
-	}
-	return nil
-}
-
-//
-// ReadVarInt will read up to 8 bytes from the byte slice and convert
-// the encoded varint into a uint and copy the value into the `data`
-// field passed in.  Thus `data` should be of type *uint32 or *uint64.
-// Any other types will cause an error to be returned. Note that this
-// function does NOT do zigzag decoding - that must be called separately
-// after this function.
-//
-func ReadVarInt(bs []byte, data interface{}) error {
-	// NOTE: if OrientDB uses little endian encoding (like protobuf), then
-	//       would need to reverse all the bytes here before proceeding
-	switch data.(type) {
-	case *uint32:
-		v, err := ReadVarIntToUint32(bs)
-		if err != nil {
-			return err
-		}
-		*data.(*uint32) = v
-		return nil
-
-	case *uint64:
-		v, err := ReadVarIntToUint64(bs)
+		v, err := ReadVarIntToUint64(buf)
 		if err != nil {
 			return err
 		}
@@ -137,45 +112,17 @@ func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
 		errors.New("varint.extract4Bytes could not find final varint byte in first 4 bytes")
 }
 
-// TODO: delete me
-func ensure4Bytes(bs []byte) []byte {
-	encbytes := make([]byte, 4)
-
-	sz := min(len(bs), 4)
-	for i := 0; i < sz; i++ {
-		encbytes[i] = bs[i]
-		if IsFinalVarIntByte(bs[i]) {
-			break
-		}
-	}
-
-	return encbytes
+func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
+	panic("ReadVarIntToUint64 Not Yet Implemented") // TODO: impl me (is this ever needed?)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func ensure4BytesOLD(bs []byte) []byte {
-	if len(bs) == 1 {
-		return []byte{0x0, 0x0, 0x0, bs[0]}
-	} else if len(bs) == 2 {
-		return []byte{0x0, 0x0, bs[0], bs[1]}
-	} else if len(bs) == 3 {
-		return []byte{0x0, bs[0], bs[1], bs[2]}
-	} else {
-		return bs
-	}
-}
-
-func ReadVarIntToUint64Buf(buf *bytes.Buffer) (uint64, error) {
-	panic("ReadVarIntToUint64Buf Not Yet Implemented")
-}
-
-func ReadVarIntToUint32Buf(buf *bytes.Buffer) (uint32, error) {
+//
+// ReadVarIntToUint32 reads a variable length integer from the input buffer.
+// The inflated integer is written is returned as a uint32 value.
+// This method only "inflates" the varint into a uint32; it does NOT
+// zigzag decode it.
+//
+func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
 	var (
 		bs  []byte
 		a   uint32
@@ -189,7 +136,6 @@ func ReadVarIntToUint32Buf(buf *bytes.Buffer) (uint32, error) {
 	vintbuf := bytes.NewBuffer(bs)
 
 	err = binary.Read(vintbuf, binary.LittleEndian, &a)
-	// err := binary.Read(vintbuf, binary.BigEndian, &a)
 	if err != nil {
 		return uint32(0), err
 	}
@@ -209,87 +155,4 @@ func ReadVarIntToUint32Buf(buf *bytes.Buffer) (uint32, error) {
 	l := d & md
 
 	return (i | j | k | l), nil
-}
-
-//
-// ReadVarInt4Bytes DOCUMENT ME
-//
-func ReadVarIntToUint32(bs []byte) (uint32, error) {
-	bs = ensure4Bytes(bs)
-	var a uint32
-	buf := bytes.NewBuffer(bs[0:4])
-	err := binary.Read(buf, binary.LittleEndian, &a)
-	// err := binary.Read(buf, binary.BigEndian, &a)
-	if err != nil {
-		return uint32(0), err
-	}
-
-	b := a >> 1
-	c := a >> 2
-	d := a >> 3
-
-	ma := uint32(0x7f)
-	mb := uint32(0x3f80)
-	mc := uint32(0x1fc000)
-	md := uint32(0x0fe00000)
-
-	i := a & ma
-	j := b & mb
-	k := c & mc
-	l := d & md
-
-	return (i | j | k | l), nil
-}
-
-// FIXME: this is wrong => need to change to be like ensure4Bytes
-func ensure8Bytes(bs []byte) []byte {
-	if len(bs) == 5 {
-		return []byte{0x0, 0x0, 0x0, bs[0], bs[1], bs[2], bs[3], bs[4]}
-	} else if len(bs) == 6 {
-		return []byte{0x0, 0x0, bs[0], bs[1], bs[2], bs[3], bs[4], bs[5]}
-	} else if len(bs) == 7 {
-		return []byte{0x0, bs[0], bs[1], bs[2], bs[2], bs[3], bs[4], bs[5], bs[6]}
-	} else {
-		return bs
-	}
-}
-
-func ReadVarIntToUint64(bs []byte) (uint64, error) {
-	bs = ensure8Bytes(bs)
-	var a uint64
-	buf := bytes.NewBuffer(bs[0:8])
-	err := binary.Read(buf, binary.LittleEndian, &a)
-	// err := binary.Read(buf, binary.BigEndian, &a)
-	if err != nil {
-		return uint64(0), err
-	}
-
-	b := a >> 1
-	c := a >> 2
-	d := a >> 3
-	e := a >> 4
-	f := a >> 5
-	g := a >> 6
-	h := a >> 7
-
-	// masks to get the value bits from each section (a-h)
-	ma := uint64(0x7f)
-	mb := uint64(0x3f80)
-	mc := uint64(0x1fc000)
-	md := uint64(0x0fe00000)
-	me := uint64(0x07f0000000)
-	mf := uint64(0x03f800000000)
-	mg := uint64(0x01fa0000000000)
-	mh := uint64(0xfe000000000000)
-
-	i := a & ma
-	j := b & mb
-	k := c & mc
-	l := d & md
-	m := e & me
-	n := f & mf
-	o := g & mg
-	p := h & mh
-
-	return (i | j | k | l | m | n | o | p), nil
 }

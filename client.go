@@ -68,7 +68,7 @@ func serverCommands(dbc *obinary.DbClient) {
 func dbCommands(dbc *obinary.DbClient) {
 	fmt.Println("\n-------- database-level commands --------")
 
-	// var sql string
+	var sql string
 
 	fmt.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, "cars", obinary.DocumentDbType, "admin", "admin")
@@ -149,21 +149,21 @@ func dbCommands(dbc *obinary.DbClient) {
 
 	// fmt.Println("=+++++++++++++++++++++===")
 
-	// sql = "select * from Carz"
-	// fmt.Println("Issuing command query: " + sql)
-	// err = obinary.SQLQuery(dbc, sql)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
-	// }
+	sql = "select * from Carz"
+	fmt.Println("Issuing command query: " + sql)
+	err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
+	}
 
-	// fmt.Println("\n\n=+++++++++++++++++++++===")
+	fmt.Println("\n\n=+++++++++++++++++++++===")
 
-	// sql = "select model, make from Carz"
-	// fmt.Println("Issuing command query: " + sql)
-	// err = obinary.SQLQuery(dbc, sql)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
-	// }
+	sql = "select model, make from Carz"
+	fmt.Println("Issuing command query: " + sql)
+	err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
+	}
 
 	fmt.Println("\n\n=+++++++++++++++++++++===")
 	// GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
@@ -201,8 +201,8 @@ func main() {
 	}
 	defer dbc.Close()
 
-	serverCommands(dbc)
-	// dbCommands(dbc)
+	// serverCommands(dbc)
+	dbCommands(dbc)
 
 	fmt.Println("DONE")
 }

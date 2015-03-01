@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// max varint sizes
 	Max1Byte = uint32(^uint8(0) >> 1)   // 127
 	Max2Byte = uint32(^uint16(0) >> 2)  // 16,383
 	Max3Byte = uint32(^uint32(0) >> 11) // 2,097,151
@@ -88,7 +89,8 @@ func WriteVarInt64(w io.Writer, n uint64) error {
 		return varintEncode64(w, n, 8)
 
 	} else {
-		return fmt.Errorf("The maximum integer than can currently be written to varint is %d (%#x)", Max8Byte, Max8Byte)
+		return fmt.Errorf("The maximum integer than can currently be written to varint is %d (%#x)",
+			Max8Byte, Max8Byte)
 	}
 }
 
@@ -123,7 +125,7 @@ func varintEncodeLittleEndian(w io.Writer, v uint32, nbytes int) error {
 		return err
 	}
 	if n != nbytes {
-		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual: %d", nbytes, n)
+		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual %d", nbytes, n)
 	}
 	return nil
 }

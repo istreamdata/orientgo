@@ -3,30 +3,14 @@ package rw
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
+
+	"github.com/quux00/ogonori/oerror"
 )
 
 const DEFAULT_RETVAL = 255
 
 /* ---[ types ]--- */
-
-type OServerException struct {
-	Class   string
-	Message string
-}
-
-// ------
-
-type IncorrectNetworkRead struct {
-	Expected int
-	Actual   int
-}
-
-func (e IncorrectNetworkRead) Error() string {
-	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
-		e.Expected, e.Actual)
-}
 
 /* -------------------------------- */
 /* ---[ Lower Level Functions ]--- */
@@ -36,10 +20,10 @@ func ReadByte(rdr io.Reader) (byte, error) {
 	readbuf := make([]byte, 1)
 	n, err := rdr.Read(readbuf)
 	if err != nil {
-		return DEFAULT_RETVAL, err
+		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 	if n != 1 {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: 1, Actual: n}
+		return DEFAULT_RETVAL, oerror.IncorrectNetworkRead{Expected: 1, Actual: n}
 	}
 	return readbuf[0], nil
 }
@@ -50,8 +34,11 @@ func ReadByte(rdr io.Reader) (byte, error) {
 //
 func ReadString(rdr io.Reader) (string, error) {
 	bs, err := ReadBytes(rdr)
-	if err != nil || bs == nil {
-		return "", err
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+	if bs == nil {
+		return "", nil
 	}
 	return string(bs), nil
 }
@@ -67,7 +54,7 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 	// the first four bytes give the length of the remaining byte array
 	sz, err := ReadInt(rdr)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 	// sz of 0 indicates empty byte array
 	// sz of -1 indicates null value
@@ -79,10 +66,10 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 	readbuf := make([]byte, sz)
 	n, err := rdr.Read(readbuf)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 	if n != int(sz) {
-		return nil, IncorrectNetworkRead{Expected: int(sz), Actual: n}
+		return nil, oerror.IncorrectNetworkRead{Expected: int(sz), Actual: n}
 	}
 	return readbuf, nil
 }
@@ -92,17 +79,17 @@ func ReadInt(rdr io.Reader) (int32, error) {
 	readbuf := make([]byte, intSz)
 	n, err := rdr.Read(readbuf)
 	if err != nil {
-		return DEFAULT_RETVAL, err
+		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 	if n != intSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: intSz, Actual: n}
+		return DEFAULT_RETVAL, oerror.IncorrectNetworkRead{Expected: intSz, Actual: n}
 	}
 
 	var intval int32
 	buf := bytes.NewBuffer(readbuf)
 	err = binary.Read(buf, binary.BigEndian, &intval)
 	if err != nil {
-		return DEFAULT_RETVAL, err
+		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 
 	return intval, nil
@@ -114,17 +101,17 @@ func ReadLong(rdr io.Reader) (int64, error) {
 
 	n, err := rdr.Read(readbuf)
 	if err != nil {
-		return DEFAULT_RETVAL, err
+		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 	if n != longSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: longSz, Actual: n}
+		return DEFAULT_RETVAL, oerror.IncorrectNetworkRead{Expected: longSz, Actual: n}
 	}
 
 	var longval int64
 	buf := bytes.NewBuffer(readbuf)
 	err = binary.Read(buf, binary.BigEndian, &longval)
 	if err != nil {
-		return DEFAULT_RETVAL, err
+		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 
 	return longval, nil
@@ -138,20 +125,19 @@ func ReadShort(rdr io.Reader) (int16, error) {
 		return DEFAULT_RETVAL, err
 	}
 	if n != shortSz {
-		return DEFAULT_RETVAL, IncorrectNetworkRead{Expected: shortSz, Actual: n}
+		return DEFAULT_RETVAL, oerror.IncorrectNetworkRead{Expected: shortSz, Actual: n}
 	}
 
 	var shortval int16
 	buf := bytes.NewBuffer(readbuf)
 	err = binary.Read(buf, binary.BigEndian, &shortval)
 	if err != nil {
-		return int16(DEFAULT_RETVAL), err
+		return int16(DEFAULT_RETVAL), oerror.NewTrace(err)
 	}
 
 	return shortval, nil
 }
 
-// LEFT OFF ==> TODO: write unit tests for these two
 // TODO: what would these methods look with bytes.Buffer as args -> more efficient?
 func ReadFloat(rdr io.Reader) (float32, error) {
 	floatSz := 4
@@ -162,7 +148,7 @@ func ReadFloat(rdr io.Reader) (float32, error) {
 		return 0.0, err
 	}
 	if n != floatSz {
-		return 0.0, IncorrectNetworkRead{Expected: floatSz, Actual: n}
+		return 0.0, oerror.IncorrectNetworkRead{Expected: floatSz, Actual: n}
 	}
 
 	var floatval float32
@@ -184,7 +170,7 @@ func ReadDouble(rdr io.Reader) (float64, error) {
 		return 0.0, err
 	}
 	if n != doubleSz {
-		return 0.0, IncorrectNetworkRead{Expected: doubleSz, Actual: n}
+		return 0.0, oerror.IncorrectNetworkRead{Expected: doubleSz, Actual: n}
 	}
 
 	var doubleval float64
@@ -215,14 +201,16 @@ func ReadBool(rdr io.Reader) (bool, error) {
 /* -------------------------------- */
 
 //
+// ReadErrorResponse reads an "Exception" message from the OrientDB server.
+// The OrientDB server can return multiple exceptions, so a slice of
+// OServerException objects are returned.
 //
-//
-func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
+func ReadErrorResponse(rdr io.Reader) ([]oerror.OServerException, error) {
 	var (
 		exClass, exMsg string
 		err            error
 	)
-	exs := make([]OServerException, 0, 1)
+	exs := make([]oerror.OServerException, 0, 1) // usually only one ?
 	for {
 		// before class/message combo there is a 1 (continue) or 0 (no more)
 		marker, err := ReadByte(rdr)
@@ -240,7 +228,7 @@ func ReadErrorResponse(rdr io.Reader) ([]OServerException, error) {
 		if err != nil {
 			return nil, err
 		}
-		exs = append(exs, OServerException{exClass, exMsg})
+		exs = append(exs, oerror.OServerException{exClass, exMsg})
 	}
 
 	// next there *may* a serialized exception of bytes, but it is only useful to Java clients,

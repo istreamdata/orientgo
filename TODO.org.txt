@@ -1,5 +1,4 @@
 * IN-PROGRESS Get all existing unit tests working
-** IN-PROGRESS Need to clarify BigEndian vs. LittleEndian encoding for varints. Looks to be little endian. I think the write_varint code is wrong then.  The read_varint code looks to be working again the OrientDB server.
 * TODO Add unit tests for ReadFloat and ReadDouble (obinary/rw)
 * TODO Re-evaluate db/network reader API
 * TODO better test coverage for code written so far

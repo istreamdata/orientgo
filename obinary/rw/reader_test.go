@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"github.com/quux00/ogonori/oerror"
+
 	"testing"
 )
 
@@ -86,7 +88,7 @@ func TestReadBytesWithTooFewEntries(t *testing.T) {
 
 	bs, err = ReadBytes(rdr)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{Expected: 12, Actual: 5}, err)
+	equals(t, oerror.IncorrectNetworkRead{Expected: 12, Actual: 5}, err)
 	assert(t, bs == nil, "bs should be nil")
 }
 
@@ -133,12 +135,12 @@ func TestReadLongWithBadInputs(t *testing.T) {
 	buf = bytes.NewBuffer(data)
 	outval, err = ReadLong(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{Expected: 8, Actual: 4}, err)
+	equals(t, oerror.IncorrectNetworkRead{Expected: 8, Actual: 4}, err)
 	equals(t, int64(DEFAULT_RETVAL), outval)
 }
 
 func TestReadInt(t *testing.T) {
-	var outval int
+	var outval int32
 	data := []int32{0, 1, -100000, 200000, MaxInt, MinInt}
 
 	buf := new(bytes.Buffer)
@@ -151,7 +153,7 @@ func TestReadInt(t *testing.T) {
 		// turn bytes back into int using obinary.ReadInt (fn under test)
 		outval, err = ReadInt(buf)
 		ok(t, err)
-		equals(t, int(inval), outval)
+		equals(t, inval, outval)
 	}
 }
 
@@ -195,19 +197,19 @@ func TestReadDouble(t *testing.T) {
 
 func TestReadIntWithBadInputs(t *testing.T) {
 	// no input
-	var outval int
+	var outval int32
 	buf := new(bytes.Buffer)
 	outval, err = ReadInt(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, int(DEFAULT_RETVAL), outval)
+	equals(t, int32(DEFAULT_RETVAL), outval)
 
 	// not enough input (int needs 4 bytes)
 	data := []byte{0, 1, 2}
 	buf = bytes.NewBuffer(data)
 	outval, err = ReadInt(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{Expected: 4, Actual: 3}, err)
-	equals(t, int(DEFAULT_RETVAL), outval)
+	equals(t, oerror.IncorrectNetworkRead{Expected: 4, Actual: 3}, err)
+	equals(t, int32(DEFAULT_RETVAL), outval)
 }
 
 func TestReadString(t *testing.T) {
@@ -250,7 +252,7 @@ func TestReadStringWithSizeLargerThanString(t *testing.T) {
 
 	outstr, err := ReadString(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, IncorrectNetworkRead{Expected: 200, Actual: 3}, err)
+	equals(t, oerror.IncorrectNetworkRead{Expected: 200, Actual: 3}, oerror.ExtractCause(err))
 	equals(t, "", outstr)
 }
 
@@ -272,7 +274,7 @@ func TestReadErrorResponseWithSingleException(t *testing.T) {
 	ok(t, err)
 	equals(t, 1, len(exceptions))
 
-	var serverExc OServerException = exceptions[0]
+	var serverExc oerror.OServerException = exceptions[0]
 	equals(t, "org.foo.BlargException", serverExc.Class)
 	equals(t, "wibble wibble!!", serverExc.Message)
 }

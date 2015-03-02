@@ -28,7 +28,6 @@ const (
 // The uint passed in will have already been zigzag encoded to allow all
 // "small" numbers (as measured by absolute value) to use less than 4 bytes.
 //
-// TODO: remove?
 func WriteVarInt(w io.Writer, data interface{}) error {
 	switch data.(type) {
 	case uint32:
@@ -52,16 +51,16 @@ func WriteVarInt(w io.Writer, data interface{}) error {
 //
 func WriteVarInt32(w io.Writer, n uint32) error {
 	if n <= uint32(Max1Byte) {
-		return varintEncode32(w, n, 1)
+		return varintEncode(w, uint64(n), 1)
 
 	} else if n <= Max2Byte {
-		return varintEncode32(w, n, 2)
+		return varintEncode(w, uint64(n), 2)
 
 	} else if n <= Max3Byte {
-		return varintEncode32(w, n, 3)
+		return varintEncode(w, uint64(n), 3)
 
 	} else if n <= Max4Byte {
-		return varintEncode32(w, n, 4)
+		return varintEncode(w, uint64(n), 4)
 
 	} else {
 		return WriteVarInt64(w, uint64(n))
@@ -80,16 +79,16 @@ func WriteVarInt32(w io.Writer, n uint32) error {
 //
 func WriteVarInt64(w io.Writer, n uint64) error {
 	if n <= uint64(Max5Byte) {
-		return varintEncode64(w, n, 5)
+		return varintEncode(w, n, 5)
 
 	} else if n <= uint64(Max6Byte) {
-		return varintEncode64(w, n, 6)
+		return varintEncode(w, n, 6)
 
 	} else if n <= uint64(Max7Byte) {
-		return varintEncode64(w, n, 7)
+		return varintEncode(w, n, 7)
 
 	} else if n <= uint64(Max8Byte) {
-		return varintEncode64(w, n, 8)
+		return varintEncode(w, n, 8)
 
 	} else {
 		return fmt.Errorf("The maximum integer than can currently be written to varint is %d (%#x)",
@@ -97,31 +96,11 @@ func WriteVarInt64(w io.Writer, n uint64) error {
 	}
 }
 
-func varintEncode32(w io.Writer, v uint32, nbytes int) error {
-	bs := make([]byte, nbytes)
-
-	for i := 0; i < nbytes; i++ {
-		shift := uint32(i * 7)
-		b := byte(v >> shift)
-
-		if i == nbytes-1 {
-			bs[i] = b & byte(0x7f)
-		} else {
-			bs[i] = b | byte(0x80)
-		}
-	}
-
-	n, err := w.Write(bs)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-	if n != nbytes {
-		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual %d", nbytes, n)
-	}
-	return nil
-}
-
-func varintEncode64(w io.Writer, v uint64, nbytes int) error {
+//
+// varintEncode encodes into the little-endian format of
+// Google's Protocol Buffer standard
+//
+func varintEncode(w io.Writer, v uint64, nbytes int) error {
 	bs := make([]byte, nbytes)
 
 	for i := 0; i < nbytes; i++ {

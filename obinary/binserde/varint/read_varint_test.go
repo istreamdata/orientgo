@@ -345,22 +345,6 @@ func TestReadVarIntAndDecode32_4Bytes_Zero(t *testing.T) {
 	equals(t, int32(0), actualInt)
 }
 
-// func TestReadVarIntFoo(t *testing.T) {
-// 	is := []int8{-116, 1}
-// 	bs := make([]byte, 4)
-// 	for i, v := range is {
-// 		bs[i] = byte(v)
-// 	}
-// 	// bs = 0x8c 0x01 0x00 0x00
-// 	fmt.Printf("*** % #x\n", bs)
-
-// 	buf := bytes.NewBuffer(bs)
-// 	actualUint, err := ReadVarIntToUint32(buf)
-// 	ok(t, err)
-
-// 	fmt.Printf("+++ %v\n", actualUint)
-// }
-
 // /* ---[ ReadVarInt for int64 results ]--- */
 
 // // OrientDB varint encoding (5 bytes):

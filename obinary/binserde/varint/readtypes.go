@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/oerror"
 )
 
 //
@@ -31,7 +31,7 @@ func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 	size := int(sz)
 	data := buf.Next(size)
 	if len(data) != size {
-		return nil, rw.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+		return nil, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
 	}
 	return data, nil
 }

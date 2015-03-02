@@ -23,6 +23,20 @@ func (e Trace) Error() string {
 }
 
 //
+// ExtractCause will recurse down a "stack" of Trace errors until
+// it gets to an error that is not of type Trace and return that.
+// If an error not of type Trace is passed it, it is simply returned.
+//
+func ExtractCause(err error) error {
+	switch err.(type) {
+	case Trace:
+		return ExtractCause(err.(Trace).Cause)
+	default:
+		return err
+	}
+}
+
+//
 // NewTrace creates a Trace Error wrapper that retains the underlying
 // error ("cause") and the filename and line number of the previous call
 // where 2 is subtracted from the line number.  So it's usage is appropriate
@@ -83,3 +97,25 @@ func (e InvalidDatabaseType) Error() string {
 }
 
 // ------
+
+//
+// Exception (Java-based) from the OrientDB server-side.
+// Class = Java exception class
+// Message = error message from the server
+//
+type OServerException struct {
+	Class   string
+	Message string
+}
+
+// ------
+
+type IncorrectNetworkRead struct {
+	Expected int
+	Actual   int
+}
+
+func (e IncorrectNetworkRead) Error() string {
+	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
+		e.Expected, e.Actual)
+}

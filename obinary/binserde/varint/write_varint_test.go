@@ -215,3 +215,59 @@ func TestWriteVarInt5Bytes(t *testing.T) {
 	expected = []byte{0xff, 0xff, 0xff, 0xff, 0x7f}
 	equals(t, expected, actual)
 }
+
+func TestWriteVarInt6Bytes(t *testing.T) {
+	var (
+		n                uint64
+		err              error
+		actual, expected []byte
+	)
+	n = 4000046222092 // 0x3 a3 55 55 8b 0c
+	//   0x3       a3       55       55       8b      0c
+	// 00000011 10100011 01010101 01010101 10001011 00001100  orig
+	// 10001100 10010110 11010110 10101010 10110101 01110100  varint encoded
+	//   0x8c     0x96     0xd6     0xaa     0xb5     0x74
+	buf := new(bytes.Buffer)
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 6, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0x8c, 0x96, 0xd6, 0xaa, 0xb5, 0x74}
+	equals(t, expected, actual)
+
+	n = uint64(Max5Byte) + 1
+	buf.Reset()
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 6, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x01}
+	equals(t, expected, actual)
+
+	n = Max6Byte
+	buf.Reset()
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 6, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}
+	equals(t, expected, actual)
+}
+
+func TestWriteVarInt8Bytes(t *testing.T) {
+	var (
+		n                uint64
+		err              error
+		actual, expected []byte
+	)
+	buf := new(bytes.Buffer)
+
+	n = Max8Byte
+	buf.Reset()
+	err = WriteVarInt(buf, n)
+	ok(t, err)
+	equals(t, 8, buf.Len())
+	actual = buf.Bytes()
+	expected = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}
+	equals(t, expected, actual)
+}

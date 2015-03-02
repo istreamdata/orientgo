@@ -216,7 +216,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			size := int(decoded)
 			data := buf.Next(size)
 			if len(data) != size {
-				return header{}, rw.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+				return header{}, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
 			}
 			hdr.propertyNames = append(hdr.propertyNames, string(data))
 

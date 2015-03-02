@@ -69,7 +69,7 @@ func TestReadVarInt1ByteAllOnes(t *testing.T) {
 	equals(t, expectedUint, actualUint)
 }
 
-func TestReadVarInt2BytesRandomInputA(t *testing.T) {
+func TestReadVarInt2BytesRandomInput(t *testing.T) {
 	bs := []byte{0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
 	actualUint, err := ReadVarIntToUint32(buf)

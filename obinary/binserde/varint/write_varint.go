@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/quux00/ogonori/oerror"
 )
 
 const (
@@ -26,6 +28,7 @@ const (
 // The uint passed in will have already been zigzag encoded to allow all
 // "small" numbers (as measured by absolute value) to use less than 4 bytes.
 //
+// TODO: remove?
 func WriteVarInt(w io.Writer, data interface{}) error {
 	switch data.(type) {
 	case uint32:
@@ -49,16 +52,16 @@ func WriteVarInt(w io.Writer, data interface{}) error {
 //
 func WriteVarInt32(w io.Writer, n uint32) error {
 	if n <= uint32(Max1Byte) {
-		return varintEncode(w, n, 1)
+		return varintEncode32(w, n, 1)
 
 	} else if n <= Max2Byte {
-		return varintEncode(w, n, 2)
+		return varintEncode32(w, n, 2)
 
 	} else if n <= Max3Byte {
-		return varintEncode(w, n, 3)
+		return varintEncode32(w, n, 3)
 
 	} else if n <= Max4Byte {
-		return varintEncode(w, n, 4)
+		return varintEncode32(w, n, 4)
 
 	} else {
 		return WriteVarInt64(w, uint64(n))
@@ -94,35 +97,23 @@ func WriteVarInt64(w io.Writer, n uint64) error {
 	}
 }
 
-// TODO: not yet tested
-func varintEncodeLittleEndian(w io.Writer, v uint32, nbytes int) error {
-	getmask := func(idx int) byte {
-		if idx == nbytes-1 {
-			return byte(0x7f)
-		}
-		return byte(0x80)
-	}
-
+func varintEncode32(w io.Writer, v uint32, nbytes int) error {
 	bs := make([]byte, nbytes)
-	idx := 0
-	bs[idx] = byte(v) & getmask(idx)
 
-	if nbytes >= 2 {
-		idx++
-		bs[idx] = byte(v>>7) & getmask(idx)
-	}
-	if nbytes >= 3 {
-		idx++
-		bs[idx] = byte(v>>14) | getmask(idx)
-	}
-	if nbytes == 4 {
-		idx++
-		bs[idx] = byte(v>>21) | getmask(idx)
+	for i := 0; i < nbytes; i++ {
+		shift := uint32(i * 7)
+		b := byte(v >> shift)
+
+		if i == nbytes-1 {
+			bs[i] = b & byte(0x7f)
+		} else {
+			bs[i] = b | byte(0x80)
+		}
 	}
 
 	n, err := w.Write(bs)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	if n != nbytes {
 		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual %d", nbytes, n)
@@ -130,73 +121,26 @@ func varintEncodeLittleEndian(w io.Writer, v uint32, nbytes int) error {
 	return nil
 }
 
-// assumes big-endian
-func varintEncode(w io.Writer, v uint32, nbytes int) error {
-	bs := make([]byte, nbytes)
-	idx := 0
-	if nbytes == 4 {
-		bs[idx] = byte(v>>21) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 3 {
-		bs[idx] = byte(v>>14) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 2 {
-		bs[idx] = byte(v>>7) | byte(0x80)
-		idx++
-	}
-	bs[idx] = byte(v) & byte(0x7f)
-
-	n, err := w.Write(bs)
-	if err != nil {
-		return err
-	}
-	if n != nbytes {
-		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual: %d", nbytes, n)
-	}
-	return nil
-}
-
 func varintEncode64(w io.Writer, v uint64, nbytes int) error {
 	bs := make([]byte, nbytes)
-	idx := 0
-	if nbytes == 8 {
-		bs[idx] = byte(v>>49) | byte(0x80)
-		idx++
+
+	for i := 0; i < nbytes; i++ {
+		shift := uint32(i * 7)
+		b := byte(v >> shift)
+
+		if i == nbytes-1 {
+			bs[i] = b & byte(0x7f)
+		} else {
+			bs[i] = b | byte(0x80)
+		}
 	}
-	if nbytes >= 7 {
-		bs[idx] = byte(v>>42) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 6 {
-		bs[idx] = byte(v>>35) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 5 {
-		bs[idx] = byte(v>>28) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 4 {
-		bs[idx] = byte(v>>21) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 3 {
-		bs[idx] = byte(v>>14) | byte(0x80)
-		idx++
-	}
-	if nbytes >= 2 {
-		bs[idx] = byte(v>>7) | byte(0x80)
-		idx++
-	}
-	bs[idx] = byte(v) & byte(0x7f)
 
 	n, err := w.Write(bs)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	if n != nbytes {
-		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual: %d", nbytes, n)
+		return fmt.Errorf("Incorrect number of bytes written. Expected %d. Actual %d", nbytes, n)
 	}
 	return nil
 }

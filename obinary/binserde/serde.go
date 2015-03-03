@@ -52,28 +52,30 @@ type ORecordSerializer interface {
 // interface for version 0
 //
 type ORecordSerializerV0 struct {
-	// TODO: need any internal data?
+	// the global properties (in record #0:1) are unique to each database (I think)
+	// so each client database obj needs to have its own ORecordSerializerV0
+	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
 }
 
 //
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the bytes.Buffer being passed in
 //
-func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
 
 	classname, err := readClassname(buf)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	doc.Classname = classname
 
 	header, err := readHeader(buf)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
@@ -105,10 +107,9 @@ func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.
 				fname := fmt.Sprintf("foo%d", i) // FIXME: need to look this up from the schema
 				ftype := byte(oschema.STRING)    // FIXME: need to look this up from the schema
 				ofield = &oschema.OField{
-					Id:       fid,
-					Name:     fname,
-					Fullname: classname + "." + fname,
-					Typ:      ftype,
+					Id:   fid,
+					Name: fname,
+					Typ:  ftype,
 				}
 			}
 			ofields = append(ofields, ofield)
@@ -136,18 +137,18 @@ func (serde ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.
 // TODO: need to study what exactly this method is supposed to do and not do
 //       -> check the Java driver version
 //
-func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
+func (serde *ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
 	buf *bytes.Buffer, fields []string) error {
 
 	// TODO: impl me
 	return nil
 }
 
-func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
 }
 
-func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde *ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
 }
 
@@ -262,7 +263,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte) (interface{}, error) {
+func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -303,16 +304,16 @@ func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte)
 		doc := oschema.NewDocument("")
 		err = serde.Deserialize(doc, buf)
 		val = interface{}(doc)
-		fmt.Printf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
+		// fmt.Printf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDLIST:
 		val, err = serde.readEmbeddedCollection(buf)
-		fmt.Printf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
+		// fmt.Printf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDSET:
-		val, err = serde.readEmbeddedCollection(buf)              // TODO: may need to create a set type as well
-		fmt.Printf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
+		val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
+		// fmt.Printf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDMAP:
 		val, err = serde.readEmbeddedMap(buf)
-		fmt.Printf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
+		// fmt.Printf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue LINK NOT YET IMPLEMENTED")
@@ -348,7 +349,7 @@ func (serde ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte)
 // readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
-func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
+func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -408,7 +409,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]interface{}, error) {
+func (serde *ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)

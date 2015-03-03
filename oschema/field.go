@@ -32,24 +32,23 @@ const (
 )
 
 //
-// OField is a generic data holder that does in ODocuments
+// OField is a generic data holder that goes in ODocuments
 // This is a less specific concept that OProperty.
 // TODO: need more clarification here
 //
 type OField struct {
-	Id       int32 // TODO: is the size specified in OrientDB docs?
-	Name     string
-	Fullname string // Classname.propertyName
-	Typ      byte   // corresponds to one of the type constants above
-	Value    interface{}
+	Id    int32 // TODO: is the size specified in OrientDB docs?
+	Name  string
+	Typ   byte // corresponds to one of the type constants above
+	Value interface{}
 }
 
 //
-// String implements Stringer interface
+// *OField implements Stringer interface
 //
 func (fld *OField) String() string {
-	return fmt.Sprintf("OField[id: %d; name: %s; fullname: %s, datatype: %d; value: %v]",
-		fld.Id, fld.Name, fld.Fullname, fld.Typ, fld.Value)
+	return fmt.Sprintf("OField[id: %d; name: %s; datatype: %d; value: %v]",
+		fld.Id, fld.Name, fld.Typ, fld.Value)
 }
 
 //

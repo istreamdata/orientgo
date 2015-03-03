@@ -72,7 +72,7 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 	}
 
 	serializerType = BinarySerialization
-	serdeV0 = binserde.ORecordSerializerV0{}
+	serdeV0 = &binserde.ORecordSerializerV0{}
 	if svrProtocolNum < MinBinarySerializerVersion {
 		serializerType = CsvSerialization
 		// TODO: change serializer to ORecordSerializerCsvVxxx once that is built

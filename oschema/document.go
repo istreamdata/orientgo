@@ -120,10 +120,9 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 //
 func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte) *ODocument {
 	fld := &OField{
-		Name:     name,
-		Fullname: doc.Classname + "." + name,
-		Value:    val,
-		Typ:      fieldType,
+		Name:  name,
+		Value: val,
+		Typ:   fieldType,
 	}
 	return doc.AddField(name, fld)
 }

@@ -20,7 +20,7 @@ func createDocument(rid string, recVersion int32, serializedDoc []byte, dbc *DbC
 
 	// the first byte specifies record serialization version
 	// use it to look up serializer and strip off that byte
-	serde := dbc.RecordSerDes[int(serializedDoc[0])]
+	serde := dbc.currDb.RecordSerDes[int(serializedDoc[0])]
 	recBuf := bytes.NewBuffer(serializedDoc[1:])
 	err := serde.Deserialize(doc, recBuf)
 	if err != nil {

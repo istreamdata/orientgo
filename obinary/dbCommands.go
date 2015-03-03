@@ -358,7 +358,7 @@ func loadSchema(dbc *DbClient, schemaRID string) error {
 	for _, cfield := range classesFld.Value.([]interface{}) {
 		cdoc := cfield.(*oschema.ODocument)
 		oclass = oschema.NewOClassFromDocument(cdoc)
-		fmt.Printf("\noclass =>> %v\n", *oclass)
+		dbc.currDb.Classes[oclass.Name] = oclass
 	}
 
 	return nil
@@ -601,8 +601,9 @@ func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODo
 			doc.Version = recversion
 
 			// the first byte specifies record serialization version
-			// use it to look up serializer and strip off that byte
-			serde := dbc.RecordSerDes[int(databytes[0])]
+			// use it to look up serializer
+			serde := dbc.currDb.RecordSerDes[int(databytes[0])]
+			// then strip off the version byte and send the data to the serde
 			err = serde.Deserialize(doc, bytes.NewBuffer(databytes[1:]))
 			if err != nil {
 				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)

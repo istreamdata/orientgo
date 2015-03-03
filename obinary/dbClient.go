@@ -19,7 +19,7 @@ type DbClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	currDb                *ODatabase
-	RecordSerDes          []binserde.ORecordSerializer // this is for de/serializing ODocument -> separate one for Graph objects?
+	RecordSerDes          []binserde.ORecordSerializer // serdes w/o globalProps - for server-level cmds
 }
 
 //

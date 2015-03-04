@@ -1,12 +1,12 @@
 * DONE Get all existing unit tests working
-* IN-PROGRESS Why do we need globalProperties off currDb and currDb.RecordSerDe ?
-* TODO Add unit tests for ReadFloat and ReadDouble (obinary/rw)
+* DONE Why do we need globalProperties off currDb and currDb.RecordSerDe ?
+* DONE Add unit tests for ReadFloat and ReadDouble (obinary/rw)
 * TODO Re-evaluate db/network reader API
 * TODO better test coverage for code written so far
 * TODO Deserialize for a Document query which returns propertyIds, not property names needs to be made correct (serde.go 105)
 * TODO Determine if we can remove Fullname from OField -> that only belongs in OProperty, no?
 * TODO Clean up varint API -> which calls are actually used?  Just ReadVarIntAndDecode32?  Can the others be simplified or made private?
-* TODO Add in use of Trace Error all over the place
+* IN-PROGRESS Add in use of Trace Error all over the place
 * TODO serde.go line 201 -> clean up
 * TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
 * TODO Update README -> remove / defer support for OrientDB 1.7 and CSV serialization

@@ -19,7 +19,7 @@ import (
 // username and password.  Database type should be one of the obinary constants:
 // DocumentDbType or GraphDbType.
 //
-func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
+func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	buf := dbc.buf
 	buf.Reset()
 
@@ -176,7 +176,7 @@ func OpenDatabase(dbc *DbClient, dbname, dbtype, username, passw string) error {
 // loadConfigRecord loads record #0:0 for the current database, caching
 // some of the information returned into OStorageConfiguration
 //
-func loadConfigRecord(dbc *DbClient) (schemaRID string, err error) {
+func loadConfigRecord(dbc *DBClient) (schemaRID string, err error) {
 	// The config record comes back as type 'b' (binary?), which should just be converted
 	// to a string then tokenized by the pipe char
 
@@ -321,7 +321,7 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
 //
-func loadSchema(dbc *DbClient, schemaRID string) error {
+func loadSchema(dbc *DBClient, schemaRID string) error {
 	docs, err := GetRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
 	if err != nil {
 		return err
@@ -370,7 +370,7 @@ func loadSchema(dbc *DbClient, schemaRID string) error {
 // when exiting an app or before starting a connection to a different
 // OrientDB database.
 //
-func CloseDatabase(dbc *DbClient) error {
+func CloseDatabase(dbc *DBClient) error {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_DB_CLOSE)
@@ -399,7 +399,7 @@ func CloseDatabase(dbc *DbClient) error {
 // It is a database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
 //
-func GetDatabaseSize(dbc *DbClient) (int64, error) {
+func GetDatabaseSize(dbc *DBClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_SIZE))
 }
 
@@ -408,11 +408,11 @@ func GetDatabaseSize(dbc *DbClient) (int64, error) {
 // database. It is a database-level operation, so OpenDatabase must have
 // already been called first in order to start a session with the database.
 //
-func GetNumRecordsInDatabase(dbc *DbClient) (int64, error) {
+func GetNumRecordsInDatabase(dbc *DBClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
 }
 
-func DeleteRecordByRIDAsync(dbc *DbClient, rid string, recVersion int32) error {
+func DeleteRecordByRIDAsync(dbc *DBClient, rid string, recVersion int32) error {
 	return deleteByRID(dbc, rid, recVersion, true)
 }
 
@@ -426,11 +426,11 @@ func DeleteRecordByRIDAsync(dbc *DbClient, rid string, recVersion int32) error {
 // If error is returned, delete request was either never issued, or there was
 // a problem on the server end or the record did not exist in the database.
 //
-func DeleteRecordByRID(dbc *DbClient, rid string, recVersion int32) error {
+func DeleteRecordByRID(dbc *DBClient, rid string, recVersion int32) error {
 	return deleteByRID(dbc, rid, recVersion, false)
 }
 
-func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error {
+func deleteByRID(dbc *DBClient, rid string, recVersion int32, async bool) error {
 	dbc.buf.Reset()
 	var (
 		clusterId  int16
@@ -506,7 +506,7 @@ func deleteByRID(dbc *DbClient, rid string, recVersion int32, async bool) error 
 // a slice of ODocument
 //
 // TODO: may also want to expose options: ignoreCache, loadTombstones bool
-func GetRecordByRID(dbc *DbClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
+func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 	var (
 		clusterId  int16
@@ -640,7 +640,7 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 }
 
 // TODO: what is this going to return? a cursor?
-func SQLQuery(dbc *DbClient, sql string) error {
+func SQLQuery(dbc *DBClient, sql string) error {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
@@ -750,7 +750,7 @@ func SQLQuery(dbc *DbClient, sql string) error {
 //
 // GetClusterDataRange returns the range of record ids for a cluster
 //
-func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, err error) {
+func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, err error) {
 	dbc.buf.Reset()
 
 	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
@@ -801,7 +801,7 @@ func GetClusterDataRange(dbc *DbClient, clusterName string) (begin, end int64, e
 // been called first in order to start a session with the database.
 // The clusterId is returned if the command is successful.
 //
-func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) {
+func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) {
 	dbc.buf.Reset()
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_ADD)
@@ -849,7 +849,7 @@ func AddCluster(dbc *DbClient, clusterName string) (clusterId int16, err error) 
 // been called first in order to start a session with the database.
 // If nil is returned, then the action succeeded.
 //
-func DropCluster(dbc *DbClient, clusterName string) error {
+func DropCluster(dbc *DBClient, clusterName string) error {
 	dbc.buf.Reset()
 
 	fmt.Printf("Attempt DROP: %v\n", clusterName) // DEBUG
@@ -903,7 +903,7 @@ func DropCluster(dbc *DbClient, clusterName string) error {
 // the clusters specified *including* deleted records (applicable for
 // autosharded storage only)
 //
-func GetClusterCountIncludingDeleted(dbc *DbClient, clusterNames ...string) (count int64, err error) {
+func GetClusterCountIncludingDeleted(dbc *DBClient, clusterNames ...string) (count int64, err error) {
 	return getClusterCount(dbc, true, clusterNames)
 }
 
@@ -913,11 +913,11 @@ func GetClusterCountIncludingDeleted(dbc *DbClient, clusterNames ...string) (cou
 // autosharded storage. Use GetClusterCountIncludingDeleted if you want
 // the count including deleted records
 //
-func GetClusterCount(dbc *DbClient, clusterNames ...string) (count int64, err error) {
+func GetClusterCount(dbc *DBClient, clusterNames ...string) (count int64, err error) {
 	return getClusterCount(dbc, false, clusterNames)
 }
 
-func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string) (count int64, err error) {
+func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string) (count int64, err error) {
 	dbc.buf.Reset()
 
 	clusterIds := make([]int16, len(clusterNames))
@@ -984,7 +984,7 @@ func getClusterCount(dbc *DbClient, countTombstones bool, clusterNames []string)
 	return nrecs, err
 }
 
-func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
+func writeCommandAndSessionId(dbc *DBClient, cmd byte) error {
 	if dbc.sessionId == NoSessionId {
 		return oerror.SessionNotInitialized{}
 	}
@@ -1002,7 +1002,7 @@ func writeCommandAndSessionId(dbc *DbClient, cmd byte) error {
 	return nil
 }
 
-func getLongFromDb(dbc *DbClient, cmd byte) (int64, error) {
+func getLongFromDb(dbc *DBClient, cmd byte) (int64, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, cmd)
@@ -1045,7 +1045,7 @@ func findClusterWithName(clusters []OCluster, clusterName string) int16 {
 	return int16(-1)
 }
 
-func readStatusCodeAndSessionId(dbc *DbClient) error {
+func readStatusCodeAndSessionId(dbc *DBClient) error {
 	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
 		return err
@@ -1073,7 +1073,7 @@ func readStatusCodeAndSessionId(dbc *DbClient) error {
 
 // TODO: needs to actually return something =>
 //       it will work like an external iterator where the user passes in the type to read into
-func readResultSet(dbc *DbClient) error {
+func readResultSet(dbc *DBClient) error {
 	// for Collection
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:

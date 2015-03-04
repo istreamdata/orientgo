@@ -17,6 +17,10 @@ type ODatabase struct {
 	RecordSerDes     []binserde.ORecordSerializer    // serdes w/ global properties - for db-level cmds
 	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
 	Classes          map[string]*oschema.OClass      // key: class name (TODO: check how Java client does it)
+	//
+	// The map of GlobalProperties is shared between the ODatabase struct and the ORecordSerializer
+	// objects - it is the same map.  So changes to one will change the other.
+	//
 }
 
 func NewDatabase(name, dbtype string) *ODatabase {

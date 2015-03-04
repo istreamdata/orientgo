@@ -10,27 +10,51 @@ import (
 	"github.com/quux00/ogonori/obinary/binserde"
 )
 
-// TODO: pattern this after OStorageRemote ?
-type DbClient struct {
+//
+// DBClient encapsulates the active TCP connection to an OrientDB server
+// to be used with the Network Binary Protocol.
+// It also may be connected to up to one database at a time.
+// Do not create a DBClient struct directly.  You should use NewDBClient,
+// followed immediately by ConnectToServer, to connect to the OrientDB server,
+// or OpenDatabase, to connect to a database on the server.
+//
+type DBClient struct {
 	conx                  net.Conn
 	buf                   *bytes.Buffer
 	sessionId             int32
 	token                 []byte // orientdb token when not using sessionId
 	serializationType     string
 	binaryProtocolVersion int16
-	currDb                *ODatabase
+	currDb                *ODatabase                   // only one db session open at a time
 	RecordSerDes          []binserde.ORecordSerializer // serdes w/o globalProps - for server-level cmds
+	//
+	// There are two separate arrays of ORecordSerializers - the one here does NOT
+	// have its GlobalProperties field set, which means it cannot be used for some
+	// database-level queries where it needs to reference schema info.  But some
+	// server-level commands (e.g., RequestDbList) need to used a Deserializer.
+	// This list here is to be used for server-level commands.  For database-level
+	// commands use the RecordSerDes in the currDb object.
+	//
+}
+
+/* ---[ getters for testing ]--- */
+func (dbc *DBClient) GetCurrDB() *ODatabase {
+	return dbc.currDb
+}
+
+func (dbc *DBClient) GetSessionId() int32 {
+	return dbc.sessionId
 }
 
 //
-// NewDbClient creates a new DbClient after contacting the OrientDb server
+// NewDBClient creates a new DBClient after contacting the OrientDb server
 // specified in the ClientOptions and validating that the server and client
 // speak the same binary protocol version.
-// The DbClient returned is ready to make calls to the OrientDb but has not
+// The DBClient returned is ready to make calls to the OrientDb but has not
 // yet established a database session or a session with the OrientDb server.
 // After this, the user needs to call either OpenDatabase or CreateServerSession.
 //
-func NewDbClient(opts ClientOptions) (*DbClient, error) {
+func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	// binary port range is: 2424-2430
 	if opts.ServerHost == "" {
 		opts.ServerHost = "0.0.0.0"
@@ -39,7 +63,6 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		opts.ServerPort = "2424"
 	}
 	hostport := fmt.Sprintf("%s:%s", opts.ServerHost, opts.ServerPort)
-	fmt.Printf("%v\n", hostport) // DEBUG
 	conx, err := net.Dial("tcp", hostport)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
@@ -80,11 +103,7 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 			svrProtocolNum, MinBinarySerializerVersion))
 	}
 
-	// DEBUG
-	fmt.Printf("svrProtocolNum: %v\n", svrProtocolNum)
-	// END DEBUG
-
-	dbc := &DbClient{
+	dbc := &DBClient{
 		conx:                  conx,
 		buf:                   new(bytes.Buffer),
 		serializationType:     serializerType,
@@ -92,11 +111,11 @@ func NewDbClient(opts ClientOptions) (*DbClient, error) {
 		sessionId:             NoSessionId,
 		RecordSerDes:          []binserde.ORecordSerializer{serdeV0},
 	}
+
 	return dbc, nil
 }
 
-// *DbClient implements Closer
-func (dbc *DbClient) Close() error {
+func (dbc *DBClient) Close() error {
 	if dbc.currDb != nil {
 		// ignoring any error here, since closing the conx also terminates the session
 		CloseDatabase(dbc)
@@ -104,10 +123,10 @@ func (dbc *DbClient) Close() error {
 	return dbc.conx.Close()
 }
 
-func (dbc DbClient) String() string {
+func (dbc *DBClient) String() string {
 	if dbc.currDb == nil {
-		return "DbClient[not-connected-to-db]"
+		return "DBClient[not-connected-to-db]"
 	}
-	return fmt.Sprintf("DbClient[connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDb Details: %v]",
+	return fmt.Sprintf("DBClient[connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDb Details: %v]",
 		dbc.currDb.Name, dbc.currDb.Typ, len(dbc.currDb.Clusters), dbc.sessionId, dbc.currDb)
 }

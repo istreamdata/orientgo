@@ -199,8 +199,6 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 	}
 
 	for {
-		// _, _, line, _ := runtime.Caller(0) // TODO: check if this is correct
-
 		decoded, err := varint.ReadVarIntAndDecode32(buf)
 		if err != nil {
 			_, _, line, _ := runtime.Caller(0)
@@ -224,15 +222,13 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			// read data pointer
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
-				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
+				return header{}, oerror.NewTrace(err)
 			}
 
 			// read data type
 			dataType, err := buf.ReadByte()
 			if err != nil {
-				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
+				return header{}, oerror.NewTrace(err)
 			}
 			hdr.types = append(hdr.types, dataType)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
@@ -244,8 +240,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
-				_, _, line, _ := runtime.Caller(0)
-				return header{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
+				return header{}, oerror.NewTrace(err)
 			}
 
 			hdr.propertyIds = append(hdr.propertyIds, propertyId)

@@ -10,7 +10,7 @@ import (
 // TODO: in the Java version there is a "fill" method on ODocument (ORecord)
 //       to create a record from these entries => maybe move this there?
 //
-func createDocument(rid string, recVersion int32, serializedDoc []byte, dbc *DbClient) (*oschema.ODocument, error) {
+func createDocument(rid string, recVersion int32, serializedDoc []byte, dbc *DBClient) (*oschema.ODocument, error) {
 	var doc *oschema.ODocument
 	doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
 	doc.Rid = rid

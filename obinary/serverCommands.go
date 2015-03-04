@@ -14,7 +14,7 @@ import (
 ///
 /// In the Java client the "server command" functionality is encapsulated
 /// the OServerAdmin class.  TODO: may want to follow suit rather than
-/// using the same DbClient for both server-commands and db-commands,
+/// using the same DBClient for both server-commands and db-commands,
 /// especially since (I think) they have separate logins.
 ///
 
@@ -25,7 +25,7 @@ import (
 // session before any other server-level commands. The username and password
 // required are for the server (admin) not any particular database.
 //
-func ConnectToServer(dbc *DbClient, adminUser, adminPassw string) error {
+func ConnectToServer(dbc *DBClient, adminUser, adminPassw string) error {
 	buf := dbc.buf
 	buf.Reset()
 
@@ -116,7 +116,6 @@ func ConnectToServer(dbc *DbClient, adminUser, adminPassw string) error {
 	// TODO: this assumes you can only have one sessionId - but perhaps can have a server sessionid
 	//       and one or more database sessions open at the same time ?????
 	dbc.sessionId = sessionId
-	fmt.Printf("sessionId just set to: %v\n", dbc.sessionId) // DEBUG
 
 	tokenBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
@@ -131,7 +130,7 @@ func ConnectToServer(dbc *DbClient, adminUser, adminPassw string) error {
 // dbType must be type DocumentDbType or GraphDbType.
 // storageType must type PersistentStorageType or VolatileStorageType.
 //
-func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
+func CreateDatabase(dbc *DBClient, dbname, dbtype, storageType string) error {
 	dbc.buf.Reset()
 
 	/* ---[ precondition checks ]--- */
@@ -197,13 +196,13 @@ func CreateDatabase(dbc *DbClient, dbname, dbtype, storageType string) error {
 // DropDatabase drops the specified database. The caller must provide
 // both the name and the type of the database.  The type should either:
 //
-//     obinary.PersistentStorageType
-//     obinary.VolatileStorageType
+//     obinary.DocumentDbType
+//     obinary.GraphDbType
 //
 // This is a "server" command, so you must have already called
 // ConnectToServer before calling this function.
 //
-func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
+func DropDatabase(dbc *DBClient, dbname, dbtype string) error {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
@@ -266,7 +265,7 @@ func DropDatabase(dbc *DbClient, dbname, dbtype string) error {
 // ConnectToServer, otherwise an authorization error will be returned.
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
 //
-func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
+func DatabaseExists(dbc *DBClient, dbname, storageType string) (bool, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
@@ -338,7 +337,7 @@ func DatabaseExists(dbc *DbClient, dbname, storageType string) (bool, error) {
 //     key:  cars
 //     val:  plocal:/path/to/orientdb-community-2.0.1/databases/cars
 //
-func RequestDbList(dbc *DbClient) (map[string]string, error) {
+func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
 	"strconv"
 	"strings"
@@ -237,7 +238,6 @@ func loadConfigRecord(dbc *DBClient) (schemaRID string, err error) {
 	if err != nil {
 		return schemaRID, err
 	}
-	fmt.Printf("xxD5: payloadStatus: %v\n", payloadStatus)
 
 	if payloadStatus == byte(0) {
 		return schemaRID, errors.New("Payload status for #0:0 load was 0. No config data returned.")
@@ -518,47 +518,47 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 
 	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	err = rw.WriteLong(dbc.buf, clusterPos)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	err = rw.WriteString(dbc.buf, fetchPlan)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	ignoreCache := true // hardcoding for now
 	err = rw.WriteBool(dbc.buf, ignoreCache)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	loadTombstones := false // hardcoding for now
 	err = rw.WriteBool(dbc.buf, loadTombstones)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// this query can return multiple records (though I don't understand why)
@@ -567,9 +567,8 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 	for {
 		payloadStatus, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return nil, err
+			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("D5: payloadStatus: %v\n", payloadStatus)
 
 		if payloadStatus == byte(0) {
 			break
@@ -577,17 +576,17 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 
 		rectype, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return nil, err
+			return nil, oerror.NewTrace(err)
 		}
 
 		recversion, err := rw.ReadInt(dbc.conx)
 		if err != nil {
-			return nil, err
+			return nil, oerror.NewTrace(err)
 		}
 
 		databytes, err := rw.ReadBytes(dbc.conx)
 		if err != nil {
-			return nil, err
+			return nil, oerror.NewTrace(err)
 		}
 
 		// DEBUG
@@ -631,7 +630,7 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 	}
 	id64, err := strconv.ParseInt(parts[0], 10, 16)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, oerror.NewTrace(err)
 	}
 	clusterId = int16(id64)
 
@@ -639,20 +638,20 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 	return clusterId, clusterPos, err
 }
 
-// TODO: what is this going to return? a cursor?
-func SQLQuery(dbc *DBClient, sql string) error {
+// LEFT OFF
+func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	mode := byte('s') // synchronous only supported for now
 
 	err = rw.WriteByte(dbc.buf, mode)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// need a separate buffer to write the command-payload to, so
@@ -661,20 +660,20 @@ func SQLQuery(dbc *DBClient, sql string) error {
 
 	err = rw.WriteStrings(commandBuf, "q", sql) // q for query
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// non-text-limit (-1 = use limit from query text)
 	err = rw.WriteInt(commandBuf, -1)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// fetch plan // TODO: need to support fetch plans
 	fetchPlan := ""
 	err = rw.WriteString(commandBuf, fetchPlan)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// serialized-params => NONE currently supported => TODO: add support for these; see note below
@@ -687,7 +686,7 @@ func SQLQuery(dbc *DBClient, sql string) error {
 	// parameter and as value the value of the parameter.
 	err = rw.WriteBytes(commandBuf, make([]byte, 0, 0))
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	serializedCmd := commandBuf.Bytes()
@@ -696,7 +695,7 @@ func SQLQuery(dbc *DBClient, sql string) error {
 	// command-payload-length and command-payload
 	err = rw.WriteBytes(dbc.buf, serializedCmd)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
@@ -705,23 +704,25 @@ func SQLQuery(dbc *DBClient, sql string) error {
 
 	_, err = dbc.conx.Write(finalBytes)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	resType, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	resultType := int32(resType)
 	fmt.Printf("resultType: %v\n", string(resultType))
+
+	var docs []*oschema.ODocument
 
 	if resultType == 'n' {
 		fmt.Println("resultVal: Null")
@@ -730,21 +731,30 @@ func SQLQuery(dbc *DBClient, sql string) error {
 		fmt.Println("Now need to parse a record")
 		record, err := rw.ReadBytes(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
 		fmt.Printf("record: %v\n", record)
+		_, file, line, _ := runtime.Caller(0)
+		// TODO: I've not yet tested this route of code -> how do so?
+		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
+			file, line)
 
 	} else if resultType == 'l' {
-		err = readResultSet(dbc) // TODO: need to devise what a ResultSet is going to look like
+		docs, err = readResultSet(dbc)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
+		return docs, err
 
 	} else {
 		fmt.Println(">> Not yet supported")
+		// TODO: I've not yet tested this route of code -> how do so?
+		_, file, line, _ := runtime.Caller(1)
+		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
+			file, line)
 	}
 
-	return nil
+	return docs, nil // FIXME: return slice
 }
 
 //
@@ -765,34 +775,34 @@ func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, e
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DATARANGE)
 	if err != nil {
-		return begin, end, err
+		return begin, end, oerror.NewTrace(err)
 	}
 
 	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
-		return begin, end, err
+		return begin, end, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return begin, end, err
+		return begin, end, oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return begin, end, err
+		return begin, end, oerror.NewTrace(err)
 	}
 
 	begin, err = rw.ReadLong(dbc.conx)
 	if err != nil {
-		return begin, end, err
+		return begin, end, oerror.NewTrace(err)
 	}
 
 	end, err = rw.ReadLong(dbc.conx)
-	return begin, end, err
+	return begin, end, oerror.NewTrace(err)
 }
 
 //
@@ -806,37 +816,37 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) 
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_ADD)
 	if err != nil {
-		return int16(0), err
+		return int16(0), oerror.NewTrace(err)
 	}
 
 	cname := strings.ToLower(clusterName)
 
 	err = rw.WriteString(dbc.buf, cname)
 	if err != nil {
-		return int16(0), err
+		return int16(0), oerror.NewTrace(err)
 	}
 
 	err = rw.WriteShort(dbc.buf, -1) // -1 means generate new cluster id
 	if err != nil {
-		return int16(0), err
+		return int16(0), oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return int16(0), err
+		return int16(0), oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return int16(0), err
+		return int16(0), oerror.NewTrace(err)
 	}
 
 	clusterId, err = rw.ReadShort(dbc.conx)
 	if err != nil {
-		return clusterId, err
+		return clusterId, oerror.NewTrace(err)
 	}
 
 	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterId})
@@ -865,30 +875,30 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 
 	err := writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DROP)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	err = rw.WriteShort(dbc.buf, clusterId)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	delStatus, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	if delStatus != byte(1) {
 		return fmt.Errorf("Drop cluster action failed. Return code from server was not '1', but %d",
@@ -937,19 +947,19 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_COUNT)
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	// specify number of clusterIds being sent and then write the clusterIds
 	err = rw.WriteShort(dbc.buf, int16(len(clusterIds)))
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	for _, cid := range clusterIds {
 		err = rw.WriteShort(dbc.buf, cid)
 		if err != nil {
-			return int64(0), err
+			return int64(0), oerror.NewTrace(err)
 		}
 	}
 
@@ -960,25 +970,25 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 	}
 	err = rw.WriteByte(dbc.buf, ct) // presuming that 0 means "false"
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	nrecs, err := rw.ReadLong(dbc.conx)
 	if err != nil {
-		return int64(0), err
+		return int64(0), oerror.NewTrace(err)
 	}
 
 	return nrecs, err
@@ -991,12 +1001,12 @@ func writeCommandAndSessionId(dbc *DBClient, cmd byte) error {
 
 	err := rw.WriteByte(dbc.buf, cmd)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	err = rw.WriteInt(dbc.buf, dbc.sessionId)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	return nil
@@ -1007,26 +1017,26 @@ func getLongFromDb(dbc *DBClient, cmd byte) (int64, error) {
 
 	err := writeCommandAndSessionId(dbc, cmd)
 	if err != nil {
-		return int64(-1), err
+		return int64(-1), oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return int64(-1), err
+		return int64(-1), oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return int64(-1), err
+		return int64(-1), oerror.NewTrace(err)
 	}
 
 	// the answer to the query
 	longFromDb, err := rw.ReadLong(dbc.conx)
 	if err != nil {
-		return int64(-1), err
+		return int64(-1), oerror.NewTrace(err)
 	}
 
 	return longFromDb, nil
@@ -1048,12 +1058,12 @@ func findClusterWithName(clusters []OCluster, clusterName string) int16 {
 func readStatusCodeAndSessionId(dbc *DBClient) error {
 	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	if sessionId != dbc.sessionId {
 		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
@@ -1063,7 +1073,7 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 	if status == RESPONSE_STATUS_ERROR {
 		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
-			return err
+			return oerror.NewTrace(err)
 		}
 		return fmt.Errorf("Server Error(s): %v", serverExceptions)
 	}
@@ -1071,9 +1081,7 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 	return nil
 }
 
-// TODO: needs to actually return something =>
-//       it will work like an external iterator where the user passes in the type to read into
-func readResultSet(dbc *DBClient) error {
+func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 	// for Collection
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:
@@ -1081,70 +1089,68 @@ func readResultSet(dbc *DBClient) error {
 
 	resultSetSize, err := rw.ReadInt(dbc.conx)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 
 	fmt.Printf("++ Number of records returned: %v\n", resultSetSize)
-
 	rsize := int(resultSetSize)
+	docs := make([]*oschema.ODocument, rsize)
+
 	for i := 0; i < rsize; i++ {
 		// TODO: move code below to readRecordInResultSet
 		// this apparently should always be zero for serialized records -> not sure it's meaning
 		zero, err := rw.ReadShort(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
 		if zero != int16(0) {
-			return fmt.Errorf("ERROR: readResultSet: expected short value of 0 but is %d", zero)
+			return nil, fmt.Errorf("ERROR: readResultSet: expected short value of 0 but is %d", zero)
 		}
 
 		recType, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("!!recType: %v\n", recType)
 
 		clusterId, err := rw.ReadShort(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("!!clusterId: %v\n", clusterId)
 
 		clusterPos, err := rw.ReadLong(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("!!clusterPos: %v\n", clusterPos)
 
 		recVersion, err := rw.ReadInt(dbc.conx)
 		if err != nil {
-			return err
+			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("!!recVersion: %v\n", recVersion)
 		if recType == byte('d') { // Document
 			var doc *oschema.ODocument
 			rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
 			recBytes, err := rw.ReadBytes(dbc.conx)
 			if err != nil {
-				return err
+				return nil, oerror.NewTrace(err)
 			}
 			doc, err = createDocument(rid, recVersion, recBytes, dbc)
 			if err != nil {
-				return err
+				return nil, oerror.NewTrace(err)
 			}
-			fmt.Printf("ResultSet Doc: \n%v\n", doc) // DEBUG
+			docs[i] = doc
+
 		} else {
 			_, file, line, _ := runtime.Caller(0)
-			return fmt.Errorf("%v: %v: Record type %v is not yet supported", file, line+1, recType)
+			return nil, fmt.Errorf("%v: %v: Record type %v is not yet supported", file, line+1, recType)
 		}
 	} // end for loop
 
 	end, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return nil, oerror.NewTrace(err)
 	}
 	if end != byte(0) {
-		return fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+		return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
 	}
-	return nil
+	return docs, nil
 }

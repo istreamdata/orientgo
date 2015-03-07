@@ -10,6 +10,11 @@ import (
 )
 
 const (
+	MaxUint16 = ^uint16(0)
+	MinUint16 = 0
+	MaxInt16  = int16(MaxUint16 >> 1)
+	MinInt16  = -MaxInt16 - 1
+
 	MaxUint = ^uint32(0)
 	MinUint = 0
 	MaxInt  = int32(MaxUint >> 1)
@@ -102,6 +107,42 @@ func TestReadBytesWithNullBytesArray(t *testing.T) {
 	bs, err = ReadBytes(rdr)
 	ok(t, err)
 	assert(t, bs == nil, "bs should be nil")
+}
+
+func TestReadShort(t *testing.T) {
+	var outval int16
+	data := []int16{0, 1, -112, int16(MaxInt16) - 23, MaxInt16, MinInt16}
+
+	buf := new(bytes.Buffer)
+	for _, inval := range data {
+		buf.Reset()
+		// turn int16 into bytes
+		err = binary.Write(buf, binary.BigEndian, inval)
+		ok(t, err)
+
+		// turn bytes back into int using obinary.ReadLong (fn under test)
+		outval, err = ReadShort(buf)
+		ok(t, err)
+		equals(t, int16(inval), outval)
+	}
+}
+
+func TestReadShortWithBadInputs(t *testing.T) {
+	var outval int16
+
+	// no input
+	buf := new(bytes.Buffer)
+	outval, err = ReadShort(buf)
+	assert(t, err != nil, "err should not be nil")
+	equals(t, int16(DEFAULT_RETVAL), outval)
+
+	// not enough input (int16 needs 2 bytes)
+	data := []byte{33}
+	buf = bytes.NewBuffer(data)
+	outval, err = ReadShort(buf)
+	assert(t, err != nil, "err should not be nil")
+	equals(t, oerror.IncorrectNetworkRead{Expected: 2, Actual: 1}, err)
+	equals(t, int16(DEFAULT_RETVAL), outval)
 }
 
 func TestReadLong(t *testing.T) {
@@ -210,6 +251,28 @@ func TestReadIntWithBadInputs(t *testing.T) {
 	assert(t, err != nil, "err should not be nil")
 	equals(t, oerror.IncorrectNetworkRead{Expected: 4, Actual: 3}, err)
 	equals(t, int32(DEFAULT_RETVAL), outval)
+}
+
+func TestReadBoolFalse(t *testing.T) {
+	exp := false
+	buf := new(bytes.Buffer)
+	data := []byte{0} // 0=false in OrientDB
+	buf.Write(data)
+
+	actual, err := ReadBool(buf)
+	ok(t, err)
+	equals(t, exp, actual)
+}
+
+func TestReadBoolTrue(t *testing.T) {
+	exp := true
+	buf := new(bytes.Buffer)
+	data := []byte{1} // 1=true in OrientDB
+	buf.Write(data)
+
+	actual, err := ReadBool(buf)
+	ok(t, err)
+	equals(t, exp, actual)
 }
 
 func TestReadString(t *testing.T) {

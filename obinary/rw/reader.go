@@ -1,3 +1,12 @@
+//
+// rw is the read-write package for reading and writing types
+// from the OrientDB binary network protocol.  Reading is done
+// via io.Reader and writing is done to bytes.Buffer (since the
+// extra functionality of byte.Buffer is desired).  All the
+// OrientDB types are represented here for non-encoded forms.
+// For varint and zigzag encoding/decoding handling use the
+// obinary/varint package instead.
+//
 package rw
 
 import (

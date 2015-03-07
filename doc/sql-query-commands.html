@@ -1,0 +1,209 @@
+<h1>SQL - SELECT</h1>
+
+<p>Orient supports the SQL language to execute queries against the databas engine. Take a look at the <a href="SQL-Where.md#operators">operators</a> and <a href="SQL-Where.md#functions">Functions</a>. To learn the main differences in comparison to the SQL-92 standard, take a look at: <a href="SQL.md">OrientDB SQL</a>.</p>
+
+<h1>Syntax</h1>
+
+<div class="highlight"><pre lang="sql">SELECT [<Projections>] [FROM <Target> [LET <Assignment>*]]
+    [WHERE <Condition>*]
+    [GROUP BY <Field>*]
+    [ORDER BY <Fields>* [ASC|DESC] *]
+    [SKIP <SkipRecords>]
+    [LIMIT <MaxRecords>]
+    [FETCHPLAN <FetchPlan>]
+    [TIMEOUT <Timeout> [<STRATEGY>]
+    [LOCK default|record]
+    [PARALLEL]
+</pre></div>
+
+<ul>
+<li><strong><a href="SQL-Query.md#projections">Projections</a></strong>, optionally, is the data you want to extract from the query as the result set. Look at <a href="SQL-Query.md#projections">Projections</a>. Available since 0.9.25.</li>
+<li><strong>Target</strong> can be a class, cluster, single <a href="Concepts.md#recordid">RID</a>, set of <a href="Concepts.md#recordid">RID</a>s or index values sorted by ascending or descending key order (index values were added in 1.7.7). <strong>Class</strong> is the class name on which to execute the query. Similarly, specifying <strong>cluster</strong> with the <code>cluster:</code> prefix executes the query within that cluster only. You can fetch records not from a cluster but instead from an index using the following prefixes: <code>indexvalues:</code>, <code>indexvaluesasc:</code> or <code>indexvaluesdesc:</code>. If you are using <code>indexvalues:</code> or <code>indexvaluesasc:</code> prefix records will be sorted in ascending order of index keys. If you are using  <code>indexvaluesdesc:</code> prefix records will be sorted in descending order of index keys. Use one or more <a href="Concepts.md#recordid">RID</a>s to specify one or a small set of records. This is a useful in order to specify a starting point when navigating graphs.</li>
+<li><strong><a href="SQL-Where.md">WHERE</a></strong> condition is common to the other SQL commands and is described in a dedicated section of the documentation.</li>
+<li><strong><a href="SQL-Query.md#let-block">LET</a></strong> is the part that binds context variables to be used in projections, conditions or sub-queries</li>
+<li><strong>GROUP BY</strong> is in accordance to the standard SQL syntax specifying the field to perform the grouping. The current release supports only 1 field.</li>
+<li><strong>ORDER BY</strong> is in accordance to the standard SQL syntax specifying fields with an optional ASC or DESC (default is ASCending). If you are using a projection in your query, ensure the ORDER BY field is included in this projection.</li>
+<li><strong>SKIP</strong> skips <code>&lt;SkipRecords&gt;</code> the specified number of records starting at the beginning of the result set. This is useful for <a href="Pagination.md">Pagination</a> when used in conjunction with <code>LIMIT</code>.</li>
+<li><strong>LIMIT</strong> sets the maximum number of records returned by the query to <code>&lt;MaxRecords&gt;</code>. This is useful for <a href="Pagination.md">Pagination</a> when used in conjunction with SKIP.</li>
+<li><strong>FETCHPLAN</strong> sets the <a href="Fetching-Strategies.md">fetchplan</a>. Example: <code>FETCHPLAN out:3</code> to pre-fetch up to 3rd level under <code>out</code> field. Since v1.5.</li>
+<li><strong>TIMEOUT</strong> sets the maximum timeout in milliseconds for the query. By default the query has no timeout. If you don't specify the strategy, the default strategy <code>EXCEPTION</code> is used. Strategies are:
+<ul><li><code>RETURN</code>, truncate the result set returning the data collected up until the timeout</li>
+<li><code>EXCEPTION</code>, default one, throws an exception if the timeout has been reached</li></ul></li>
+<li><strong>LOCK</strong> manage the locking strategy. By default is "default", that means release the lock once the record is read, while "record" means to keep the record locked in exclusive mode in current transaction till the transaction has been finished by a commit or rollback operation.</li>
+<li><strong>PARALLEL</strong> execute the query against X concurrent threads, where X is the number of processors/cores found on the host OS of the query (since 1.7). PARALLEL execution is useful on long running queries or queries that involve multiple clusters. On simple queries using PARALLEL could cause a slow down due to the overhead inherent with using multiple threads</li>
+</ul>
+
+<p><em>NOTE: Starting from 1.0rc7 the <code>RANGE</code> keyword has been removed. To execute range queries use the <code>BETWEEN</code> operator against <code>@rid</code> as explained  in <a href="Pagination.md">Pagination</a>.</em></p>
+
+<h2>Projections</h2>
+
+<p>In the standard SQL, projections are mandatory. In OrientDB if it's omitted, the entire record set is returned. It is the equivalent of the <code>*</code> keyword. Example:</p>
+
+<div class="highlight"><pre lang="sql">SELECT FROM Account
+</pre></div>
+
+<p>With all projections except the wildcard "*", a new temporary document is created and the <code>@rid</code> and <code>@version</code> of the original record will not be included.</p>
+
+<div class="highlight"><pre lang="sql">SELECT name, age FROM Account
+</pre></div>
+
+<p>The conventional naming for the returned document's fields are:<br />- the field name for plain fields <code>invoice -&gt; invoice</code><br />- the first field name for chained fields, like <code>invoice.customer.name -&gt; invoice</code><br />- the name of the function for functions, like <code>max(salary) -&gt; max</code></p>
+
+<p>If the target field already exists, a progressive number is used as a prefix. Example:</p>
+
+<div class="highlight"><pre lang="sql">SELECT max(incoming), max(cost) FROM Balance
+</pre></div>
+
+<p>Will return a document with the field <code>max</code> and <code>max2</code>.</p>
+
+<p>To override the field name, use <code>AS</code>. Example:</p>
+
+<div class="highlight"><pre lang="sql">SELECT max(incoming) AS max_incoming, max(cost) AS max_cost FROM Balance
+</pre></div>
+
+<p>By using the dollar (<code>$</code>) as a prefix, you can access context variables. Each time you run a command, OrientDB accesses the context to read and write variables. Here's an example to display the path and depth level of the <a href="-SQL-Traverse.md">traversal </a> on all the movies, up to the 5th level of depth:</p>
+
+<div class="highlight"><pre lang="sql">SELECT $path, $depth FROM ( TRAVERSE * FROM Movie WHERE $depth <= 5 )
+</pre></div>
+
+<h1>Examples</h1>
+
+<p>Get all the records of type <code>Person</code> where the name starts with <code>Luk</code>:</p>
+
+<div class="highlight"><pre lang="sql">select * from Person where name like 'Luk%'
+</pre></div>
+
+<p>or</p>
+
+<div class="highlight"><pre lang="sql">select * from Person where name.left(3) = 'Luk'
+</pre></div>
+
+<p>or</p>
+
+<div class="highlight"><pre lang="sql">select * from Person where name.substring(0,3) = 'Luk'
+</pre></div>
+
+<p>Get all the records of type <code>!AnimalType</code> where the collection <code>races</code> contains at least one entry where the first character of the name, ignoring the case, is equal to <code>e</code>:</p>
+
+<div class="highlight"><pre lang="sql">select * from animaltype where races contains (name.toLowerCase().subString(0,1) = 'e')
+</pre></div>
+
+<p>Get all the records of type <code>!AnimalType</code> where the collection <code>races</code> contains at least one entry with name <code>European</code> or <code>Asiatic</code>:</p>
+
+<div class="highlight"><pre lang="sql">select * from animaltype where races contains (name in ['European','Asiatic'])
+</pre></div>
+
+<p>Get all the records of type <code>Profile</code> where any field contains the word <code>danger</code>:</p>
+
+<div class="highlight"><pre lang="sql">select from profile where any() like '%danger%'
+</pre></div>
+
+<p>Get any record at any level that has the word <code>danger</code>:</p>
+
+<div class="highlight"><pre lang="sql">select from profile where any() traverse ( any() like '%danger%' )
+</pre></div>
+
+<p>Get all the records where up to the 3rd level of connections has some field that contains the word <code>danger</code> ignoring the case:</p>
+
+<div class="highlight"><pre lang="sql">select from Profile where any() traverse( 0,3 ) ( any().toUpperCase().indexOf( 'danger' ) > -1 )
+</pre></div>
+
+<p>Order the result set by the <code>name</code> in descending order:</p>
+
+<div class="highlight"><pre lang="sql">select from Profile order by name desc
+</pre></div>
+
+<p>Returns the total of records per city:</p>
+
+<div class="highlight"><pre lang="sql">select sum(*) from Account group by city
+</pre></div>
+
+<p>Traverse record starting from a root node:</p>
+
+<div class="highlight"><pre lang="sql">select from 11:4 where any() traverse(0,10) (address.city = 'Rome')
+</pre></div>
+
+<p>Query only a set of records:</p>
+
+<div class="highlight"><pre lang="sql">select from [#10:3, #10:4, #10:5]
+</pre></div>
+
+<p>Select only three fields from Profile:</p>
+
+<div class="highlight"><pre lang="sql">select nick, followings, followers from Profile
+</pre></div>
+
+<p>Select the <code>name</code> field in upper-case and the <code>country name</code> of the linked city of the address:</p>
+
+<div class="highlight"><pre lang="sql">select name.toUppercase(), address.city.country.name from Profile
+</pre></div>
+
+<p>Order by record creation. Starting from 1.7.7, using the expression "order by @rid desc", allows OrientDB to open an Inverse cursor against clusters. This is extremely fast and doesn't require classic ordering resources (RAM and CPU):</p>
+
+<div class="highlight"><pre lang="sql">select from Profile order by @rid desc
+</pre></div>
+
+<h2>LET block</h2>
+
+<p>The <code>LET</code> block contains the list of context variables to assign each time a record is evaluated. These values are destroyed once the query execution ends. Context variables can be used in projections, conditions and sub-queries.</p>
+
+<h2>Assign fields to reuse multiple times</h2>
+
+<p>OrientDB allows crossing relationships, but if in a single query you need to evaluate the same branch of nested relationship, it's definitely better using a context variable that refers to the full relationship.</p>
+
+<p>Example:</p>
+
+<div class="highlight"><pre lang="sql">SELECT FROM Profile
+WHERE address.city.name like '%Saint%"' and
+    ( address.city.country.name = 'Italy' or address.city.country.name = 'France' )
+</pre></div>
+
+<p>Using LET becomes shorter and faster, because the relationships are traversed only once:</p>
+
+<div class="highlight"><pre lang="sql">SELECT FROM Profile
+LET $city = address.city
+WHERE $city.name like '%Saint%"' and
+    ( $city.country.name = 'Italy' or $city.country.name = 'France' )
+</pre></div>
+
+<p>In this case the path till <code>address.city</code> is traversed only once.</p>
+
+<h2>Sub-query</h2>
+
+<p>LET block allows you to assign a context variable the result of a sub-query. Example:</p>
+
+<div class="highlight"><pre lang="sql">select from Document
+let $temp = (
+    select @rid, $depth from (
+        traverse V.out, E.in from $parent.current
+    )
+    where @class = 'Concept' and (id = 'first concept' or id = 'second concept' )
+)
+where $temp.size() > 0
+</pre></div>
+
+<h2>Usage in projection</h2>
+
+<p>Context variables can be part of result set used in <a href="#Projections">Projections</a>. The example below displays the city name of the previous example:</p>
+
+<div class="highlight"><pre lang="sql">SELECT $temp.name FROM Profile
+LET $temp = address.city
+WHERE $city.name like '%Saint%"' and
+    ( $city.country.name = 'Italy' or $city.country.name = 'France' )
+</pre></div>
+
+<h1>Conclusion</h1>
+
+<p>To know more about other SQL commands, take a look at <a href="SQL.md">SQL commands</a>.</p>
+
+<h2>History</h2>
+
+<h3>1.7.7</h3>
+
+<p>New targets <code>indexvalues:</code>, <code>indexvaluesasc:</code>, <code>indexvaluesdesc:</code> are added.</p>
+
+<h3>1.7</h3>
+
+<ul>
+<li>Added <strong>PARALLEL</strong> keyword to execute the query against X concurrent threads, where X is the number of processors/core found on the os where the query is running (since 1.7). PARALLEL execution is useful on long running query or query that involve multiple clusters. On simple queries, using PARALLEL could cause a slow down because of the overhead on using multiple threads</li>
+</ul>

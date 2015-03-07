@@ -1,5 +1,6 @@
 //
-// DOCUMENT ME
+// Key schema struct, constructors that are part of the
+// OrientDB schema or support representing the schema.
 //
 package oschema
 

@@ -1,0 +1,51 @@
+<h2>Network Binary Protocol Commands</h2>
+
+<p>This is the guide to the commands you can send through the binary protocol.</p>
+
+<h2>See also</h2>
+
+<ul>
+<li><a href="Commands.md">List of SQL Commands</a></li>
+<li><a href="Network Binary Protocol.md#request_command">Network Binary Protocol Specification</a></li>
+</ul>
+
+<p>the commands are divided in three main groups:</p>
+
+<ul>
+<li>SQL (select) Query</li>
+<li>SQL Commands </li>
+<li>Script commands</li>
+</ul>
+
+<h3>SQL (Select) Query</h3>
+
+<div class="highlight"><pre lang="">(text:string)(non-text-limit:int)[(fetch-plan:string)](serialized-params:bytes[])
+</pre></div>
+
+<p><strong>text</strong> text of the select query <br /><br /><strong>non-text-limit</strong>  Limit can be set in query's text, or here. This field had priority. Send -1 to use limit from query's text <br /><br /><strong>fetch-plan</strong> used only for select queries, otherwise empty <br /><br /><strong>serialized-params</strong> the byte[] result of the serialization of a <a href="#serialized-parameters-odocument-content">ODocument</a>.</p>
+
+<h5>Serialized Parameters ODocument content</h5>
+
+<p>The ODocument have to contain a field called "params" of type Map. <br /><br />the Map should have as key, in case of positional perameters the numeric position of the parameter, in case of named parameters the name of the parameter and as value the value of the parameter.</p>
+
+<h3>SQL Commands</h3>
+
+<div class="highlight"><pre lang="">(text:string)(has-simple-parameters:boolean)(simple-paremeters:bytes[])(has-complex-parameters:boolean)(complex-parameters:bytes[])
+</pre></div>
+
+<p><strong>text</strong> text of the sql command <br /><br /><strong>has-simple-parameters</strong> boolean flag for determine if the <strong>simple-parameters</strong> byte array is present or not <br /><br /><strong>simple-parameters</strong> the byte[] result of the serialization of a <a href="#serialized-simple-parameters-odocument-content">ODocument</a>. <br /><br /><strong>has-complex-parameters</strong> boolean flag for determine if the <strong>complex-parameters</strong> byte array is present or not <br /><br /><strong>complex-parameters</strong> the byte[] result of the serialization of a <a href="#serialized-complex-parameters-odocument-content">ODocument</a>.  </p>
+
+<h5>Serialized Simple Parameters ODocument content</h5>
+
+<p>The ODocument have to contain a field called "parameters" of type Map. <br /><br />the Map should have as key, in case of positional perameters the numeric position of the parameter, in case of named parameters the name of the parameter and as value the value of the parameter.</p>
+
+<h5>Serialized Complex Parameters ODocument content</h5>
+
+<p>The ODocument have to contain a field called "compositeKeyParams" of type Map. <br /><br />the Map should have as key, in case of positional perameters the numeric position of the parameter, in case of named parameters the name of the parameter and as value a List that is the list of composite parameters.</p>
+
+<h3>Script</h3>
+
+<div class="highlight"><pre lang="">(language:string)(text:string)(has-simple-parameters:boolean)(simple-paremeters:bytes[])(has-complex-parameters:boolean)(complex-parameters:bytes[])
+</pre></div>
+
+<p><strong>language</strong> the language of the script present in the text field.<br />All the others paramenters are serialized as the <a href="#SQL_Commands">SQL Commands</a></p>

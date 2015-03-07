@@ -21,6 +21,36 @@ func TestWriteBytes(t *testing.T) {
 	equals(t, byteMsg, bs)
 }
 
+func TestWriteRawBytes(t *testing.T) {
+	buf := new(bytes.Buffer)
+	byteMsg := []byte("I like Ike")
+	err := WriteRawBytes(buf, byteMsg)
+	ok(t, err)
+
+	bs := buf.Next(len(byteMsg))
+	equals(t, byteMsg, bs)
+
+	// write empty bytes
+	buf = new(bytes.Buffer)
+	byteMsg = []byte{}
+	err = WriteRawBytes(buf, byteMsg)
+	ok(t, err)
+
+	equals(t, 0, buf.Len())
+}
+
+func TestWriteNull(t *testing.T) {
+	buf := new(bytes.Buffer)
+	err := WriteNull(buf)
+	ok(t, err)
+
+	equals(t, 4, buf.Len()) // null in OrientDB is -1 (int32)
+
+	var actInt int32
+	binary.Read(buf, binary.BigEndian, &actInt)
+	equals(t, int32(-1), actInt)
+}
+
 func TestWriteBool(t *testing.T) {
 	buf := new(bytes.Buffer)
 	err := WriteBool(buf, true)
@@ -86,6 +116,8 @@ func TestWriteManyTypes(t *testing.T) {
 	ok(t, err)
 	err = WriteInt(&buf, 9999999)
 	ok(t, err)
+	err = WriteLong(&buf, MaxInt64)
+	ok(t, err)
 
 	// read back
 	bs = buf.Next(1) // byte
@@ -107,6 +139,11 @@ func TestWriteManyTypes(t *testing.T) {
 	var actInt int32
 	binary.Read(&buf, binary.BigEndian, &actInt)
 	equals(t, int32(9999999), actInt)
+
+	var actLong int64
+	binary.Read(&buf, binary.BigEndian, &actLong)
+	equals(t, MaxInt64, actLong)
+
 }
 
 /* ---[ helper fns ]--- */

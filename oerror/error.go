@@ -1,3 +1,6 @@
+//
+// Error types and error functions for the ogonori library
+//
 package oerror
 
 import (

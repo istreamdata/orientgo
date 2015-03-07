@@ -37,7 +37,6 @@ func WriteVarInt(w io.Writer, data interface{}) error {
 	default:
 		return errors.New("Data passed in is not uint32 nor uint64")
 	}
-	return nil
 }
 
 //

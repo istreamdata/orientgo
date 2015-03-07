@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
@@ -727,9 +726,10 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 			return nil, oerror.NewTrace(err)
 		}
 		_, file, line, _ := runtime.Caller(0)
+		fmt.Printf("record = %v\n", record) // DEBUG
 		// TODO: I've not yet tested this route of code -> how do so?
 		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
-			file, line)
+			line, file)
 
 	} else if resultType == 'l' {
 		docs, err = readResultSet(dbc)
@@ -743,7 +743,7 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 		// TODO: I've not yet tested this route of code -> how do so?
 		_, file, line, _ := runtime.Caller(1)
 		log.Fatalf("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
-			file, line)
+			line, file)
 	}
 
 	return docs, nil
@@ -1146,9 +1146,9 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 
 // TODO: decide if this is needed
 func refreshGlobalProperties(dbc *DBClient) error {
-	docs, err = obinary.GetRecordByRID(dbc, "#0:1", "")
+	docs, err := GetRecordByRID(dbc, "#0:1", "")
 	if err != nil {
-		Fatal(err)
+		return err
 	}
 	fmt.Println("=======================================\n=======================================\n=======================================")
 	fmt.Printf("len(docs):: %v\n", len(docs))
@@ -1161,4 +1161,5 @@ func refreshGlobalProperties(dbc *DBClient) error {
 	schemaVersion := doc0.Fields["schemaVersion"]
 	fmt.Printf("%v\n", schemaVersion)
 	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
+	return nil
 }

@@ -157,9 +157,11 @@ func (serde *ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *by
 	return nil
 }
 
-// TODO: might want to make this an interface since headers
-//       either seem to have ids or names and types, but not both (all have dataPtrs)
-//       so we can could two different headers depending on the type of query
+//
+// header in the schemaless serialization format.
+// Generally only one of propertyIds or propertyNames
+// will be filled in, not both.
+//
 type header struct {
 	propertyIds   []int32
 	propertyNames []string
@@ -182,7 +184,7 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 	}
 	if cnameLen < 0 {
 		return "", oerror.NewTrace(
-			fmt.Errorf("Varint for classname len in binary serialization was negative: ", cnameLen))
+			fmt.Errorf("Varint for classname len in binary serialization was negative: %d", cnameLen))
 	}
 
 	cnameBytes = buf.Next(int(cnameLen))
@@ -197,8 +199,8 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 
 func readHeader(buf *bytes.Buffer) (header, error) {
 	hdr := header{
-		propertyIds:   make([]int32, 0, 8),
-		propertyNames: make([]string, 0, 8),
+		propertyIds:   make([]int32, 0, 4),
+		propertyNames: make([]string, 0, 4),
 		dataPtrs:      make([]int32, 0, 8),
 		types:         make([]byte, 0, 8),
 	}
@@ -250,8 +252,6 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 
 			hdr.propertyIds = append(hdr.propertyIds, propertyId)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
-
-			// TODO: need to look up name and type => should we do it here?
 		}
 	}
 
@@ -268,7 +268,7 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 		val interface{}
 		err error
 	)
-	// TODO: add more cases
+	// TODO: many cases unimplemented
 	switch datatype {
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)
@@ -333,10 +333,9 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue CUSTOM NOT YET IMPLEMENTED")
 	case oschema.DECIMAL:
-		// TODO: impl me -> Java uses BigDecimal for this
+		// TODO: impl me -> Java client uses BigDecimal for this
 		panic("ORecordSerializerV0#readDataValue DECIMAL NOT YET IMPLEMENTED")
 	case oschema.LINKBAG:
-		// TODO: impl me -> Java uses BigDecimal for this
 		panic("ORecordSerializerV0#readDataValue LINKBAG NOT YET IMPLEMENTED")
 	default:
 		// ANY and TRANSIENT are do nothing ops
@@ -447,7 +446,7 @@ func (serde *ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]i
 
 func encodeFieldIdForHeader(id int32) []byte {
 	// TODO: impl me
-	// formulate for encoding is:
+	// formula for encoding is:
 	// zigzagEncode( (propertyId+1) * -1 )
 	// and then turn in varint []byte
 	return nil

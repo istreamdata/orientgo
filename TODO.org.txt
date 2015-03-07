@@ -2,12 +2,8 @@
 * DONE Why do we need globalProperties off currDb and currDb.RecordSerDe ?
 * DONE Add unit tests for ReadFloat and ReadDouble (obinary/rw)
 * TODO Re-evaluate db/network reader API
-* TODO better test coverage for code written so far
-* TODO Deserialize for a Document query which returns propertyIds, not property names needs to be made correct (serde.go 105)
-* TODO Determine if we can remove Fullname from OField -> that only belongs in OProperty, no?
-* TODO Clean up varint API -> which calls are actually used?  Just ReadVarIntAndDecode32?  Can the others be simplified or made private?
+* TODO better test coverage for code written so far  => run go coverage
 * IN-PROGRESS Add in use of Trace Error all over the place
-* TODO serde.go line 201 -> clean up
 * TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
 * TODO Update README -> remove / defer support for OrientDB 1.7 and CSV serialization
 * TODO Run the go static analysis tool that checks for places not checking error return values
@@ -35,7 +31,7 @@
 * TODO REQUEST_DATASEGMENT_ADD                = 20
 * TODO REQUEST_DATASEGMENT_DROP               = 21
 * TODO REQUEST_RECORD_METADATA                = 29 // since 1.4.0
-* IN-PROGRESS REQUEST_RECORD_LOAD             = 30  => partially done; remaining work to do?
+* DONE REQUEST_RECORD_LOAD                    = 30  => fully done ??
 * TODO REQUEST_RECORD_CREATE                  = 31
 * TODO REQUEST_RECORD_UPDATE                  = 32
 * DONE REQUEST_RECORD_DELETE                  = 33

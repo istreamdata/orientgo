@@ -1,3 +1,8 @@
+//
+// binserde stands for binary Serializer/Deserializer.
+// It holds the interface and implementations for SerDes for the
+// OrientDB Network Binary Protocol.
+//
 package binserde
 
 import (
@@ -13,8 +18,10 @@ import (
 )
 
 //
-// TODO: this needs to move up to obinary package and be called ORecordSerializer IF
-// the csv serializer will also support the same methods below ... need to research so leaving for now
+// ORecordSerializer is the interface for the binary Serializer/Deserializer.
+// More than one implementation will be needed if/when OrientDB creates additional
+// versions of the binary serialization format.
+// TODO: may want to use this interface for the csv serializer also - if so need to move this interface up a level
 //
 type ORecordSerializer interface {
 	//
@@ -80,19 +87,13 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
 
-	// TODO: this whole section needs rethinking -> getDataValue doesn't take a Field anymore
-	// it returns interface{}; if you still need to create a field, then create it and assign
-	// the fld.Value to the interface{} returned from getDataValue
-
 	if len(header.propertyNames) > 0 {
-		// we are deserializing properties (classname is empty string)
+		// propertyNames naes are set when a query returns properties, not a full record/document
+		// classname is an empty string in this case
 		for i, pname := range header.propertyNames {
-			ofield := doc.GetFieldByName(pname)
-			if ofield == nil {
-				ofield = &oschema.OField{
-					Name: pname,
-					Typ:  header.types[i],
-				}
+			ofield := &oschema.OField{
+				Name: pname,
+				Typ:  header.types[i],
 			}
 			ofields = append(ofields, ofield)
 		}
@@ -100,17 +101,21 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 
 	if len(ofields) == 0 {
 		// was a Document query which returns propertyIds, not property names
-		for i, fid := range header.propertyIds {
-			// this needs to change to look up property name
-			ofield := doc.GetFieldById(fid)
-			if ofield == nil {
-				fname := fmt.Sprintf("foo%d", i) // FIXME: need to look this up from the schema
-				ftype := byte(oschema.STRING)    // FIXME: need to look this up from the schema
+		for _, fid := range header.propertyIds {
+			property, ok := serde.GlobalProperties[int(fid)]
+			var ofield *oschema.OField
+			if ok {
 				ofield = &oschema.OField{
 					Id:   fid,
-					Name: fname,
-					Typ:  ftype,
+					Name: property.Name,
+					Typ:  property.Type,
 				}
+			} else {
+				errmsg := fmt.Sprintf("TODO: Need refresh of GlobalProperties since property with id %d was not found", fid)
+				panic(errmsg)
+				// TODO: need to do a refresh of the GlobalProperties from the database and try again
+				// if that fails then there is a bug in OrientDB, so throw an error
+				//  NOTE: see the method refreshGlobalProperties() in dbCommands
 			}
 			ofields = append(ofields, ofield)
 		}
@@ -449,6 +454,6 @@ func encodeFieldIdForHeader(id int32) []byte {
 }
 
 func decodeFieldIdInHeader(decoded int32) int32 {
-	propertyId := (decoded * -1) + 1
+	propertyId := (decoded * -1) - 1
 	return propertyId
 }

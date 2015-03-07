@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
@@ -27,55 +28,54 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	// first byte specifies request type
 	err := rw.WriteByte(buf, REQUEST_DB_OPEN)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// session-id - send a negative number to create a new server-side conx
 	err = rw.WriteInt(buf, RequestNewSession)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	err = rw.WriteStrings(buf, DriverName, DriverVersion)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	err = rw.WriteShort(buf, dbc.binaryProtocolVersion)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// dbclient id - send as null, but cannot be null if clustered config
 	// TODO: change to use dbc.clusteredConfig once that is added
 	err = rw.WriteNull(buf)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// serialization-impl
 	err = rw.WriteString(buf, dbc.serializationType)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// token-session  // TODO: hardcoded as false for now -> change later based on ClientOptions settings
 	err = rw.WriteBool(buf, false)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// dbname, dbtype, username, password
 	err = rw.WriteStrings(buf, dbname, dbtype, username, passw)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// now send to the OrientDB server
-	n, err := dbc.conx.Write(buf.Bytes())
-	fmt.Printf("number of bytes written: %v\n", n) // DEBUG
+	_, err = dbc.conx.Write(buf.Bytes())
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	/* ---[ read back response ]--- */
@@ -83,7 +83,7 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	// first byte indicates success/error
 	status, err := rw.ReadByte(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	dbc.currDb = NewDatabase(dbname, dbtype)
@@ -91,7 +91,7 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
 	sessionValSent, err := rw.ReadInt(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	if sessionValSent != RequestNewSession {
 		return errors.New("Unexpected Error: Server did not return expected session-request-val that was sent")
@@ -101,7 +101,7 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	if status != RESPONSE_STATUS_OK {
 		exceptions, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
-			return err
+			return oerror.NewTrace(err)
 		}
 		return fmt.Errorf("Server Error(s): %v", exceptions)
 	}
@@ -109,24 +109,21 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	// for the REQUEST_DB_OPEN case, another int is returned which is the new sessionId
 	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	dbc.sessionId = sessionId
-	fmt.Printf("sessionId just set to: %v\n", dbc.sessionId) // DEBUG
 
 	// next is the token, which may be null
 	tokenBytes, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
-	fmt.Printf("len tokenBytes: %v\n", len(tokenBytes)) // DEBUG
-	fmt.Printf("tokenBytes: %v\n", tokenBytes)          // DEBUG
 	dbc.token = tokenBytes
 
 	// array of cluster info in this db // TODO: do we need to retain all this in memory?
 	numClusters, err := rw.ReadShort(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	clusters := make([]OCluster, 0, numClusters)
@@ -134,11 +131,11 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	for i := 0; i < int(numClusters); i++ {
 		clusterName, err := rw.ReadString(dbc.conx)
 		if err != nil {
-			return err
+			return oerror.NewTrace(err)
 		}
 		clusterId, err := rw.ReadShort(dbc.conx)
 		if err != nil {
-			return err
+			return oerror.NewTrace(err)
 		}
 		clusters = append(clusters, OCluster{Name: clusterName, Id: clusterId})
 	}
@@ -148,26 +145,26 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	// TODO: treating this as an opaque blob for now
 	clusterCfg, err := rw.ReadBytes(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 	dbc.currDb.ClustCfg = clusterCfg
 
 	// orientdb server release - throwing away for now // TODO: need this?
 	_, err = rw.ReadString(dbc.conx)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// load #0:0
 	schemaRID, err := loadConfigRecord(dbc)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	// load schemaRecord (usually #0:1)
 	err = loadSchema(dbc, schemaRID)
 	if err != nil {
-		return err
+		return oerror.NewTrace(err)
 	}
 
 	return nil
@@ -344,13 +341,14 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
-	fmt.Println("=======================================\n=======================================\n=======================================")
-	fmt.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
-	fmt.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
-	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
-	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[2].Type)
-	fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[23].Name)
-	fmt.Println("=======================================\n=======================================\n=======================================")
+	// fmt.Println("=======================================\n=======================================\n=======================================")
+	// fmt.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
+	// fmt.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
+	// fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
+	// fmt.Printf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
+	// fmt.Printf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
+	// fmt.Printf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	// fmt.Println("=======================================\n=======================================\n=======================================")
 
 	/* ---[ classes ]--- */
 	var oclass *oschema.OClass
@@ -690,7 +688,6 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	}
 
 	serializedCmd := commandBuf.Bytes()
-	fmt.Printf("serializedCmd:\n%v\n", serializedCmd) // DEBUG
 
 	// command-payload-length and command-payload
 	err = rw.WriteBytes(dbc.buf, serializedCmd)
@@ -700,7 +697,6 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 
 	// send to the OrientDB server
 	finalBytes := dbc.buf.Bytes()
-	fmt.Printf("finalBytes:\n%v\n", finalBytes) // DEBUG
 
 	_, err = dbc.conx.Write(finalBytes)
 	if err != nil {
@@ -720,20 +716,16 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	}
 
 	resultType := int32(resType)
-	fmt.Printf("resultType: %v\n", string(resultType))
 
 	var docs []*oschema.ODocument
 
 	if resultType == 'n' {
-		fmt.Println("resultVal: Null")
 
 	} else if resultType == 'r' {
-		fmt.Println("Now need to parse a record")
 		record, err := rw.ReadBytes(dbc.conx)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		fmt.Printf("record: %v\n", record)
 		_, file, line, _ := runtime.Caller(0)
 		// TODO: I've not yet tested this route of code -> how do so?
 		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
@@ -750,11 +742,11 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 		fmt.Println(">> Not yet supported")
 		// TODO: I've not yet tested this route of code -> how do so?
 		_, file, line, _ := runtime.Caller(1)
-		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
+		log.Fatalf("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
 			file, line)
 	}
 
-	return docs, nil // FIXME: return slice
+	return docs, nil
 }
 
 //
@@ -802,7 +794,7 @@ func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, e
 	}
 
 	end, err = rw.ReadLong(dbc.conx)
-	return begin, end, oerror.NewTrace(err)
+	return begin, end, err
 }
 
 //
@@ -861,8 +853,6 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) 
 //
 func DropCluster(dbc *DBClient, clusterName string) error {
 	dbc.buf.Reset()
-
-	fmt.Printf("Attempt DROP: %v\n", clusterName) // DEBUG
 
 	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
 	if clusterId < 0 {
@@ -1092,7 +1082,6 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 		return nil, oerror.NewTrace(err)
 	}
 
-	fmt.Printf("++ Number of records returned: %v\n", resultSetSize)
 	rsize := int(resultSetSize)
 	docs := make([]*oschema.ODocument, rsize)
 
@@ -1153,4 +1142,23 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 		return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
 	}
 	return docs, nil
+}
+
+// TODO: decide if this is needed
+func refreshGlobalProperties(dbc *DBClient) error {
+	docs, err = obinary.GetRecordByRID(dbc, "#0:1", "")
+	if err != nil {
+		Fatal(err)
+	}
+	fmt.Println("=======================================\n=======================================\n=======================================")
+	fmt.Printf("len(docs):: %v\n", len(docs))
+	doc0 := docs[0]
+	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+	fmt.Println("Field names:")
+	for k, _ := range doc0.Fields {
+		fmt.Printf("  %v\n", k)
+	}
+	schemaVersion := doc0.Fields["schemaVersion"]
+	fmt.Printf("%v\n", schemaVersion)
+	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
 }

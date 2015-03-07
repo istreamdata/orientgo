@@ -169,6 +169,7 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	/* ---[ query from the ogonoriTest database ]--- */
 
+	// REDO
 	docs, err := obinary.GetRecordByRID(dbc, "12:0", "")
 	if err != nil {
 		Fatal(err)
@@ -179,12 +180,10 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals(2, len(doc12_0.Fields))
 	Equals("Cat", doc12_0.Classname)
 
-	nameField, ok := doc12_0.Fields["foo0"]
-	// nameField, ok := doc12_0.Fields["name"]
+	nameField, ok := doc12_0.Fields["name"]
 	Assert(ok, "should be a 'name' field")
 
-	caretakerField, ok := doc12_0.Fields["foo1"]
-	// caretakerField, ok := doc12_0.Fields["caretaker"]
+	caretakerField, ok := doc12_0.Fields["caretaker"]
 	Assert(ok, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
@@ -212,7 +211,23 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	if err != nil {
 		Fatal(err)
 	}
-	fmt.Printf("LLL %v\n", docs)
+
+	Equals("12:0", docs[0].Rid)
+	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
+	Equals(2, len(docs[0].Fields))
+	Equals("Cat", docs[0].Classname)
+
+	nameField, ok = docs[0].Fields["name"]
+	Assert(ok, "should be a 'name' field")
+
+	caretakerField, ok = docs[0].Fields["caretaker"]
+	Assert(ok, "should be a 'caretaker' field")
+
+	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
+	Equals(byte(oschema.STRING), nameField.Typ)
+	Equals(byte(oschema.STRING), caretakerField.Typ)
+	Equals("Linus", nameField.Value)
+	Equals("Michael", caretakerField.Value)
 
 	// begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
 	// if err != nil {
@@ -220,43 +235,51 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	// }
 	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
 
-	// fmt.Println("=+++++++++++++++++++++===")
+	sql = "select * from Cat order by name desc"
+	fmt.Println("Issuing command query: " + sql)
+	docs, err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(2, len(docs))
+	Equals(2, len(docs[0].Fields))
+	Equals("Cat", docs[0].Classname)
+	Equals(2, len(docs[1].Fields))
+	Equals("Cat", docs[1].Classname)
 
-	// sql = "select * from Carz"
-	// fmt.Println("Issuing command query: " + sql)
-	// err = obinary.SQLQuery(dbc, sql)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "FOO: WARN: %v\n", err)
-	// }
+	linus := docs[0]
+	Equals("Linus", linus.Fields["name"].Value)
+	Equals("Michael", linus.Fields["caretaker"].Value)
 
-	// fmt.Println("\n\n=+++++++++++++++++++++===")
+	keiko := docs[1]
+	Equals("Keiko", keiko.Fields["name"].Value)
+	Equals("Anna", keiko.Fields["caretaker"].Value)
+	Equals(byte(oschema.STRING), keiko.Fields["caretaker"].Typ)
+	Assert(keiko.Version > int32(0), "Version should be greater than zero")
+	Assert(keiko.Rid != "", "RID should not be empty")
 
-	// sql = "select model, make from Carz"
-	// fmt.Println("Issuing command query: " + sql)
-	// err = obinary.SQLQuery(dbc, sql)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "MK: WARN: %v\n", err)
-	// }
+	sql = "select name, caretaker from Cat order by caretaker"
+	docs, err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(2, len(docs))
+	Equals(2, len(docs[0].Fields))
+	Equals("", docs[0].Classname) // property queries do not come back with Classname set
+	Equals(2, len(docs[1].Fields))
+	Equals("", docs[1].Classname)
+
+	Equals("Anna", docs[0].Fields["caretaker"].Value)
+	Equals("Michael", docs[1].Fields["caretaker"].Value)
+
+	Equals("Keiko", docs[0].Fields["name"].Value)
+	Equals("Linus", docs[1].Fields["name"].Value)
+
+	Equals("name", docs[0].Fields["name"].Name)
 
 	fmt.Println("\n\n=+++++++++++++++++++++===")
+
 	// GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
-
-	// sql = "#0:1"
-
-	// docs, err := obinary.GetRecordByRID(dbc, sql, "")
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
-	// }
-	// fmt.Println("=======================================\n=======================================\n=======================================")
-	// fmt.Printf("len(docs):: %v\n", len(docs))
-	// doc0 := docs[0]
-	// fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-	// fmt.Println("Field names:")
-	// for k, _ := range doc0.Fields {
-	// 	fmt.Printf("  %v\n", k)
-	// }
-	// schemaVersion := doc0.Fields["schemaVersion"]
-	// fmt.Printf("%v\n", schemaVersion)
 
 	obinary.CloseDatabase(dbc)
 

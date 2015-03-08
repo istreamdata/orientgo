@@ -229,12 +229,6 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals("Linus", nameField.Value)
 	Equals("Michael", caretakerField.Value)
 
-	// begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("ClusterDataRange for ouser: %d-%d\n", begin, end)
-
 	sql = "select * from Cat order by name desc"
 	fmt.Println("Issuing command query: " + sql)
 	docs, err = obinary.SQLQuery(dbc, sql)
@@ -279,7 +273,12 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	fmt.Println("\n\n=+++++++++++++++++++++===")
 
-	// GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
+	/* ---[ cluster data range ]--- */
+	begin, end, err = obinary.GetClusterDataRange(dbc, "cat")
+	if err != nil {
+		Fatal(err)
+	}
+	outf.WriteString(fmt.Sprintf("ClusterDataRange for cat: %d-%d\n", begin, end))
 
 	obinary.CloseDatabase(dbc)
 

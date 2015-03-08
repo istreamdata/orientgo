@@ -1,16 +1,15 @@
 * DONE Get all existing unit tests working
 * DONE Why do we need globalProperties off currDb and currDb.RecordSerDe ?
 * DONE Add unit tests for ReadFloat and ReadDouble (obinary/rw)
+* DONE better test coverage for code written so far  => run go coverage
 * TODO Re-evaluate db/network reader API
-* TODO better test coverage for code written so far  => run go coverage
 * IN-PROGRESS Add in use of Trace Error all over the place
 * TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
-* TODO Update README -> remove / defer support for OrientDB 1.7 and CSV serialization
-* TODO Run the go static analysis tool that checks for places not checking error return values
+* DONE-FOR-TODAY Run the go static analysis tool that checks for places not checking error return values
 * TODO ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
 * TODO Write SerDe Serializer
 * TODO Implement SQL commands (not just queries)
-* TODO Get functional tests in place -> need to script a database set up for this
+* IN-PROGRESS Get functional tests in place -> need to script a database set up for this
 
 # ---[ Command Implementations ]--- #
 * TODO REQUEST_SHUTDOWN                       = 1

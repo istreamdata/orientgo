@@ -13,7 +13,7 @@ package varint
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"io"
 
 	"github.com/quux00/ogonori/oerror"
@@ -52,10 +52,6 @@ func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
 	return ZigzagDecodeInt64(encodedLen), nil
 }
 
-func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
-	panic("ReadVarIntToUint64 Not Yet Implemented") // TODO: impl me (is this ever needed?)
-}
-
 //
 // ReadVarIntToUint32 reads a variable length integer from the input buffer.
 // The inflated integer is written is returned as a uint32 value.
@@ -69,7 +65,7 @@ func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
 		err error
 	)
 
-	bs, err = extract4Bytes(buf)
+	bs, err = extractAndPadNBytes(buf, 4)
 	if err != nil {
 		return uint32(0), err
 	}
@@ -98,22 +94,108 @@ func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
 }
 
 //
-// extract4Bytes reads up to 4 bytes from buf, reading
-// them into a []byte, retaining little endian order.
-// If high bit is set in a byte before reading 4 bytes,
-// the remaining bytes in the []byte are left as 0x0.
+// ReadVarIntToUint64 reads a variable length integer from the input buffer.
+// The inflated integer is written is returned as a uint64 value.
+// This method only "inflates" the varint into a uint64; it does NOT
+// zigzag decode it.
 //
-func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
-	encbytes := make([]byte, 4)
+func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
+	var (
+		bs  []byte
+		a   uint64
+		err error
+	)
 
-	for i := 0; i < 4; i++ {
+	bs, err = extractAndPadNBytes(buf, 8)
+	if err != nil {
+		return uint64(0), err
+	}
+	vintbuf := bytes.NewBuffer(bs)
+	err = binary.Read(vintbuf, binary.LittleEndian, &a)
+	if err != nil {
+		return uint64(0), err
+	}
+
+	b := a >> 1
+	c := a >> 2
+	d := a >> 3
+	e := a >> 4
+	f := a >> 5
+	g := a >> 6
+	h := a >> 7
+
+	ma := uint64(0x7f)
+	mb := uint64(0x3f80)
+	mc := uint64(0x1fc000)
+	md := uint64(0x0fe00000)
+	me := uint64(0x07f0000000)
+	mf := uint64(0x03f800000000)
+	mg := uint64(0x01fc0000000000)
+	mh := uint64(0xfe000000000000)
+
+	// showing the shift and masks:
+
+	// 1hhhhhhh 1ggggggg 1fffffff 1eeeeeee 1ddddddd 1ccccccc 1bbbbbbb 0aaaaaaa  a
+	// 00000000 00000000 00000000 00000000 00000000 00000000 00000000 01111111  ma
+
+	// 01hhhhhh h1gggggg g1ffffff f1eeeeee e1dddddd d1cccccc c1bbbbbb b0aaaaaa  b  a >> 1
+	// 00000000 00000000 00000000 00000000 00000000 00000000 00111111 10000000  mb
+	//                                                          0x3f    0x80
+
+	// 001hhhhh hh1ggggg gg1fffff ff1eeeee ee1ddddd dd1ccccc cc1bbbbb bb0aaaaa  c  a >> 2
+	// 00000000 00000000 00000000 00000000 00000000 00011111 11000000 00000000  mc
+	//                                                0x1f     0xf0     0x0
+
+	// 0001hhhh hhh1gggg ggg1ffff fff1eeee eee1dddd ddd1cccc ccc1bbbb bbb0aaaa  d  a >> 3
+	// 00000000 00000000 00000000 00000000 00001111 11100000 00000000 00000000  md
+	//                                       0x0f     0xe0      0x0     0x0
+
+	// 00001hhh hhhh1ggg gggg1fff ffff1eee eeee1ddd dddd1ccc cccc1bbb bbbb0aaa  e  a >> 4
+	// 00000000 00000000 00000000 00000111 11110000 00000000 00000000 00000000  me
+	//                              0x07     0xf0     0x0       0x0     0x0
+
+	// 000001hh hhhhh1gg ggggg1ff fffff1ee eeeee1dd ddddd1cc ccccc1bb bbbbb0aa  f  a >> 5
+	// 00000000 00000000 00000011 11111000 00000000 00000000 00000000 00000000  mf
+	//                     0x03     0xf8      0x0      0x0      0x0      0x0
+
+	// 0000001h hhhhhh1g gggggg1f ffffff1e eeeeee1d dddddd1c cccccc1b bbbbbb0a  g  a >> 6
+	// 00000000 00000001 11111100 00000000 00000000 00000000 00000000 00000000  mg
+	//            0x01     0xfc     0x0       0x0      0x0      0x0     0x0
+
+	// 00000001 hhhhhhh1 ggggggg1 fffffff1 eeeeeee1 ddddddd1 ccccccc1 bbbbbbb0  h  a >> 7
+	// 00000000 11111110 00000000 00000000 00000000 00000000 00000000 00000000  mh
+	//            0xfe      0x0       0x0      0x0      0x0      0x0     0x0
+
+	xa := a & ma
+	xb := b & mb
+	xc := c & mc
+	xd := d & md
+	xe := e & me
+	xf := f & mf
+	xg := g & mg
+	xh := h & mh
+
+	return (xa | xb | xc | xd | xe | xf | xg | xh), nil
+}
+
+//
+// extractAndPadNBytes reads up to N bytes from buf, reading
+// them into a []byte, retaining little endian order.
+// If high bit is set in a byte before reading N bytes,
+// the remaining bytes in the []byte are left as 0x0.
+// Note: n should only be 4 or 8, but this not checked.
+//
+func extractAndPadNBytes(buf *bytes.Buffer, n int) ([]byte, error) {
+	encbytes := make([]byte, n)
+
+	for i := 0; i < n; i++ {
 		b, err := buf.ReadByte()
 		if err != nil {
 			if err == io.EOF {
-				return encbytes, nil
-			} else {
-				return encbytes, err
+				return encbytes,
+					fmt.Errorf("varint.extractAndPadNBytes could not find final varint byte in first %d bytes", i-1)
 			}
+			return encbytes, err
 		}
 		encbytes[i] = b
 		if IsFinalVarIntByte(b) {
@@ -121,8 +203,8 @@ func extract4Bytes(buf *bytes.Buffer) ([]byte, error) {
 		}
 	}
 
-	// if get here then read 4 bytes from buf, but none had the high
+	// if get here then read n bytes from buf, but none had the high
 	// bit set to zero - unexpected condition
 	return encbytes,
-		errors.New("varint.extract4Bytes could not find final varint byte in first 4 bytes")
+		fmt.Errorf("varint.extractAndPadNBytes could not find final varint byte in first %d bytes", n)
 }

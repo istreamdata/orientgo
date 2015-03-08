@@ -45,7 +45,7 @@ func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 func ReadString(buf *bytes.Buffer) (string, error) {
 	bs, err := ReadBytes(buf)
 	if err != nil {
-		return "", err
+		return "", oerror.NewTrace(err)
 	}
 	return string(bs), nil
 }

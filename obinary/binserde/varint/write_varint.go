@@ -1,6 +1,7 @@
 package varint
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -21,12 +22,43 @@ const (
 )
 
 //
+// EncodeAndWriteVarInt32 zigzag encodes the int32 passed in and then
+// translates that number to a protobuf/OrientDB varint, writing
+// the bytes of that varint to the bytes.Buffer.
+//
+func EncodeAndWriteVarInt32(buf *bytes.Buffer, n int32) error {
+	zze := ZigzagEncodeUInt32(n)
+	err := WriteVarInt32(buf, zze)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
+}
+
+//
+// EncodeAndWriteVarInt64 zigzag encodes the int64 passed in and then
+// translates that number to a protobuf/OrientDB varint, writing
+// the bytes of that varint to the bytes.Buffer.
+//
+func EncodeAndWriteVarInt64(buf *bytes.Buffer, n int64) error {
+	zze := ZigzagEncodeUInt64(n)
+	err := WriteVarInt64(buf, zze)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
+}
+
+//
 // WriteVarInt converts uint32 or uint64 integer values into
 // 1 to 4 bytes, writing those bytes to the io.Writer.
 // The number of bytes is determined by the size of the uint passed in -
 // see the constants defined in this package for the ranges
-// The uint passed in will have already been zigzag encoded to allow all
-// "small" numbers (as measured by absolute value) to use less than 4 bytes.
+//
+// IMPORTANT: The uint passed in should have already been zigzag encoded
+// to allow all "small" numbers (as measured by absolute value) to use less
+// than 4 bytes.  Alternatively, use the EncodeAndWriteVarIntXX methods
+// do both steps for you.
 //
 func WriteVarInt(w io.Writer, data interface{}) error {
 	switch data.(type) {

@@ -194,18 +194,6 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
-	// fmt.Println("Deleting (sync) record #11:3")
-	// err = obinary.DeleteRecordByRID(dbc, "11:3", 3)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// fmt.Println("Deleting (Async) record #11:4")
-	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
 	sql := "select * from Cat where name = 'Linus'"
 	docs, err = obinary.SQLQuery(dbc, sql)
 	if err != nil {
@@ -229,56 +217,90 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals("Linus", nameField.Value)
 	Equals("Michael", caretakerField.Value)
 
-	sql = "select * from Cat order by name desc"
-	fmt.Println("Issuing command query: " + sql)
-	docs, err = obinary.SQLQuery(dbc, sql)
-	if err != nil {
-		Fatal(err)
-	}
-	Equals(2, len(docs))
-	Equals(2, len(docs[0].Fields))
-	Equals("Cat", docs[0].Classname)
-	Equals(2, len(docs[1].Fields))
-	Equals("Cat", docs[1].Classname)
-
-	linus := docs[0]
-	Equals("Linus", linus.Fields["name"].Value)
-	Equals("Michael", linus.Fields["caretaker"].Value)
-
-	keiko := docs[1]
-	Equals("Keiko", keiko.Fields["name"].Value)
-	Equals("Anna", keiko.Fields["caretaker"].Value)
-	Equals(byte(oschema.STRING), keiko.Fields["caretaker"].Typ)
-	Assert(keiko.Version > int32(0), "Version should be greater than zero")
-	Assert(keiko.Rid != "", "RID should not be empty")
-
-	sql = "select name, caretaker from Cat order by caretaker"
-	docs, err = obinary.SQLQuery(dbc, sql)
-	if err != nil {
-		Fatal(err)
-	}
-	Equals(2, len(docs))
-	Equals(2, len(docs[0].Fields))
-	Equals("", docs[0].Classname) // property queries do not come back with Classname set
-	Equals(2, len(docs[1].Fields))
-	Equals("", docs[1].Classname)
-
-	Equals("Anna", docs[0].Fields["caretaker"].Value)
-	Equals("Michael", docs[1].Fields["caretaker"].Value)
-
-	Equals("Keiko", docs[0].Fields["name"].Value)
-	Equals("Linus", docs[1].Fields["name"].Value)
-
-	Equals("name", docs[0].Fields["name"].Name)
-
-	fmt.Println("\n\n=+++++++++++++++++++++===")
-
 	/* ---[ cluster data range ]--- */
 	begin, end, err = obinary.GetClusterDataRange(dbc, "cat")
 	if err != nil {
 		Fatal(err)
 	}
 	outf.WriteString(fmt.Sprintf("ClusterDataRange for cat: %d-%d\n", begin, end))
+
+	fmt.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
+
+	sql = "insert into Cat (name, caretaker) values(\"Zed\", \"Shaw\")"
+	err = obinary.SQLCommand(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	fmt.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
+
+	/* ---[ query after inserting record(s) ]--- */
+
+	sql = "select * from Cat order by name asc"
+	fmt.Println("Issuing command query: " + sql)
+	docs, err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(3, len(docs))
+	Equals(2, len(docs[0].Fields))
+	Equals("Cat", docs[0].Classname)
+	Equals(2, len(docs[1].Fields))
+	Equals("Cat", docs[1].Classname)
+	Equals(2, len(docs[2].Fields))
+	Equals("Cat", docs[2].Classname)
+
+	keiko := docs[0]
+	Equals("Keiko", keiko.Fields["name"].Value)
+	Equals("Anna", keiko.Fields["caretaker"].Value)
+	Equals(byte(oschema.STRING), keiko.Fields["caretaker"].Typ)
+	Assert(keiko.Version > int32(0), "Version should be greater than zero")
+	Assert(keiko.Rid != "", "RID should not be empty")
+
+	linus := docs[1]
+	Equals("Linus", linus.Fields["name"].Value)
+	Equals("Michael", linus.Fields["caretaker"].Value)
+
+	zed := docs[2]
+	Equals("Zed", zed.Fields["name"].Value)
+	Equals("Shaw", zed.Fields["caretaker"].Value)
+	Equals(byte(oschema.STRING), zed.Fields["caretaker"].Typ)
+	Assert(zed.Version > int32(0), "Version should be greater than zero")
+	Assert(zed.Rid != "", "RID should not be empty")
+
+	sql = "select name, caretaker from Cat order by caretaker"
+	docs, err = obinary.SQLQuery(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(3, len(docs))
+	Equals(2, len(docs[0].Fields))
+	Equals("", docs[0].Classname) // property queries do not come back with Classname set
+	Equals(2, len(docs[1].Fields))
+	Equals("", docs[1].Classname)
+	Equals(2, len(docs[2].Fields))
+
+	Equals("Anna", docs[0].Fields["caretaker"].Value)
+	Equals("Michael", docs[1].Fields["caretaker"].Value)
+	Equals("Shaw", docs[2].Fields["caretaker"].Value)
+
+	Equals("Keiko", docs[0].Fields["name"].Value)
+	Equals("Linus", docs[1].Fields["name"].Value)
+	Equals("Zed", docs[2].Fields["name"].Value)
+
+	Equals("name", docs[0].Fields["name"].Name)
+
+	/* ---[ delete newly added record(s) ]--- */
+	fmt.Println("Deleting (sync) record #" + zed.Rid)
+	err = obinary.DeleteRecordByRID(dbc, zed.Rid, zed.Version)
+	if err != nil {
+		Fatal(err)
+	}
+
+	// fmt.Println("Deleting (Async) record #11:4")
+	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	obinary.CloseDatabase(dbc)
 

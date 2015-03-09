@@ -635,7 +635,154 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 	return clusterId, clusterPos, err
 }
 
-// LEFT OFF
+//
+// name may change -> placeholder for now
+// Constraints (for now):
+// 0. cmds with no parameters allowed  => DONE (sort of, TODO: what do with the return type/created doc?)
+// 1. cmds with only simple positional parameters allowed
+// 2. cmds with lists of parameters ("complex") NOT allowed
+// 3. parameter types allowed:
+//    primitives
+//    ODocument
+//
+func SQLCommand(dbc *DBClient, sql string) error {
+	dbc.buf.Reset()
+
+	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	mode := byte('s') // synchronous only supported for now
+	err = rw.WriteByte(dbc.buf, mode)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// need a separate buffer to write the command-payload to, so
+	// we can calculate its length before writing it to main dbc.buf
+	commandBuf := new(bytes.Buffer)
+
+	// "classname" (command-type, really) and the sql command
+	err = rw.WriteStrings(commandBuf, "c", sql) // c for command(non-idempotent)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// SQLCommand
+	//  (text:string)
+	//  (has-simple-parameters:boolean)
+	//  (simple-paremeters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
+	//  (has-complex-parameters:boolean)
+	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
+
+	// FIXME: first pass: no parameters
+
+	// has-simple-paramters
+	err = rw.WriteBool(commandBuf, false)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// has-complex-paramters
+	err = rw.WriteBool(commandBuf, false)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	serializedCmd := commandBuf.Bytes()
+
+	// command-payload-length and command-payload
+	err = rw.WriteBytes(dbc.buf, serializedCmd)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	resType, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	resultType := rune(resType)
+	fmt.Printf("resultType for SQLCommand: %v\n", resultType)
+
+	if resultType == 'n' {
+		panic("Result type in SQLCommand is 'n' -> what to do? nothing ???")
+
+	} else if resultType == 'r' {
+		resultType, err := rw.ReadShort(dbc.conx)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		if resultType == int16(-2) { // null record
+			return nil
+		}
+		if resultType == int16(-3) {
+			rid, err := readRID(dbc)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			fmt.Printf("SQLCommand resulted in RID: %v\n", rid)
+			// TODO: would now load that record from the DB if the user (Go SQL API) wants it
+		}
+		if resultType != int16(0) {
+			_, file, line, _ := runtime.Caller(0)
+			return fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d", file, line+1, resultType)
+		}
+
+		doc, err := readSingleRecord(dbc)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		// final byte should be 0, marking the end of the records
+		finalByte, err := rw.ReadByte(dbc.conx)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		if finalByte != byte(0) {
+			_, file, line, _ := runtime.Caller(0)
+			return fmt.Errorf("ERROR: (meth:SQLCommand;file:%s;line:%d): "+
+				"expected final byte to be 0 but was: %d",
+				file, line, finalByte)
+		}
+
+		// TODO: need to return this thing? -> what does the Go SQL API want from an Exec/Command?
+		fmt.Printf("r>doc = %v\n", doc) // DEBUG
+
+	} else if resultType == 'l' {
+		// TODO: NOT SURE IF this type is ever returned from a Command ...
+		docs, err := readResultSet(dbc)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		log.Fatalf("l>GOT BACK DOCS, so should I return them??? = %v\n", docs) // DEBUG
+
+	} else {
+		fmt.Println(">> Not yet supported")
+		// TODO: I've not yet tested this route of code -> how do so?
+		_, file, line, _ := runtime.Caller(1)
+		log.Fatalf("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
+			line, file)
+	}
+
+	return nil
+}
+
 func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
@@ -645,7 +792,6 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	}
 
 	mode := byte('s') // synchronous only supported for now
-
 	err = rw.WriteByte(dbc.buf, mode)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -719,6 +865,7 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	var docs []*oschema.ODocument
 
 	if resultType == 'n' {
+		panic("Result type in SQLQuery is 'n' -> what to do? nothing ???")
 
 	} else if resultType == 'r' {
 		record, err := rw.ReadBytes(dbc.conx)
@@ -1071,6 +1218,109 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 	return nil
 }
 
+//
+// readSingleRecord should be called when a single record (as opposed to a collection of
+// records) is returned from a db query/command (REQUEST_COMMAND only ???).
+// That is when the server sends back:
+//     1) Writing byte (1 byte): 0 [OChannelBinaryServer]   -> SUCCESS
+//     2) Writing int (4 bytes): 192 [OChannelBinaryServer] -> session-id
+//     3) Writing byte (1 byte): 114 [OChannelBinaryServer] -> 'r'  (single record)
+//     4) Writing short (2 bytes): 0 [OChannelBinaryServer] -> full record (not null, not RID only)
+// Line 3 can be 'l' or possibly other things. For 'l' call readResultSet.
+// Line 4 can be 0=full-record, -2=null, -3=RID only.  For -3, call readRID.  For 0, call this fn.
+//
+// TODO: it is not a given that this method should always return an ODocument
+// The rest of the server response (following after above) is:
+//     5) Writing byte (1 byte): 100 [OChannelBinaryServer] -> 'd' (ODocument record)
+//     6) Writing short (2 bytes): 12 [OChannelBinaryServer] -> cluster-id
+//     7) Writing long (8 bytes): 7 [OChannelBinaryServer]  -> cluster-position
+//     8) Writing int (4 bytes): 3 [OChannelBinaryServer]   -> record-version
+// Line 5 can be:
+//     record-type is
+//     'b': raw bytes
+//     'f': flat data
+//     'd': document
+// So it might make sense for readSingleRecord to take value interface{} param of type
+// []byte, ??? (for flat data - not sure what that is), or *oschema.ODocument.  Or maybe
+// ODocument with OField can handle all those.
+//
+func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
+	// this picks up reading the dbc.conx at:
+	// 4) Writing short (2 bytes): 0 [OChannelBinaryServer] -> full record (not null, not RID only)
+	// which could be -2=null, -3=RID or 0=full-record
+
+	// recordType can be 'b'=raw bytes; 'd': document; 'f': flat data
+	recordType, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+	if recordType == byte('b') {
+		err = fmt.Errorf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
+		fatal(err)
+		return nil, err
+
+	} else if recordType == byte('f') {
+		err = fmt.Errorf("flat record ('f') record type -> haven't seen that before. What is it?")
+		fatal(err)
+		return nil, err
+	}
+
+	// if get here, recordType == 'd'
+	clusterId, err := rw.ReadShort(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	clusterPos, err := rw.ReadLong(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	recVersion, err := rw.ReadInt(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	recBytes, err := rw.ReadBytes(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+	rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
+	doc, err := createDocument(rid, recVersion, recBytes, dbc)
+	fmt.Printf("::single record doc:::::: %v\n", doc)
+	return doc, err
+}
+
+//
+// readRID should be called when a single record (as opposed to a collection of
+// records) is returned from a db query/command (REQUEST_COMMAND only ???).
+// That is when the server sends back:
+//     1) Writing byte (1 byte): 0 [OChannelBinaryServer]   -> SUCCESS
+//     2) Writing int (4 bytes): 192 [OChannelBinaryServer] -> session-id
+//     3) Writing byte (1 byte): 114 [OChannelBinaryServer] -> 'r'  (single record)
+//     4) Writing short (2 bytes): 0 [OChannelBinaryServer] -> full record (not null, not RID only)
+// Line 3 can be 'l' or possibly other things. For 'l' call readResultSet.
+// Line 4 can be 0=full-record, -2=null, -3=RID only.  For -3, call readRID.  For 0, call this readSingleRecord.
+//
+// TODO: this is likely the wrong return val
+func readRID(dbc *DBClient) (string, error) {
+	// svr response: (-3:short)(cluster-id:short)(cluster-position:long)
+	// TODO: impl me -> in the future this may need to call loadRecord for the RID and return the ODocument
+	clusterId, err := rw.ReadShort(dbc.conx)
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+	clusterPos, err := rw.ReadLong(dbc.conx)
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+
+	return fmt.Sprintf("%d:%d", clusterId, clusterPos), nil
+}
+
+//
+// should only be called for collections -> TODO: what should be called for single records?
+//
 func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 	// for Collection
 	// next val is: (collection-size:int)
@@ -1101,6 +1351,9 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 			return nil, oerror.NewTrace(err)
 		}
 
+		// TODO: may need to check recType here => not sure that clusterId, clusterPos and version follow next if
+		//       type is 'b' (raw bytes) or 'f' (flat record)
+		//       see the readSingleRecord method (and probably call that one instead?)
 		clusterId, err := rw.ReadShort(dbc.conx)
 		if err != nil {
 			return nil, oerror.NewTrace(err)

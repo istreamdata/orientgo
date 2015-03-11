@@ -259,7 +259,89 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 }
 
 //
-// readDataValue reads the next data section from `buf` according
+// writeDataValue is part of the Serialize functionality
+//
+func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (err error) {
+	switch datatype {
+	case oschema.BOOLEAN:
+		err = rw.WriteBool(buf, value.(bool))
+		fmt.Printf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
+	case oschema.INTEGER:
+		err = varint.EncodeAndWriteVarInt32(buf, value.(int32))         // TODO: are serialized integers ALWAYS varint encoded?
+		fmt.Printf("DEBUG INT: -writeDataVal val: %v\n", value.(int32)) // DEBUG
+	case oschema.SHORT:
+		err = rw.WriteShort(buf, value.(int16))
+		fmt.Printf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
+	case oschema.LONG:
+		err = varint.EncodeAndWriteVarInt64(buf, value.(int64))          // TODO: are serialized longs ALWAYS varint encoded?
+		fmt.Printf("DEBUG LONG: -writeDataVal val: %v\n", value.(int64)) // DEBUG
+	case oschema.FLOAT:
+		err = rw.WriteFloat(buf, value.(float32))
+		fmt.Printf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
+	case oschema.DOUBLE:
+		err = rw.WriteDouble(buf, value.(float64))
+		fmt.Printf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
+	case oschema.DATETIME:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue DATETIME NOT YET IMPLEMENTED")
+	case oschema.DATE:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue DATE NOT YET IMPLEMENTED")
+	case oschema.STRING:
+		err = varint.WriteString(buf, value.(string))
+		fmt.Printf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
+	case oschema.BINARY:
+		err = varint.WriteBytes(buf, value.([]byte))
+		fmt.Printf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
+	case oschema.EMBEDDEDRECORD:
+		// doc := oschema.NewDocument("")
+		// err = serde.Deserialize(doc, buf)
+		// val = interface{}(doc)
+		// fmt.Printf("DEBUG EMBEDDEDREC: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDED NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDLIST:
+		// val, err = serde.readEmbeddedCollection(buf)
+		// fmt.Printf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDLIST NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDSET:
+		// val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
+		// fmt.Printf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDMAP:
+		// val, err = serde.readEmbeddedMap(buf)
+		// fmt.Printf("DEBUG EMBD-MAP: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDMAP NOT YET IMPLEMENTED")
+	case oschema.LINK:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
+	case oschema.LINKLIST:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKLIST NOT YET IMPLEMENTED")
+	case oschema.LINKSET:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKSET NOT YET IMPLEMENTED")
+	case oschema.LINKMAP:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKMAP NOT YET IMPLEMENTED")
+	case oschema.BYTE:
+		err = rw.WriteByte(buf, value.(byte))
+		fmt.Printf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
+	case oschema.CUSTOM:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
+	case oschema.DECIMAL:
+		// TODO: impl me -> Java client uses BigDecimal for this
+		panic("ORecordSerializerV0#writeDataValue DECIMAL NOT YET IMPLEMENTED")
+	case oschema.LINKBAG:
+		panic("ORecordSerializerV0#writeDataValue LINKBAG NOT YET IMPLEMENTED")
+	default:
+		// ANY and TRANSIENT are do nothing ops
+	}
+	return err
+}
+
+//
+// writeDataValue reads the next data section from `buf` according
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
@@ -355,9 +437,7 @@ func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string
 	}
 
 	nrecs := int(numRecs)
-
-	// final map to be returned
-	m := make(map[string]interface{})
+	m := make(map[string]interface{}) // final map to be returned
 
 	// data structures for reading the map header section, which gives key names and
 	// value types (and value ptrs, but I don't need those for the way I parse the data)

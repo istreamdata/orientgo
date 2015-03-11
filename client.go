@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -60,7 +61,7 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, obinary.PersistentStorageType)
+	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.PersistentStorageType)
 	if err != nil {
 		Fatal(err)
 	}
@@ -70,18 +71,18 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 			return
 		}
 
-		err = obinary.DropDatabase(dbc, ogonoriDBName, obinary.DocumentDbType)
+		err = obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDbType)
 		if err != nil {
 			Fatal(err)
 		}
 	}
 
-	// // err = obinary.CreateDatabase(dbc, ogonoriDBName, obinary.DocumentDbType, obinary.VolatileStorageType)
-	err = obinary.CreateDatabase(dbc, ogonoriDBName, obinary.DocumentDbType, obinary.PersistentStorageType)
+	// // err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, obinary.VolatileStorageType)
+	err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, constants.PersistentStorageType)
 	if err != nil {
 		Fatal(err)
 	}
-	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDBName, obinary.PersistentStorageType)
+	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDBName, constants.PersistentStorageType)
 	if err != nil {
 		Fatal(err)
 	}
@@ -105,12 +106,12 @@ func dropOgonoriTestDB(dbc *obinary.DBClient, fullTest bool) {
 		return
 	}
 
-	// err = obinary.DropDatabase(dbc, ogonoriDBName, obinary.PersistentStorageType)
-	err := obinary.DropDatabase(dbc, ogonoriDBName, obinary.DocumentDbType)
+	// err = obinary.DropDatabase(dbc, ogonoriDBName, constants.PersistentStorageType)
+	err := obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDbType)
 	if err != nil {
 		Fatal(err)
 	}
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, obinary.PersistentStorageType)
+	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.PersistentStorageType)
 	if err != nil {
 		Fatal(err)
 	}
@@ -123,7 +124,7 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	// var sql string
 
 	fmt.Println("OpenDatabase")
-	err := obinary.OpenDatabase(dbc, ogonoriDBName, obinary.DocumentDbType, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDbType, "admin", "admin")
 	if err != nil {
 		Fatal(err)
 	}

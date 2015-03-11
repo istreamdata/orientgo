@@ -15,20 +15,22 @@ import (
 //
 func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 	// an encoded varint give the length of the remaining byte array
-	sz, err := ReadVarIntAndDecode32(buf)
+	// TODO: might be better to have a ReadVarIntAndDecode that chooses whether to do
+	//       int32 or int64 based on the size of the varint and then returns interface{} ?
+	lenbytes, err := ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	if sz == 0 {
+	if lenbytes == 0 {
 		return nil, nil
 	}
 
-	if sz < 0 {
-		return nil, fmt.Errorf("Error in varint.ReadBytes: size of bytes was less than zero: %v", sz)
+	if lenbytes < 0 {
+		return nil, fmt.Errorf("Error in varint.ReadBytes: size of bytes was less than zero: %v", lenbytes)
 	}
 
-	size := int(sz)
+	size := int(lenbytes)
 	data := buf.Next(size)
 	if len(data) != size {
 		return nil, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}

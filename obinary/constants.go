@@ -1,13 +1,8 @@
 package obinary
 
-// end user constants
-const (
-	DocumentDbType = "document" // use in OpenDatabase() call
-	GraphDbType    = "graph"    // use in OpenDatabase() call
-
-	PersistentStorageType = "plocal" // use in DatabaseExists() call
-	VolatileStorageType   = "memory" // use in DatabaseExists() call
-)
+//
+// constants specific to the Network Binary Protocol
+//
 
 // internal client constants
 const (

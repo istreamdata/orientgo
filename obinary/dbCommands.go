@@ -645,7 +645,7 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 //    primitives
 //    ODocument
 //
-func SQLCommand(dbc *DBClient, sql string) error {
+func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
@@ -677,14 +677,22 @@ func SQLCommand(dbc *DBClient, sql string) error {
 	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
 
 	// FIXME: first pass: no parameters
-
-	// has-simple-paramters
-	err = rw.WriteBool(commandBuf, false)
+	serializedParams, err := serializeSimpleSQLParams(params)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
-	// has-complex-paramters
+	// has-simple-parameters
+	err = rw.WriteBool(commandBuf, serializedParams != nil)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	if serializedParams != nil {
+		rw.WriteBytes(commandBuf, serializedParams)
+	}
+
+	// has-complex-paramters => HARDCODING FALSE FOR NOW
 	err = rw.WriteBool(commandBuf, false)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -781,6 +789,56 @@ func SQLCommand(dbc *DBClient, sql string) error {
 	}
 
 	return nil
+}
+
+func serializeSimpleSQLParams(params []string) ([]byte, error) {
+	// Java client uses Map<Object, Object>
+	// Entry: {0=Honda, 1=Accord}, so positional params start with 0
+	// OSQLQuery#serializeQueryParameters(Map<O,O> params)
+	//   creates an ODocument
+	//   params.put("params", convertToRIDsIfPossible(params))
+	//   the convertToRIDsIfPossible is the one that handles Set vs. Map vs. ... vs. else -> primitive which is what simple strings are
+	//  then the serialization is done via ODocument#toStream -> ORecordSerializer#toStream
+	//    serializeClass(document)  => returns null
+	//    only field name in the document is "params"
+	//    when the embedded map comes in {0=Honda, 1=Accord}, it calls writeSingleValue
+
+	// ------------------------
+	// final byte type = network.readByte();
+	//  switch (type) {
+	//  case 'n':
+	//    result = null;
+	//    break;
+
+	//  case 'r':
+	//    result = OChannelBinaryProtocol.readIdentifiable(network);
+	//    if (result instanceof ORecord)
+	//      database.getLocalCache().updateRecord((ORecord) result);
+	//    break;
+
+	//  case 'l':
+	//    final int tot = network.readInt();
+	//    final Collection<OIdentifiable> list = new ArrayList<OIdentifiable>(tot);
+	//    for (int i = 0; i < tot; ++i) {
+	//      final OIdentifiable resultItem = OChannelBinaryProtocol.readIdentifiable(network);
+	//      if (resultItem instanceof ORecord)
+	//        database.getLocalCache().updateRecord((ORecord) resultItem);
+	//      list.add(resultItem);
+	//    }
+	//    result = list;
+	//    break;
+
+	//  case 'a':
+	//    final String value = new String(network.readBytes());
+	//    result = ORecordSerializerStringAbstract.fieldTypeFromStream(null, ORecordSerializerStringAbstract.getType(value),
+	//        value);
+	//    break;
+
+	//  default:
+	//    OLogManager.instance().warn(this, "Received unexpected result from query: %d", type);
+	//  }
+
+	return nil, nil
 }
 
 func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {

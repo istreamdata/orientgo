@@ -3,6 +3,8 @@
 * DONE Add unit tests for ReadFloat and ReadDouble (obinary/rw)
 * DONE better test coverage for code written so far  => run go coverage
 * TODO Re-evaluate db/network reader API
+* TODO Do UPDATE sql command and see if it works with code written for INSERT sql cmd
+* TODO Try a fancy query like: =>select * from animaltype where races contains (name.toLowerCase().subString(0,1) = 'e')<=
 * IN-PROGRESS Add in use of Trace Error all over the place
 * TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
 * DONE-FOR-TODAY Run the go static analysis tool that checks for places not checking error return values

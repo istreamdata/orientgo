@@ -16,16 +16,23 @@ func WriteByte(buf *bytes.Buffer, b byte) error {
 	return buf.WriteByte(b)
 }
 
+//
+// WriteShort writes a int16 in big endian order to the buffer
+//
 func WriteShort(buf *bytes.Buffer, n int16) error {
 	return binary.Write(buf, binary.BigEndian, n)
 }
 
-// let's assume big endian for now
-// Note: this method assumes the int can be safely cast to int32
+//
+// WriteInt writes a int32 in big endian order to the buffer
+//
 func WriteInt(buf *bytes.Buffer, n int32) error {
 	return binary.Write(buf, binary.BigEndian, n)
 }
 
+//
+// WriteLong writes a int64 in big endian order to the buffer
+//
 func WriteLong(buf *bytes.Buffer, n int64) error {
 	return binary.Write(buf, binary.BigEndian, n)
 }
@@ -82,9 +89,27 @@ func WriteBytes(buf *bytes.Buffer, bs []byte) error {
 	return err
 }
 
+//
+// WriteBool writes byte(1) for true and byte(0) for false to the buffer,
+// as specified by the OrientDB spec.
+//
 func WriteBool(buf *bytes.Buffer, b bool) error {
 	if b {
 		return WriteByte(buf, byte(1))
 	}
 	return WriteByte(buf, byte(0))
+}
+
+//
+// WriteFloat writes a float32 in big endian order to the buffer
+//
+func WriteFloat(buf *bytes.Buffer, f float32) error {
+	return binary.Write(buf, binary.BigEndian, f)
+}
+
+//
+// WriteDouble writes a float64 in big endian order to the buffer
+//
+func WriteDouble(buf *bytes.Buffer, f float64) error {
+	return binary.Write(buf, binary.BigEndian, f)
 }

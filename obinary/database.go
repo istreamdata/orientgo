@@ -1,6 +1,7 @@
 package obinary // TODO: these types need to move into package odb ??
 
 import (
+	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/binserde"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -9,7 +10,7 @@ import (
 
 type ODatabase struct {
 	Name             string
-	Typ              string // DocumentDbType or GraphDbType
+	Typ              constants.DatabaseType
 	Clusters         []OCluster
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
@@ -23,7 +24,7 @@ type ODatabase struct {
 	//
 }
 
-func NewDatabase(name, dbtype string) *ODatabase {
+func NewDatabase(name string, dbtype constants.DatabaseType) *ODatabase {
 	gp := make(map[int]oschema.OGlobalProperty)
 
 	serdeV0 := &binserde.ORecordSerializerV0{gp}

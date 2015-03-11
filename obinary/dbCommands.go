@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
@@ -20,7 +21,7 @@ import (
 // username and password.  Database type should be one of the obinary constants:
 // DocumentDbType or GraphDbType.
 //
-func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
+func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, username, passw string) error {
 	buf := dbc.buf
 	buf.Reset()
 
@@ -66,7 +67,7 @@ func OpenDatabase(dbc *DBClient, dbname, dbtype, username, passw string) error {
 	}
 
 	// dbname, dbtype, username, password
-	err = rw.WriteStrings(buf, dbname, dbtype, username, passw)
+	err = rw.WriteStrings(buf, dbname, string(dbtype), username, passw)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}

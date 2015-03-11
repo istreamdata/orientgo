@@ -67,6 +67,32 @@ func TestWriteBool(t *testing.T) {
 	equals(t, byte(1), bs[2])
 }
 
+func TestWriteFloat(t *testing.T) {
+	f := float32(55.668209)
+	buf := new(bytes.Buffer)
+	err := WriteFloat(buf, f)
+	ok(t, err)
+
+	equals(t, 4, buf.Len())
+
+	f2, err := ReadFloat(buf)
+	ok(t, err)
+	equals(t, f, f2)
+}
+
+func TestWriteDouble(t *testing.T) {
+	f := float64(199999999999999999955.6682090323333337298)
+	buf := new(bytes.Buffer)
+	err := WriteDouble(buf, f)
+	ok(t, err)
+
+	equals(t, 8, buf.Len())
+
+	f2, err := ReadDouble(buf)
+	ok(t, err)
+	equals(t, f, f2)
+}
+
 func TestWriteString(t *testing.T) {
 	var buf bytes.Buffer
 	err := WriteString(&buf, "hello")

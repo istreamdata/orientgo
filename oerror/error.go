@@ -70,22 +70,6 @@ func (e SessionNotInitialized) Error() string {
 // ------
 
 //
-// InvalidStorageType is an Error that indicates that the storage type value
-// is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
-// valid types are "plocal" or "memory".  Constants for these values are
-// provided in the obinary ogonori code base.
-//
-type InvalidStorageType struct {
-	TypeRequested string
-}
-
-func (e InvalidStorageType) Error() string {
-	return "Storage Type is not valid: " + e.TypeRequested
-}
-
-// ------
-
-//
 // InvalidDatabaseType is an Error that indicates that the db type value
 // is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
 // valid types are "document" or "graph".  Constants for these values are

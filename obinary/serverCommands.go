@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
@@ -130,7 +131,7 @@ func ConnectToServer(dbc *DBClient, adminUser, adminPassw string) error {
 // dbType must be type DocumentDbType or GraphDbType.
 // storageType must type PersistentStorageType or VolatileStorageType.
 //
-func CreateDatabase(dbc *DBClient, dbname, dbtype, storageType string) error {
+func CreateDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, storageType constants.StorageType) error {
 	dbc.buf.Reset()
 
 	/* ---[ precondition checks ]--- */
@@ -138,10 +139,6 @@ func CreateDatabase(dbc *DBClient, dbname, dbtype, storageType string) error {
 	// TODO: may need to change this to serverSessionid (can the "sessionId" be used for both server connections and db conx?)
 	if dbc.sessionId == NoSessionId {
 		return oerror.SessionNotInitialized{}
-	}
-
-	if !validStorageType(storageType) {
-		return oerror.InvalidStorageType{storageType}
 	}
 
 	/* ---[ build request and send to server ]--- */
@@ -158,7 +155,7 @@ func CreateDatabase(dbc *DBClient, dbname, dbtype, storageType string) error {
 		return err
 	}
 
-	err = rw.WriteStrings(dbc.buf, dbname, dbtype, storageType)
+	err = rw.WriteStrings(dbc.buf, dbname, string(dbtype), string(storageType))
 	if err != nil {
 		return err
 	}
@@ -202,15 +199,11 @@ func CreateDatabase(dbc *DBClient, dbname, dbtype, storageType string) error {
 // This is a "server" command, so you must have already called
 // ConnectToServer before calling this function.
 //
-func DropDatabase(dbc *DBClient, dbname, dbtype string) error {
+func DropDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType) error {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
 		return oerror.SessionNotInitialized{}
-	}
-
-	if !validDbType(dbtype) {
-		return oerror.InvalidDatabaseType{dbtype}
 	}
 
 	// cmd
@@ -226,7 +219,7 @@ func DropDatabase(dbc *DBClient, dbname, dbtype string) error {
 	}
 
 	// database name, storage-type
-	err = rw.WriteStrings(dbc.buf, dbname, dbtype)
+	err = rw.WriteStrings(dbc.buf, dbname, string(dbtype))
 	if err != nil {
 		return err
 	}
@@ -265,15 +258,11 @@ func DropDatabase(dbc *DBClient, dbname, dbtype string) error {
 // ConnectToServer, otherwise an authorization error will be returned.
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
 //
-func DatabaseExists(dbc *DBClient, dbname, storageType string) (bool, error) {
+func DatabaseExists(dbc *DBClient, dbname string, storageType constants.StorageType) (bool, error) {
 	dbc.buf.Reset()
 
 	if dbc.sessionId == NoSessionId {
 		return false, oerror.SessionNotInitialized{}
-	}
-
-	if !validStorageType(storageType) {
-		return false, oerror.InvalidStorageType{storageType}
 	}
 
 	// cmd
@@ -289,7 +278,7 @@ func DatabaseExists(dbc *DBClient, dbname, storageType string) (bool, error) {
 	}
 
 	// database name, storage-type
-	err = rw.WriteStrings(dbc.buf, dbname, storageType)
+	err = rw.WriteStrings(dbc.buf, dbname, string(storageType))
 	if err != nil {
 		return false, err
 	}

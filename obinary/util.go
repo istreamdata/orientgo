@@ -5,17 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/quux00/ogonori/constants"
 )
 
-func validStorageType(storageType string) bool {
-	return storageType == constants.PersistentStorageType || storageType == constants.VolatileStorageType
-}
+// func validStorageType(storageType constants.StorageType) bool {
+// 	return storageType == constants.Persistent || storageType == constants.Volatile
+// }
 
-func validDbType(dbtype string) bool {
-	return dbtype == constants.DocumentDbType || dbtype == constants.GraphDbType
-}
+// func validDbType(dbtype constants.DatabaseType) bool {
+// 	return dbtype == constants.DocumentDb || dbtype == constants.GraphDbT
+// }
 
 //
 // Should only be used during development of the library.

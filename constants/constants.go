@@ -13,10 +13,14 @@ const (
 )
 
 // end user constants => TODO: these should be given types
-const (
-	DocumentDbType = "document" // use in OpenDatabase() call
-	GraphDbType    = "graph"    // use in OpenDatabase() call
 
-	PersistentStorageType = "plocal" // use in DatabaseExists() call
-	VolatileStorageType   = "memory" // use in DatabaseExists() call
+type DatabaseType string
+type StorageType string
+
+const (
+	DocumentDb DatabaseType = "document" // use in OpenDatabase() call
+	GraphDb    DatabaseType = "graph"    // use in OpenDatabase() call
+
+	Persistent StorageType = "plocal" // use in DatabaseExists() call
+	Volatile   StorageType = "memory" // use in DatabaseExists() call
 )

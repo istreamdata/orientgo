@@ -71,6 +71,8 @@ func (doc *ODocument) GetFieldByName(fname string) *OField {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) AddField(name string, field *OField) *ODocument {
+	fmt.Printf("AF+== %v\n", name)  // DEBUG
+	fmt.Printf("AF+++ %v\n", field) // DEBUG
 	doc.Fields[name] = field
 	doc.dirty = true
 	return doc
@@ -83,6 +85,7 @@ func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) Field(name string, val interface{}) *ODocument {
+	// TODO: need to add more types: EMBEDDEDRECORD, EMBEDDEDLIST, LINK, etc. ...
 	var ftype byte
 	switch val.(type) {
 	case string:
@@ -105,6 +108,8 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 		ftype = DOUBLE
 	case []byte:
 		ftype = BINARY
+	case map[string]interface{}:
+		ftype = EMBEDDEDMAP
 		// TODO: more types need to be added
 	default:
 		ftype = ANY // TODO: no idea if this is correct

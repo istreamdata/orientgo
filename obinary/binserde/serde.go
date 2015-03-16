@@ -13,6 +13,7 @@ import (
 
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -149,9 +150,156 @@ func (serde *ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
 	return nil
 }
 
-func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+	// need to create a new buffer for the serialized record for ptr value calculations,
+	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
+	// that are NOT part of the serialized record
+	// NOTE: this method assumes the byte(0) (serialization version) has ALREADY been written to `buf`
+	serdebuf := new(bytes.Buffer) // holds only the serialized value
+
+	// write the serialization version in so that the later buffer size math works
+	// we will remove it at the end
+	err = rw.WriteByte(serdebuf, 0)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = varint.WriteString(serdebuf, doc.Classname)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	fmt.Printf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
+
+	fmt.Printf("doc A: %v\n", doc) // DEBUG
+	err = serde.writeSerializedRecord(serdebuf, doc)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// append the serialized record onto the primary buffer
+	bs := serdebuf.Bytes()
+	fmt.Printf("serdebuf B: %v\n", bs) // DEBUG
+	n, err := buf.Write(bs[1:])        // remove the version byte at the beginning
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	if n != len(bs)-1 {
+		_, file, line, _ := runtime.Caller(0)
+		return fmt.Errorf("ERROR: file: %s: line %d: Incorrect number of bytes written to bytes buffer. Expected %d; Actual %d",
+			file, line, len(bs)-1, n)
+	}
+
 	return nil
 }
+
+// TODO: alternative to writeHeader -> if keep this, then delete `writeHeader`
+// when this is called the classname should have already been written to the buffer
+func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
+	nfields := len(doc.Fields)
+	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
+	ptrVal := make([]int, 0, nfields) // data ptr value to write into buf
+
+	dataBuf := new(bytes.Buffer)
+
+	if doc.Classname == "" {
+		// serializing a property or SQL params map -> use propertyName
+		for fldName, fld := range doc.Fields {
+			// propertyName
+			err = varint.WriteString(buf, fldName)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			ptrPos = append(ptrPos, buf.Len())
+			// placeholder data pointer
+			err = rw.WriteInt(buf, 0)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			// data value type
+			fmt.Printf("@@@ Writing data type: %v\n", fld.Typ)
+			err = rw.WriteByte(buf, fld.Typ)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+
+			// write the data value to a separate `data` buffer
+			ptrVal = append(ptrVal, dataBuf.Len())
+			err = serde.writeDataValue(dataBuf, fld.Value, fld.Typ)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+		}
+
+	} else {
+		// serializing a full document (not just a property or SQL params map) -> use propertyId
+		// TODO: fill in
+		panic("ELSE block of ORecordSerializerV0#writeSerializedRecord is NOT YET IMPLEMENTED !!")
+	}
+
+	// write End of Header (EOH) marker
+	err = rw.WriteByte(buf, 0)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// fill in placeholder data ptr positions
+	endHdrPos := buf.Len()
+	bs := buf.Bytes()
+	for i, pos := range ptrPos {
+		// this buffer works off a slice from the `buf` buffer, so writing to it should modify the underlying `buf` buffer
+		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
+		tmpBuf.Reset() // reset ptr to start of slice so can overwrite the placeholder value
+		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i]))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
+	// make a complete serialized record into one buffer
+	_, err = buf.Write(dataBuf.Bytes())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	return nil
+}
+
+// func (serde *ORecordSerializerV0) writeHeader(doc *oschema.ODocument, buf *bytes.Buffer) (ptrPos []int, err error) {
+// 	ptrPos := make([]int, 0, len(m)) // position in buf where data ptr int needs to be written
+
+// 	if doc.Classname == "" {
+// 		// serializing a property or SQL params map -> use propertyName
+// 		for fldName, fld := range doc.Fields {
+// 			// propertyName
+// 			err = varint.WriteString(buf, fldName)
+// 			if err != nil {
+// 				return ptrPos, oerror.NewTrace(err)
+// 			}
+// 			ptrPos = append(ptrPos, buf.Len())
+// 			// placeholder data pointer
+// 			err = rw.WriteInt(buf, 0)
+// 			if err != nil {
+// 				return ptrPos, oerror.NewTrace(err)
+// 			}
+// 			// data value type
+// 			err = rw.WriteByte(buf, fld.Typ)
+// 			if err != nil {
+// 				return ptrPos, oerror.NewTrace(err)
+// 			}
+// 		}
+
+// 	} else {
+// 		// serializing a full document (not just a property or SQL params map) -> use propertyId
+// 		// TODO: fill in
+// 	}
+
+// 	// write End of Header (EOH) marker
+// 	err = rw.WriteByte(buf, 0)
+// 	if err != nil {
+// 		return ptrPos, oerror.NewTrace(err)
+// 	}
+// 	return ptrPos, nil
+// }
 
 func (serde *ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
@@ -260,9 +408,13 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 
 //
 // writeDataValue is part of the Serialize functionality
+// TODO: change name to writeSingleValue ?
 //
 func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (err error) {
 	switch datatype {
+	case oschema.STRING:
+		err = varint.WriteString(buf, value.(string))
+		fmt.Printf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
 	case oschema.BOOLEAN:
 		err = rw.WriteBool(buf, value.(bool))
 		fmt.Printf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
@@ -287,18 +439,11 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 	case oschema.DATE:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue DATE NOT YET IMPLEMENTED")
-	case oschema.STRING:
-		err = varint.WriteString(buf, value.(string))
-		fmt.Printf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
 	case oschema.BINARY:
 		err = varint.WriteBytes(buf, value.([]byte))
 		fmt.Printf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
 	case oschema.EMBEDDEDRECORD:
-		// doc := oschema.NewDocument("")
-		// err = serde.Deserialize(doc, buf)
-		// val = interface{}(doc)
-		// fmt.Printf("DEBUG EMBEDDEDREC: -writeDataVal val: %v\n", val) // DEBUG
-		panic("ORecordSerializerV0#writeDataValue EMBEDDED NOT YET IMPLEMENTED")
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDRECORD NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDLIST:
 		// val, err = serde.readEmbeddedCollection(buf)
 		// fmt.Printf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
@@ -308,9 +453,8 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 		// fmt.Printf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDMAP:
-		// val, err = serde.readEmbeddedMap(buf)
-		// fmt.Printf("DEBUG EMBD-MAP: -writeDataVal val: %v\n", val) // DEBUG
-		panic("ORecordSerializerV0#writeDataValue EMBEDDEDMAP NOT YET IMPLEMENTED")
+		err = serde.writeEmbeddedMap(buf, value.(odatastructure.OEmbeddedMap))
+		fmt.Printf("DEBUG EMBEDDEDMAP:  val %v\n", value.(odatastructure.OEmbeddedMap))
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
@@ -427,9 +571,131 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 }
 
 //
+// writeEmbeddedMap serializes the EMBEDDEDMAP type. Currently, OrientDB only uses string
+// types for the map keys, so that is an assumption of this method as well.
+//
+// TODO: this may not need to be a method -> change to fn ?
+func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastructure.OEmbeddedMap) error {
+	// number of entries in the map
+	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	dataBuf := new(bytes.Buffer)
+
+	ptrPos := make([]int, 0, m.Len()) // position in buf where data ptr int needs to be written
+	ptrVal := make([]int, 0, m.Len()) // the data ptr value to be written in buf
+
+	// TODO: do the map entries have to be written in any particular order?  I will assume no for now
+	keys, vals, types := m.All()
+	for i, k := range keys {
+		// key type
+		err = rw.WriteByte(buf, byte(oschema.STRING))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		// write the key value
+		err = varint.WriteString(buf, k)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		ptrPos = append(ptrPos, buf.Len())
+		// wrote placeholder integer for data ptr
+		err = rw.WriteInt(buf, 0)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		dataType := types[i]
+		if dataType == oschema.UNKNOWN {
+			dataType = getDataType(vals[i]) // TODO: not sure this is necessary
+		}
+		// write data type of the data
+		err = rw.WriteByte(buf, dataType)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		ptrVal = append(ptrVal, dataBuf.Len()) // TODO: does this go before or after the call to writeDataValue??
+
+		err = serde.writeDataValue(dataBuf, vals[i], dataType)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
+	// position that ends the key headers
+	endHdrPos := buf.Len() // this assumes that buf has all the serialized entries including the serializationVersion and className !!
+	bs := buf.Bytes()
+	for i, pos := range ptrPos {
+		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
+		tmpBuf.Reset()
+		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i]))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+	_, err = buf.Write(dataBuf.Bytes()) // TODO: should check return bytes len
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	return nil
+}
+
+func getDataType(val interface{}) byte {
+	// TODO: not added:
+	// DATETIME
+	// DATE
+	// LINK
+	// LINKLIST
+	// LINKMAP
+	// LINKSET
+	// DECIMAL
+	// CUSTOM
+	// LINKBAG
+
+	switch val.(type) {
+	case byte:
+		return oschema.BYTE
+	case bool:
+		return oschema.BOOLEAN
+	case int32:
+		return oschema.INTEGER
+	case int16:
+		return oschema.SHORT
+	case int64:
+		return oschema.LONG
+	case float32:
+		return oschema.FLOAT
+	case float64:
+		return oschema.DOUBLE
+	case string:
+		return oschema.STRING
+	case []byte:
+		return oschema.BINARY
+	case *oschema.ODocument: // TODO: not sure this is the only way an EMBEDDEDRECORD can be sent ?? what about JSON?
+		return oschema.EMBEDDEDRECORD
+	case []interface{}: // TODO: this may require some reflection -> how do I detect any type of slice?
+		return oschema.EMBEDDEDLIST
+	case map[string]struct{}: // TODO: settle on this convention for how to specify an OrientDB SET  ??
+		return oschema.EMBEDDEDSET
+	// case map[string]interface{}: // TODO: this may require some reflection -> how does the JSON library detect types?
+	case *odatastructure.OEmbeddedMap: // TODO: this may require some reflection -> how does the JSON library detect types?
+		return oschema.EMBEDDEDMAP
+	default:
+		return oschema.ANY
+	}
+}
+
+//
 // readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
+// TODO: change to: func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*odatastructure.OEmbeddedMap, error) {  ??
 func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {

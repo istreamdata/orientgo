@@ -11,6 +11,7 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -678,7 +679,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
 
 	// FIXME: first pass: no parameters
-	serializedParams, err := serializeSimpleSQLParams(params)
+	serializedParams, err := serializeSimpleSQLParams(dbc, params)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -792,7 +793,8 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	return nil
 }
 
-func serializeSimpleSQLParams(params []string) ([]byte, error) {
+// TODO: what datatypes can the params be? => right now allowing only string
+func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	// Java client uses Map<Object, Object>
 	// Entry: {0=Honda, 1=Accord}, so positional params start with 0
 	// OSQLQuery#serializeQueryParameters(Map<O,O> params)
@@ -803,6 +805,44 @@ func serializeSimpleSQLParams(params []string) ([]byte, error) {
 	//    serializeClass(document)  => returns null
 	//    only field name in the document is "params"
 	//    when the embedded map comes in {0=Honda, 1=Accord}, it calls writeSingleValue
+
+	if len(params) == 0 {
+		return nil, nil
+	}
+
+	fmt.Printf("PPPPPPPPP: %v\n", params)
+
+	doc := oschema.NewDocument("")
+
+	// the params must be serialized as an embedded map of form:
+	// {params => {0=>paramVal1, 1=>paramVal2}}
+	// which in ogonori is a Field with:
+	//   Field.Name = params
+	//   Field.Value = {0=>paramVal1, 1=>paramVal2}} (map[string]interface{})
+
+	paramsMap := odatastructure.NewEmbeddedMapWithCapacity(2)
+	for i, pval := range params {
+		paramsMap.Put(strconv.Itoa(i), pval, oschema.STRING)
+	}
+	doc.FieldWithType("params", paramsMap, oschema.EMBEDDEDMAP)
+
+	fmt.Printf("DOC XX: %v\n", doc)
+	///////
+
+	buf := new(bytes.Buffer)
+	err := buf.WriteByte(dbc.serializationVersion)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
+	err = serde.Serialize(doc, buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	fmt.Printf("serialized params: %v\n", buf.Bytes())
+
+	return buf.Bytes(), nil
 
 	// ------------------------
 	// final byte type = network.readByte();

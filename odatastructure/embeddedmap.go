@@ -1,6 +1,9 @@
 package odatastructure
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -99,4 +102,14 @@ func (em *OEmbeddedArrayMap) Types() []byte {
 
 func (em *OEmbeddedArrayMap) All() (keys []string, vals []interface{}, types []byte) {
 	return em.Keys(), em.Values(), em.Types()
+}
+
+func (em OEmbeddedArrayMap) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("[EmbeddedMap:\n")
+	buf.WriteString(fmt.Sprintf("  Keys : %v\n", em.keys))
+	buf.WriteString(fmt.Sprintf("  Types: %v\n", em.types))
+	buf.WriteString(fmt.Sprintf("  Vals : %v\n", em.vals))
+	buf.WriteString("\n]")
+	return buf.String()
 }

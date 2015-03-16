@@ -303,6 +303,35 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	// 	log.Fatal(err)
 	// }
 
+	fmt.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
+
+	// xbuf := new(bytes.Buffer)
+	// varint.WriteString(xbuf, "aaa")
+	// xpos := xbuf.Len()
+	// rw.WriteInt(xbuf, -1)
+	// varint.WriteString(xbuf, "bbb")
+	// fmt.Printf("xpos: %v\n", xpos)
+	// xbs := xbuf.Bytes()
+	// fmt.Printf("xbuf: %v\n", xbs)
+	// fmt.Printf("xpos2: %v\n", xbuf.Len())
+	// fmt.Printf("xbuf2: %v\n", xbuf.Bytes())
+
+	// xbs[xpos] = 33
+	// fmt.Printf("xbuf3: %v\n", xbuf.Bytes())
+
+	// ybuf := bytes.NewBuffer(xbs[xpos : xpos+4])
+	// ybuf.Reset()
+	// rw.WriteInt(ybuf, 18)
+	// fmt.Printf("ybuf: %v\n", ybuf.Bytes())
+	// fmt.Printf("xbuf4: %v\n", xbuf.Bytes())
+
+	sql = "insert into Cat (name, caretaker) values(?, ?)"
+	err = obinary.SQLCommand(dbc, sql, "June", "Cleaver")
+	if err != nil {
+		Fatal(err)
+	}
+	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
+
 	obinary.CloseDatabase(dbc)
 
 }

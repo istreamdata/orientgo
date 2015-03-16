@@ -2,8 +2,10 @@ package oschema
 
 import "fmt"
 
+type ODataType byte
+
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
-// Note: I'm treating these as type byte - they are Enum objects in the Java code
+// TODO: change to type ODataType
 const (
 	BOOLEAN        = 0
 	INTEGER        = 1
@@ -28,7 +30,8 @@ const (
 	CUSTOM         = 20
 	DECIMAL        = 21
 	LINKBAG        = 22
-	ANY            = 23 // BTW: ANY == UNKNOWN/UNSPECIFIED
+	ANY            = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
+	UNKNOWN        = 255 // my addition
 )
 
 //

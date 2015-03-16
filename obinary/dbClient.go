@@ -25,6 +25,7 @@ type DBClient struct {
 	token                 []byte // orientdb token when not using sessionId
 	serializationType     string
 	binaryProtocolVersion int16
+	serializationVersion  byte
 	currDb                *ODatabase                   // only one db session open at a time
 	RecordSerDes          []binserde.ORecordSerializer // serdes w/o globalProps - for server-level cmds
 	//
@@ -108,6 +109,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 		buf:                   new(bytes.Buffer),
 		serializationType:     serializerType,
 		binaryProtocolVersion: svrProtocolNum,
+		serializationVersion:  byte(0), // default is 0 // TODO: need to detect if server is using a higher version
 		sessionId:             NoSessionId,
 		RecordSerDes:          []binserde.ORecordSerializer{serdeV0},
 	}

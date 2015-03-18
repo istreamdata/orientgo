@@ -143,9 +143,7 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 // TODO: need to study what exactly this method is supposed to do and not do
 //       -> check the Java driver version
 //
-func (serde *ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument,
-	buf *bytes.Buffer, fields []string) error {
-
+func (serde *ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error {
 	// TODO: impl me
 	return nil
 }
@@ -192,12 +190,12 @@ func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.B
 	return nil
 }
 
-// TODO: alternative to writeHeader -> if keep this, then delete `writeHeader`
-// when this is called the classname should have already been written to the buffer
 func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
 	nfields := len(doc.Fields)
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 	ptrVal := make([]int, 0, nfields) // data ptr value to write into buf
+	databufPtrIndexes := make([]int, 0, 8)
+	databufPtrValues := make([]int, 0, 8)
 
 	dataBuf := new(bytes.Buffer)
 
@@ -222,11 +220,22 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 				return oerror.NewTrace(err)
 			}
 
-			// write the data value to a separate `data` buffer
 			ptrVal = append(ptrVal, dataBuf.Len())
-			err = serde.writeDataValue(dataBuf, fld.Value, fld.Typ)
+			// write the data value to a separate `data` buffer
+			dbufpos, dbufvals, err := serde.writeDataValue(dataBuf, fld.Value, fld.Typ)
 			if err != nil {
 				return oerror.NewTrace(err)
+			}
+			// DEBUG
+			fmt.Printf("wsrA: ptrPos  : %v\n", ptrPos)
+			fmt.Printf("wsrA: ptrVal  : %v\n", ptrVal)
+			fmt.Printf("wsrA: dbufpos : %v\n", dbufpos)
+			fmt.Printf("wsrA: dbufvals: %v\n", dbufvals)
+			// END DEBUG
+
+			if dbufpos != nil {
+				databufPtrIndexes = append(databufPtrIndexes, dbufpos...)
+				databufPtrValues = append(databufPtrValues, dbufvals...)
 			}
 		}
 
@@ -244,21 +253,35 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 
 	// fill in placeholder data ptr positions
 	endHdrPos := buf.Len()
+	for i := range ptrVal {
+		ptrVal[i] += endHdrPos
+	}
+
+	// adjust the databuf ptr positions and values which are relative to the start of databuf
+	for i := range databufPtrIndexes {
+		ptrPos = append(ptrPos, databufPtrIndexes[i]+endHdrPos)
+		ptrVal = append(ptrVal, databufPtrValues[i]+endHdrPos)
+	}
+	// DEBUG
+	fmt.Printf("wsrD: endHdrPos: %v\n", endHdrPos)
+	fmt.Printf("wsrD: ptrPos: %v\n", ptrPos)
+	fmt.Printf("wsrD: ptrVal: %v\n", ptrVal)
+	// END DEBUG
+	// make a complete serialized record into one buffer
+	_, err = buf.Write(dataBuf.Bytes())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
 	bs := buf.Bytes()
 	for i, pos := range ptrPos {
 		// this buffer works off a slice from the `buf` buffer, so writing to it should modify the underlying `buf` buffer
 		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
 		tmpBuf.Reset() // reset ptr to start of slice so can overwrite the placeholder value
-		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i]))
+		err = rw.WriteInt(tmpBuf, int32(ptrVal[i]))
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
-	}
-
-	// make a complete serialized record into one buffer
-	_, err = buf.Write(dataBuf.Bytes())
-	if err != nil {
-		return oerror.NewTrace(err)
 	}
 
 	return nil
@@ -410,7 +433,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 // writeDataValue is part of the Serialize functionality
 // TODO: change name to writeSingleValue ?
 //
-func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (err error) {
+func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (ptrPos, ptrVal []int, err error) {
 	switch datatype {
 	case oschema.STRING:
 		err = varint.WriteString(buf, value.(string))
@@ -453,7 +476,7 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 		// fmt.Printf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDMAP:
-		err = serde.writeEmbeddedMap(buf, value.(odatastructure.OEmbeddedMap))
+		ptrPos, ptrVal, err = serde.writeEmbeddedMap(buf, value.(odatastructure.OEmbeddedMap))
 		fmt.Printf("DEBUG EMBEDDEDMAP:  val %v\n", value.(odatastructure.OEmbeddedMap))
 	case oschema.LINK:
 		// TODO: impl me
@@ -481,7 +504,7 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 	default:
 		// ANY and TRANSIENT are do nothing ops
 	}
-	return err
+	return ptrPos, ptrVal, err
 }
 
 //
@@ -575,11 +598,11 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: this may not need to be a method -> change to fn ?
-func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastructure.OEmbeddedMap) error {
+func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastructure.OEmbeddedMap) ([]int, []int, error) {
 	// number of entries in the map
 	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
 	if err != nil {
-		return oerror.NewTrace(err)
+		return nil, nil, oerror.NewTrace(err)
 	}
 
 	dataBuf := new(bytes.Buffer)
@@ -593,20 +616,20 @@ func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastr
 		// key type
 		err = rw.WriteByte(buf, byte(oschema.STRING))
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
 
 		// write the key value
 		err = varint.WriteString(buf, k)
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
 
 		ptrPos = append(ptrPos, buf.Len())
 		// wrote placeholder integer for data ptr
 		err = rw.WriteInt(buf, 0)
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
 
 		dataType := types[i]
@@ -616,14 +639,23 @@ func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastr
 		// write data type of the data
 		err = rw.WriteByte(buf, dataType)
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
 
-		ptrVal = append(ptrVal, dataBuf.Len()) // TODO: does this go before or after the call to writeDataValue??
+		ptrVal = append(ptrVal, dataBuf.Len())
 
-		err = serde.writeDataValue(dataBuf, vals[i], dataType)
+		// TODO: not handling these subdata []int's correctly
+		//       I think there is an asymmetry between writeSerializedValue and writeEmbeddedMap
+		//       the former creates a separate new databuf to send to writeDataValue, but the
+		//       the latter does not -> should do it the same way for both
+		subdataPtrPos, subdataPtrVal, err := serde.writeDataValue(dataBuf, vals[i], dataType)
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
+		}
+		if subdataPtrPos != nil {
+			// TODO: this is a wrong
+			ptrPos = append(ptrPos, subdataPtrPos...)
+			copy(ptrVal, subdataPtrVal)
 		}
 	}
 
@@ -633,17 +665,18 @@ func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastr
 	for i, pos := range ptrPos {
 		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
 		tmpBuf.Reset()
-		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i]))
+		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i])) // this is probably never necessary
+		ptrVal[i] += endHdrPos                                // NEWLY ADDED
 		if err != nil {
-			return oerror.NewTrace(err)
+			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
 	}
-	_, err = buf.Write(dataBuf.Bytes()) // TODO: should check return bytes len
+	_, err = buf.Write(dataBuf.Bytes()) // TODO: should check return len
 	if err != nil {
-		return oerror.NewTrace(err)
+		return ptrPos, ptrVal, oerror.NewTrace(err)
 	}
 
-	return nil
+	return ptrPos, ptrVal, nil
 }
 
 func getDataType(val interface{}) byte {

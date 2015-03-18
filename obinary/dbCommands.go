@@ -640,12 +640,9 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 //
 // name may change -> placeholder for now
 // Constraints (for now):
-// 0. cmds with no parameters allowed  => DONE (sort of, TODO: what do with the return type/created doc?)
 // 1. cmds with only simple positional parameters allowed
 // 2. cmds with lists of parameters ("complex") NOT allowed
-// 3. parameter types allowed:
-//    primitives
-//    ODocument
+// 3. parameter types allowed: string only for now
 //
 func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	dbc.buf.Reset()
@@ -678,7 +675,6 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	//  (has-complex-parameters:boolean)
 	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
 
-	// FIXME: first pass: no parameters
 	serializedParams, err := serializeSimpleSQLParams(dbc, params)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -694,6 +690,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 		rw.WriteBytes(commandBuf, serializedParams)
 	}
 
+	// FIXME: no complex parameters yet since I don't understand what they are
 	// has-complex-paramters => HARDCODING FALSE FOR NOW
 	err = rw.WriteBool(commandBuf, false)
 	if err != nil {
@@ -783,11 +780,11 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 		log.Fatalf("l>GOT BACK DOCS, so should I return them??? = %v\n", docs) // DEBUG
 
 	} else {
-		fmt.Println(">> Not yet supported")
+		_, file, line, _ := runtime.Caller(0)
+		fmt.Printf(">> Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n", resultType, string(rune(resultType)), line, file)
 		// TODO: I've not yet tested this route of code -> how do so?
-		_, file, line, _ := runtime.Caller(1)
-		log.Fatalf("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
-			line, file)
+		// log.Fatalf("NOTE NOTE NOTE: testing the resultType == '%v' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
+		// 	string(rune(resultType)), line, file)
 	}
 
 	return nil
@@ -882,6 +879,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	return nil, nil
 }
 
+//func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]*oschema.ODocument, error) {
 func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
@@ -911,7 +909,7 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 		return nil, oerror.NewTrace(err)
 	}
 
-	// fetch plan // TODO: need to support fetch plans
+	// fetch plan
 	fetchPlan := ""
 	err = rw.WriteString(commandBuf, fetchPlan)
 	if err != nil {

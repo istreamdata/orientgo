@@ -332,6 +332,20 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	}
 	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
+	// sql = "select from  Cat where name = ? and caretaker = ?"
+	// err = obinary.SQLQuery(dbc, sql, "June", "Cleaver")
+	// if err != nil {
+	// 	Fatal(err)
+	// }
+	// fmt.Println("+++++++++ END: SQL QUERY w/ PARAMS ++++++++++++===")
+
+	sql = "delete from Cat where name ='June'"
+	err = obinary.SQLCommand(dbc, sql)
+	if err != nil {
+		Fatal(err)
+	}
+	// obinary.DeleteRecordByRID()
+
 	obinary.CloseDatabase(dbc)
 
 }

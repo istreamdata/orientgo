@@ -196,7 +196,8 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	sql := "select * from Cat where name = 'Linus'"
-	docs, err = obinary.SQLQuery(dbc, sql)
+	fetchPlan := ""
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	if err != nil {
 		Fatal(err)
 	}
@@ -238,7 +239,7 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	sql = "select * from Cat order by name asc"
 	fmt.Println("Issuing command query: " + sql)
-	docs, err = obinary.SQLQuery(dbc, sql)
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	if err != nil {
 		Fatal(err)
 	}
@@ -269,7 +270,7 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Assert(zed.Rid != "", "RID should not be empty")
 
 	sql = "select name, caretaker from Cat order by caretaker"
-	docs, err = obinary.SQLQuery(dbc, sql)
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	if err != nil {
 		Fatal(err)
 	}

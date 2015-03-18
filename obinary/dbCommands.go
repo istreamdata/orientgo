@@ -879,8 +879,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	return nil, nil
 }
 
-//func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]*oschema.ODocument, error) {
-func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
+func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
@@ -910,23 +909,17 @@ func SQLQuery(dbc *DBClient, sql string) ([]*oschema.ODocument, error) {
 	}
 
 	// fetch plan
-	fetchPlan := ""
 	err = rw.WriteString(commandBuf, fetchPlan)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	// serialized-params => NONE currently supported => TODO: add support for these; see note below
-	//// --------------------------------------- ////
-	//// Serialized Parameters ODocument content ////
-	//// --------------------------------------- ////
-	// The ODocument have to contain a field called "params" of type Map.
-	// The Map should have as key, in case of positional perameters the numeric
-	// position of the parameter, in case of named parameters the name of the
-	// parameter and as value the value of the parameter.
-	err = rw.WriteBytes(commandBuf, make([]byte, 0, 0))
+	serializedParams, err := serializeSimpleSQLParams(dbc, params)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
+	}
+	if serializedParams != nil {
+		rw.WriteBytes(commandBuf, serializedParams)
 	}
 
 	serializedCmd := commandBuf.Bytes()

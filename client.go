@@ -14,6 +14,15 @@ import (
 	"github.com/quux00/ogonori/oschema"
 )
 
+//
+// This is a "functional" tester class against a live OrientDB 2.x I'm using
+// while developing the ogonori OrientDB Go client.
+//
+// Before running this test, you need to run the scripts/ogonori-setup.sql
+// with the `console.sh` program of OrientDB:
+//   ./console.sh ogonori-setup.sql
+//
+
 var ogonoriDBName string = "ogonoriTest"
 
 func Equals(exp, act interface{}) {
@@ -178,24 +187,29 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	doc12_0 := docs[0]
 	Equals("12:0", doc12_0.Rid)
 	Assert(doc12_0.Version > 0, fmt.Sprintf("Version is: %d", doc12_0.Version))
-	Equals(2, len(doc12_0.Fields))
+	Equals(3, len(doc12_0.Fields))
 	Equals("Cat", doc12_0.Classname)
 
 	nameField, ok := doc12_0.Fields["name"]
 	Assert(ok, "should be a 'name' field")
+
+	ageField, ok := doc12_0.Fields["age"]
+	Assert(ok, "should be a 'age' field")
 
 	caretakerField, ok := doc12_0.Fields["caretaker"]
 	Assert(ok, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
 	Equals(byte(oschema.STRING), nameField.Typ)
+	Equals(byte(oschema.INTEGER), ageField.Typ)
 	Equals(byte(oschema.STRING), caretakerField.Typ)
 	Equals("Linus", nameField.Value)
+	Equals(int32(15), ageField.Value)
 	Equals("Michael", caretakerField.Value)
 
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
-	sql := "select * from Cat where name = 'Linus'"
+	sql := "select from Cat where name = 'Linus'"
 	fetchPlan := ""
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	if err != nil {
@@ -204,11 +218,14 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	Equals("12:0", docs[0].Rid)
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
-	Equals(2, len(docs[0].Fields))
+	Equals(3, len(docs[0].Fields))
 	Equals("Cat", docs[0].Classname)
 
 	nameField, ok = docs[0].Fields["name"]
 	Assert(ok, "should be a 'name' field")
+
+	ageField, ok = doc12_0.Fields["age"]
+	Assert(ok, "should be a 'age' field")
 
 	caretakerField, ok = docs[0].Fields["caretaker"]
 	Assert(ok, "should be a 'caretaker' field")
@@ -216,7 +233,9 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
 	Equals(byte(oschema.STRING), nameField.Typ)
 	Equals(byte(oschema.STRING), caretakerField.Typ)
+	Equals(byte(oschema.INTEGER), ageField.Typ)
 	Equals("Linus", nameField.Value)
+	Equals(int32(15), ageField.Value)
 	Equals("Michael", caretakerField.Value)
 
 	/* ---[ cluster data range ]--- */
@@ -228,7 +247,7 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
 
-	sql = "insert into Cat (name, caretaker) values(\"Zed\", \"Shaw\")"
+	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
 	err = obinary.SQLCommand(dbc, sql)
 	if err != nil {
 		Fatal(err)
@@ -244,15 +263,16 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 		Fatal(err)
 	}
 	Equals(3, len(docs))
-	Equals(2, len(docs[0].Fields))
+	Equals(3, len(docs[0].Fields))
 	Equals("Cat", docs[0].Classname)
-	Equals(2, len(docs[1].Fields))
+	Equals(3, len(docs[1].Fields))
 	Equals("Cat", docs[1].Classname)
-	Equals(2, len(docs[2].Fields))
+	Equals(3, len(docs[2].Fields))
 	Equals("Cat", docs[2].Classname)
 
 	keiko := docs[0]
 	Equals("Keiko", keiko.Fields["name"].Value)
+	Equals(int32(10), keiko.Fields["age"].Value)
 	Equals("Anna", keiko.Fields["caretaker"].Value)
 	Equals(byte(oschema.STRING), keiko.Fields["caretaker"].Typ)
 	Assert(keiko.Version > int32(0), "Version should be greater than zero")
@@ -260,12 +280,15 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	linus := docs[1]
 	Equals("Linus", linus.Fields["name"].Value)
+	Equals(int32(15), linus.Fields["age"].Value)
 	Equals("Michael", linus.Fields["caretaker"].Value)
 
 	zed := docs[2]
 	Equals("Zed", zed.Fields["name"].Value)
+	Equals(int32(3), zed.Fields["age"].Value)
 	Equals("Shaw", zed.Fields["caretaker"].Value)
 	Equals(byte(oschema.STRING), zed.Fields["caretaker"].Typ)
+	Equals(byte(oschema.INTEGER), zed.Fields["age"].Typ)
 	Assert(zed.Version > int32(0), "Version should be greater than zero")
 	Assert(zed.Rid != "", "RID should not be empty")
 
@@ -306,28 +329,8 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
 
-	// xbuf := new(bytes.Buffer)
-	// varint.WriteString(xbuf, "aaa")
-	// xpos := xbuf.Len()
-	// rw.WriteInt(xbuf, -1)
-	// varint.WriteString(xbuf, "bbb")
-	// fmt.Printf("xpos: %v\n", xpos)
-	// xbs := xbuf.Bytes()
-	// fmt.Printf("xbuf: %v\n", xbs)
-	// fmt.Printf("xpos2: %v\n", xbuf.Len())
-	// fmt.Printf("xbuf2: %v\n", xbuf.Bytes())
-
-	// xbs[xpos] = 33
-	// fmt.Printf("xbuf3: %v\n", xbuf.Bytes())
-
-	// ybuf := bytes.NewBuffer(xbs[xpos : xpos+4])
-	// ybuf.Reset()
-	// rw.WriteInt(ybuf, 18)
-	// fmt.Printf("ybuf: %v\n", ybuf.Bytes())
-	// fmt.Printf("xbuf4: %v\n", xbuf.Bytes())
-
-	sql = "insert into Cat (name, caretaker) values(?, ?)"
-	err = obinary.SQLCommand(dbc, sql, "June", "Cleaver")
+	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
+	err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
 	if err != nil {
 		Fatal(err)
 	}
@@ -345,7 +348,6 @@ func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	if err != nil {
 		Fatal(err)
 	}
-	// obinary.DeleteRecordByRID()
 
 	obinary.CloseDatabase(dbc)
 

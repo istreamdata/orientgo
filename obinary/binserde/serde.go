@@ -194,8 +194,8 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 	nfields := len(doc.Fields)
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 	ptrVal := make([]int, 0, nfields) // data ptr value to write into buf
-	databufPtrIndexes := make([]int, 0, 8)
-	databufPtrValues := make([]int, 0, 8)
+	subPtrPos := make([]int, 0, 8)
+	subPtrVal := make([]int, 0, 8)
 
 	dataBuf := new(bytes.Buffer)
 
@@ -234,8 +234,8 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 			// END DEBUG
 
 			if dbufpos != nil {
-				databufPtrIndexes = append(databufPtrIndexes, dbufpos...)
-				databufPtrValues = append(databufPtrValues, dbufvals...)
+				subPtrPos = append(subPtrPos, dbufpos...)
+				subPtrVal = append(subPtrVal, dbufvals...)
 			}
 		}
 
@@ -258,15 +258,11 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 	}
 
 	// adjust the databuf ptr positions and values which are relative to the start of databuf
-	for i := range databufPtrIndexes {
-		ptrPos = append(ptrPos, databufPtrIndexes[i]+endHdrPos)
-		ptrVal = append(ptrVal, databufPtrValues[i]+endHdrPos)
+	for i := range subPtrPos {
+		ptrPos = append(ptrPos, subPtrPos[i]+endHdrPos)
+		ptrVal = append(ptrVal, subPtrVal[i]+endHdrPos)
 	}
-	// DEBUG
-	fmt.Printf("wsrD: endHdrPos: %v\n", endHdrPos)
-	fmt.Printf("wsrD: ptrPos: %v\n", ptrPos)
-	fmt.Printf("wsrD: ptrVal: %v\n", ptrVal)
-	// END DEBUG
+
 	// make a complete serialized record into one buffer
 	_, err = buf.Write(dataBuf.Bytes())
 	if err != nil {
@@ -609,6 +605,8 @@ func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastr
 
 	ptrPos := make([]int, 0, m.Len()) // position in buf where data ptr int needs to be written
 	ptrVal := make([]int, 0, m.Len()) // the data ptr value to be written in buf
+	subPtrPos := make([]int, 0, 4)
+	subPtrVal := make([]int, 0, 4)
 
 	// TODO: do the map entries have to be written in any particular order?  I will assume no for now
 	keys, vals, types := m.All()
@@ -644,36 +642,43 @@ func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastr
 
 		ptrVal = append(ptrVal, dataBuf.Len())
 
-		// TODO: not handling these subdata []int's correctly
-		//       I think there is an asymmetry between writeSerializedValue and writeEmbeddedMap
-		//       the former creates a separate new databuf to send to writeDataValue, but the
-		//       the latter does not -> should do it the same way for both
-		subdataPtrPos, subdataPtrVal, err := serde.writeDataValue(dataBuf, vals[i], dataType)
+		dbufpos, dbufvals, err := serde.writeDataValue(dataBuf, vals[i], dataType)
 		if err != nil {
 			return ptrPos, ptrVal, oerror.NewTrace(err)
 		}
-		if subdataPtrPos != nil {
-			// TODO: this is a wrong
-			ptrPos = append(ptrPos, subdataPtrPos...)
-			copy(ptrVal, subdataPtrVal)
+		if dbufpos != nil {
+			subPtrPos = append(subPtrPos, dbufpos...)
+			subPtrVal = append(subPtrVal, dbufvals...)
 		}
 	}
 
 	// position that ends the key headers
 	endHdrPos := buf.Len() // this assumes that buf has all the serialized entries including the serializationVersion and className !!
-	bs := buf.Bytes()
-	for i, pos := range ptrPos {
-		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
-		tmpBuf.Reset()
-		err = rw.WriteInt(tmpBuf, int32(endHdrPos+ptrVal[i])) // this is probably never necessary
-		ptrVal[i] += endHdrPos                                // NEWLY ADDED
-		if err != nil {
-			return ptrPos, ptrVal, oerror.NewTrace(err)
-		}
+
+	// fill in placeholder data ptr positions
+	for i := range ptrVal {
+		ptrVal[i] += endHdrPos
 	}
+
+	// adjust the databuf ptr positions and values which are relative to the start of databuf
+	for i := range subPtrPos {
+		ptrPos = append(ptrPos, subPtrPos[i]+endHdrPos)
+		ptrVal = append(ptrVal, subPtrVal[i]+endHdrPos)
+	}
+
 	_, err = buf.Write(dataBuf.Bytes()) // TODO: should check return len
 	if err != nil {
 		return ptrPos, ptrVal, oerror.NewTrace(err)
+	}
+
+	bs := buf.Bytes()
+	for i, pos := range ptrPos {
+		tmpBuf := bytes.NewBuffer(bs[pos : pos+4])
+		tmpBuf.Reset() // reset ptr to start of slice so can overwrite the placeholder value
+		err = rw.WriteInt(tmpBuf, int32(ptrVal[i]))
+		if err != nil {
+			return ptrPos, ptrVal, oerror.NewTrace(err)
+		}
 	}
 
 	return ptrPos, ptrVal, nil

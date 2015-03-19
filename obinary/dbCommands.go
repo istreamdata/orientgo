@@ -726,10 +726,10 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	resultType := rune(resType)
 	fmt.Printf("resultType for SQLCommand: %v\n", resultType)
 
-	if resultType == 'n' {
+	if resultType == 'n' { // null result
 		panic("Result type in SQLCommand is 'n' -> what to do? nothing ???")
 
-	} else if resultType == 'r' {
+	} else if resultType == 'r' { // single record
 		resultType, err := rw.ReadShort(dbc.conx)
 		if err != nil {
 			return oerror.NewTrace(err)
@@ -771,13 +771,20 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 		// TODO: need to return this thing? -> what does the Go SQL API want from an Exec/Command?
 		fmt.Printf("r>doc = %v\n", doc) // DEBUG
 
-	} else if resultType == 'l' {
+	} else if resultType == 'l' { // collection of records
 		// TODO: NOT SURE IF this type is ever returned from a Command ...
 		docs, err := readResultSet(dbc)
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
 		log.Fatalf("l>GOT BACK DOCS, so should I return them??? = %v\n", docs) // DEBUG
+
+	} else if resultType == 'a' { // serialized type
+		serializedRec, err := rw.ReadBytes(dbc.conx)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		fmt.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
 
 	} else {
 		_, file, line, _ := runtime.Caller(0)
@@ -806,8 +813,6 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	if len(params) == 0 {
 		return nil, nil
 	}
-
-	fmt.Printf("PPPPPPPPP: %v\n", params)
 
 	doc := oschema.NewDocument("")
 
@@ -866,7 +871,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	//    result = list;
 	//    break;
 
-	//  case 'a':
+	//  case 'a':  // 'a' means "serialized result"
 	//    final String value = new String(network.readBytes());
 	//    result = ORecordSerializerStringAbstract.fieldTypeFromStream(null, ORecordSerializerStringAbstract.getType(value),
 	//        value);

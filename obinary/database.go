@@ -69,9 +69,8 @@ type OCluster struct {
 // options needed when opening a database or connecting to the OrientDB server
 //
 type ClientOptions struct {
-	ServerHost      string
-	ServerPort      string
-	ClusteredConfig string // TODO: needs research - what goes here?; currently not used
+	ServerHost string
+	ServerPort string
 }
 
 // --------

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +10,13 @@ import (
 	"runtime"
 	"strings"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/oschema"
+	_ "github.com/quux00/ogonori/osql"
 )
 
 //
@@ -127,7 +132,24 @@ func dropOgonoriTestDB(dbc *obinary.DBClient, fullTest bool) {
 	Assert(!dbexists, ogonoriDBName+" should not exists after deleting it")
 }
 
-func dbCommands(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
+func databaseSqlAPI() {
+	fmt.Println("\n-------- Using database/sql API --------\n")
+	db, err := sql.Open("ogonori", "admin@admin:localhost/ogonoriTest")
+	if err != nil {
+		Fatal(err)
+	}
+	defer db.Close()
+
+	sqlcmd := "delete from Cat where name ='Jared'"
+	res, err := db.Exec(sqlcmd)
+	if err != nil {
+		Fatal(err)
+	}
+	nrows, _ := res.RowsAffected()
+	fmt.Printf(">> RES num rows affected: %v\n", nrows)
+}
+
+func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	outf.WriteString("\n-------- database-level commands --------\n")
 
 	// var sql string
@@ -364,13 +386,17 @@ func main() {
 	)
 	outf, err = os.Create("./ftest.out")
 	if err != nil {
-		log.Fatalf("ERROR: %v\n", err)
+		Fatal(err)
 	}
 	defer outf.Close()
 
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
 	if err != nil {
-		log.Fatal(err)
+		Fatal(err)
 	}
 	defer dbc.Close()
 
@@ -378,8 +404,13 @@ func main() {
 	adminPassw := "jiffylube"
 	fullTest := false
 
+	/* ---[ Use "native" API ]--- */
 	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, fullTest)
-	dbCommands(dbc, outf, fullTest)
+	dbCommandsNativeAPI(dbc, outf, fullTest)
+
+	/* ---[ Use Go database/sql API ]--- */
+	databaseSqlAPI()
+
 	dropOgonoriTestDB(dbc, fullTest)
 
 	fmt.Println("DONE")

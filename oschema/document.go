@@ -7,6 +7,8 @@ package oschema
 import (
 	"bytes"
 	"fmt"
+
+	"github.com/quux00/ogonori/ogl"
 )
 
 type ODocument struct {
@@ -71,8 +73,8 @@ func (doc *ODocument) GetFieldByName(fname string) *OField {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) AddField(name string, field *OField) *ODocument {
-	fmt.Printf("AF+== %v\n", name)  // DEBUG
-	fmt.Printf("AF+++ %v\n", field) // DEBUG
+	ogl.Debugf("ODocument.AddField name== %v\n", name)   // DEBUG
+	ogl.Debugf("ODocument.AddField field== %v\n", field) // DEBUG
 	doc.Fields[name] = field
 	doc.dirty = true
 	return doc

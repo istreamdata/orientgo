@@ -19,6 +19,7 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/ogl"
 )
 
 var dsnRx *regexp.Regexp = regexp.MustCompile(`([^@]+)@([^:]+):([^/]+)/(.+)`)
@@ -41,13 +42,13 @@ func init() {
 //   uname@passw:ip-or-host/dbname  (default port of 2424 is used)
 //
 func (d *OgonoriDriver) Open(dsn string) (driver.Conn, error) {
-	fmt.Println("DEBUG 1")
+	ogl.Println("** OgonoriDriver#Open")
+
 	uname, passw, host, port, dbname, err := parseDsn(dsn)
 	dbc, err := obinary.NewDBClient(obinary.ClientOptions{host, port})
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("DEBUG 2")
 
 	// TODO: right now assumes DocumentDb type - pass in on the dsn??
 	// TODO: this maybe shouldn't happen in this method -> might do it lazily in Query/Exec methods?
@@ -55,7 +56,6 @@ func (d *OgonoriDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("DEBUG 3")
 
 	return &ogonoriConn{dbc}, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
+	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -166,9 +167,9 @@ func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.B
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
-	fmt.Printf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
+	ogl.Debugf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
 
-	fmt.Printf("doc A: %v\n", doc) // DEBUG
+	ogl.Debugf("doc A: %v\n", doc) // DEBUG
 	err = serde.writeSerializedRecord(serdebuf, doc)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -176,7 +177,7 @@ func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.B
 
 	// append the serialized record onto the primary buffer
 	bs := serdebuf.Bytes()
-	fmt.Printf("serdebuf B: %v\n", bs) // DEBUG
+	ogl.Debugf("serdebuf B: %v\n", bs) // DEBUG
 	n, err := buf.Write(bs[1:])        // remove the version byte at the beginning
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -214,7 +215,7 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 				return oerror.NewTrace(err)
 			}
 			// data value type
-			fmt.Printf("@@@ Writing data type: %v\n", fld.Typ)
+			ogl.Debugf("@@@ Writing data type: %v\n", fld.Typ)
 			err = rw.WriteByte(buf, fld.Typ)
 			if err != nil {
 				return oerror.NewTrace(err)
@@ -227,10 +228,10 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 				return oerror.NewTrace(err)
 			}
 			// DEBUG
-			fmt.Printf("wsrA: ptrPos  : %v\n", ptrPos)
-			fmt.Printf("wsrA: ptrVal  : %v\n", ptrVal)
-			fmt.Printf("wsrA: dbufpos : %v\n", dbufpos)
-			fmt.Printf("wsrA: dbufvals: %v\n", dbufvals)
+			ogl.Debugf("wsrA: ptrPos  : %v\n", ptrPos)
+			ogl.Debugf("wsrA: ptrVal  : %v\n", ptrVal)
+			ogl.Debugf("wsrA: dbufpos : %v\n", dbufpos)
+			ogl.Debugf("wsrA: dbufvals: %v\n", dbufvals)
 			// END DEBUG
 
 			if dbufpos != nil {
@@ -433,25 +434,25 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 	switch datatype {
 	case oschema.STRING:
 		err = varint.WriteString(buf, value.(string))
-		fmt.Printf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
+		ogl.Debugf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
 	case oschema.BOOLEAN:
 		err = rw.WriteBool(buf, value.(bool))
-		fmt.Printf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
+		ogl.Debugf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
 	case oschema.INTEGER:
 		err = varint.EncodeAndWriteVarInt32(buf, value.(int32))         // TODO: are serialized integers ALWAYS varint encoded?
-		fmt.Printf("DEBUG INT: -writeDataVal val: %v\n", value.(int32)) // DEBUG
+		ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", value.(int32)) // DEBUG
 	case oschema.SHORT:
 		err = rw.WriteShort(buf, value.(int16))
-		fmt.Printf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
+		ogl.Debugf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
 	case oschema.LONG:
 		err = varint.EncodeAndWriteVarInt64(buf, value.(int64))          // TODO: are serialized longs ALWAYS varint encoded?
-		fmt.Printf("DEBUG LONG: -writeDataVal val: %v\n", value.(int64)) // DEBUG
+		ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", value.(int64)) // DEBUG
 	case oschema.FLOAT:
 		err = rw.WriteFloat(buf, value.(float32))
-		fmt.Printf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
+		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
 	case oschema.DOUBLE:
 		err = rw.WriteDouble(buf, value.(float64))
-		fmt.Printf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
+		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
 	case oschema.DATETIME:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue DATETIME NOT YET IMPLEMENTED")
@@ -460,20 +461,20 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 		panic("ORecordSerializerV0#writeDataValue DATE NOT YET IMPLEMENTED")
 	case oschema.BINARY:
 		err = varint.WriteBytes(buf, value.([]byte))
-		fmt.Printf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
+		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
 	case oschema.EMBEDDEDRECORD:
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDRECORD NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDLIST:
 		// val, err = serde.readEmbeddedCollection(buf)
-		// fmt.Printf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDLIST NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDSET:
 		// val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
-		// fmt.Printf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDMAP:
 		ptrPos, ptrVal, err = serde.writeEmbeddedMap(buf, value.(odatastructure.OEmbeddedMap))
-		fmt.Printf("DEBUG EMBEDDEDMAP:  val %v\n", value.(odatastructure.OEmbeddedMap))
+		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(odatastructure.OEmbeddedMap))
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
@@ -488,7 +489,7 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 		panic("ORecordSerializerV0#writeDataValue LINKMAP NOT YET IMPLEMENTED")
 	case oschema.BYTE:
 		err = rw.WriteByte(buf, value.(byte))
-		fmt.Printf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
+		ogl.Debugf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
 	case oschema.CUSTOM:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
@@ -517,22 +518,22 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 	switch datatype {
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)
-		fmt.Printf("DEBUG BOOL: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG BOOL: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.INTEGER:
 		val, err = varint.ReadVarIntAndDecode32(buf)
-		fmt.Printf("DEBUG INT: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG INT: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.SHORT:
 		val, err = rw.ReadShort(buf)
-		fmt.Printf("DEBUG SHORT: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG SHORT: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LONG:
 		val, err = varint.ReadVarIntAndDecode64(buf)
-		fmt.Printf("DEBUG LONG: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG LONG: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.FLOAT:
 		val, err = rw.ReadFloat(buf)
-		fmt.Printf("DEBUG FLOAT: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG FLOAT: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.DOUBLE:
 		val, err = rw.ReadDouble(buf)
-		fmt.Printf("DEBUG DOUBLE: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG DOUBLE: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.DATETIME:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue DATETIME NOT YET IMPLEMENTED")
@@ -541,24 +542,24 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 		panic("ORecordSerializerV0#readDataValue DATE NOT YET IMPLEMENTED")
 	case oschema.STRING:
 		val, err = varint.ReadString(buf)
-		fmt.Printf("DEBUG STR: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG STR: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.BINARY:
 		val, err = varint.ReadBytes(buf)
-		fmt.Printf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDRECORD:
 		doc := oschema.NewDocument("")
 		err = serde.Deserialize(doc, buf)
 		val = interface{}(doc)
-		// fmt.Printf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDLIST:
 		val, err = serde.readEmbeddedCollection(buf)
-		// fmt.Printf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDSET:
 		val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
-		// fmt.Printf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDMAP:
 		val, err = serde.readEmbeddedMap(buf)
-		// fmt.Printf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
+		// ogl.Debugf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue LINK NOT YET IMPLEMENTED")
@@ -573,7 +574,7 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 		panic("ORecordSerializerV0#readDataValue LINKMAP NOT YET IMPLEMENTED")
 	case oschema.BYTE:
 		val, err = rw.ReadByte(buf)
-		fmt.Printf("DEBUG BYTE: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG BYTE: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.CUSTOM:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue CUSTOM NOT YET IMPLEMENTED")

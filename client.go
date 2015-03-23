@@ -15,6 +15,7 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
 	_ "github.com/quux00/ogonori/osql"
 )
@@ -45,6 +46,15 @@ func Assert(b bool, msg string) {
 		fmt.Printf("\033[31mFAIL: %s:%d: "+msg+"\033[39m\n\n",
 			append([]interface{}{filepath.Base(file), line})...)
 		os.Exit(1)
+	}
+}
+
+func Pause(msg string) {
+	fmt.Print(msg, "[Press Enter to Continue]: ")
+	var s string
+	_, err := fmt.Scan(&s)
+	if err != nil {
+		ogl.Fatale(err)
 	}
 }
 
@@ -134,19 +144,84 @@ func dropOgonoriTestDB(dbc *obinary.DBClient, fullTest bool) {
 
 func databaseSqlAPI() {
 	fmt.Println("\n-------- Using database/sql API --------\n")
+
+	/* ---[ OPEN ]--- */
 	db, err := sql.Open("ogonori", "admin@admin:localhost/ogonoriTest")
 	if err != nil {
-		Fatal(err)
+		ogl.Fatale(err)
 	}
 	defer db.Close()
 
-	sqlcmd := "delete from Cat where name ='Jared'"
-	res, err := db.Exec(sqlcmd)
+	/* ---[ DELETE #1 ]--- */
+	// should not delete any rows
+	delcmd := "delete from Cat where name ='Jared'"
+	res, err := db.Exec(delcmd)
 	if err != nil {
-		Fatal(err)
+		ogl.Fatale(err)
 	}
 	nrows, _ := res.RowsAffected()
-	fmt.Printf(">> RES num rows affected: %v\n", nrows)
+	ogl.Printf(">> RES num rows affected: %v\n", nrows)
+	Equals(int64(0), nrows)
+
+	/* ---[ INSERT #1 ]--- */
+	// insert with no params
+	insertSQL := "insert into Cat (name, age, caretaker) values('Jared', 11, 'The Subway Guy')"
+	ogl.Println(insertSQL, "=> 'Jared', 11, 'The Subway Guy'")
+	res, err = db.Exec(insertSQL)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	nrows, _ = res.RowsAffected()
+	ogl.Printf("nrows: %v\n", nrows)
+	lastId, _ := res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastId)
+	Equals(int64(1), nrows)
+	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	/* ---[ INSERT #2 ]--- */
+	// insert with no params
+	insertSQL = "insert into Cat (name, age, caretaker) values('Filo', 34, 'Greek')"
+	ogl.Println(insertSQL, "=> 'Filo', 34, 'Greek'")
+	// res, err = db.Exec(insertSQL, "Filo", int64(34), "Greek")
+	res, err = db.Exec(insertSQL)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	nrows, _ = res.RowsAffected()
+	ogl.Printf("nrows: %v\n", nrows)
+	lastId, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastId)
+	Equals(int64(1), nrows)
+	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	/* ---[ DELETE #2 ]--- */
+	res, err = db.Exec(delcmd)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	nrows, _ = res.RowsAffected()
+	ogl.Printf(">> DEL2 RES num rows affected: %v\n", nrows)
+	Equals(int64(1), nrows)
+
+	/* ---[ DELETE #2 ]--- */
+	res, err = db.Exec(delcmd)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	nrows, _ = res.RowsAffected()
+	ogl.Printf(">> DEL3 RES num rows affected: %v\n", nrows)
+	Equals(int64(0), nrows)
+
+	/* ---[ DELETE #3 ]--- */
+	delcmd = "delete from Cat where name <> 'Linus' AND name <> 'Keiko'"
+	res, err = db.Exec(delcmd)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	nrows, _ = res.RowsAffected()
+	ogl.Printf(">> DEL4 RES num rows affected: %v\n", nrows)
+	Equals(int64(1), nrows)
+
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
@@ -206,6 +281,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	if err != nil {
 		Fatal(err)
 	}
+	Equals(1, len(docs))
 	doc12_0 := docs[0]
 	Equals("12:0", doc12_0.Rid)
 	Assert(doc12_0.Version > 0, fmt.Sprintf("Version is: %d", doc12_0.Version))
@@ -270,10 +346,12 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
 
 	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
-	err = obinary.SQLCommand(dbc, sql)
+	nrows, docs, err := obinary.SQLCommand(dbc, sql)
 	if err != nil {
 		Fatal(err)
 	}
+	fmt.Printf("nrows: %v\n", nrows)
+	fmt.Printf("docs: %v\n", docs)
 	fmt.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
 
 	/* ---[ query after inserting record(s) ]--- */
@@ -340,7 +418,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Println("Deleting (sync) record #" + zed.Rid)
 	err = obinary.DeleteRecordByRID(dbc, zed.Rid, zed.Version)
 	if err != nil {
-		Fatal(err)
+		ogl.Fatale(err)
 	}
 
 	// fmt.Println("Deleting (Async) record #11:4")
@@ -352,27 +430,28 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
 
 	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
-	err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
+	fmt.Println(sql, "=> June", "8", "Cleaver")
+	nrows, docs, err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	fmt.Printf("nrows: %v\n", nrows)
+	fmt.Printf("docs: %v\n", docs)
+
+	origLevel := ogl.GetLevel()
+	ogl.SetLevel(ogl.DEBUG)
+	sql = "delete from Cat where name ='June'"
+	fmt.Println(sql)
+	nrows, docs, err = obinary.SQLCommand(dbc, sql)
 	if err != nil {
 		Fatal(err)
 	}
+	fmt.Printf("nrows: %v\n", nrows)
+	fmt.Printf("docs: %v\n", docs)
+	ogl.SetLevel(origLevel)
 	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
-	// sql = "select from  Cat where name = ? and caretaker = ?"
-	// err = obinary.SQLQuery(dbc, sql, "June", "Cleaver")
-	// if err != nil {
-	// 	Fatal(err)
-	// }
-	// fmt.Println("+++++++++ END: SQL QUERY w/ PARAMS ++++++++++++===")
-
-	sql = "delete from Cat where name ='June'"
-	err = obinary.SQLCommand(dbc, sql)
-	if err != nil {
-		Fatal(err)
-	}
-
 	obinary.CloseDatabase(dbc)
-
 }
 
 //
@@ -393,6 +472,9 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
+
+	/* ---[ set ogl log level ]--- */
+	ogl.SetLevel(ogl.NORMAL)
 
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
 	if err != nil {

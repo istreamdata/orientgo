@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"runtime"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
+	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -342,14 +342,16 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
-	// fmt.Println("=======================================\n=======================================\n=======================================")
-	// fmt.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
-	// fmt.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
-	// fmt.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
-	// fmt.Printf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
-	// fmt.Printf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
-	// fmt.Printf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
-	// fmt.Println("=======================================\n=======================================\n=======================================")
+	ogl.Debugln("=======================================")
+	ogl.Debugln("=======================================")
+	ogl.Debugf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
+	ogl.Debugf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
+	ogl.Debugf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
+	ogl.Debugf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
+	ogl.Debugf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
+	ogl.Debugf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	ogl.Debugln("=======================================")
+	ogl.Debugln("=======================================")
 
 	/* ---[ classes ]--- */
 	var oclass *oschema.OClass
@@ -588,9 +590,7 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 			return nil, oerror.NewTrace(err)
 		}
 
-		// DEBUG
-		fmt.Printf("rectype:%v, recversion:%v, len(databytes):%v\n", rectype, recversion, len(databytes))
-		// END DEBUG
+		ogl.Debugf("rectype:%v, recversion:%v, len(databytes):%v\n", rectype, recversion, len(databytes))
 
 		if rectype == 'd' {
 			// we don't know the classname so set empty value
@@ -644,18 +644,18 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 // 2. cmds with lists of parameters ("complex") NOT allowed
 // 3. parameter types allowed: string only for now
 //
-func SQLCommand(dbc *DBClient, sql string, params ...string) error {
+func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs []*oschema.ODocument, err error) {
 	dbc.buf.Reset()
 
-	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
+	err = writeCommandAndSessionId(dbc, REQUEST_COMMAND)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	mode := byte('s') // synchronous only supported for now
 	err = rw.WriteByte(dbc.buf, mode)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	// need a separate buffer to write the command-payload to, so
@@ -665,7 +665,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	// "classname" (command-type, really) and the sql command
 	err = rw.WriteStrings(commandBuf, "c", sql) // c for command(non-idempotent)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	// SQLCommand
@@ -677,13 +677,13 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 
 	serializedParams, err := serializeSimpleSQLParams(dbc, params)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	// has-simple-parameters
 	err = rw.WriteBool(commandBuf, serializedParams != nil)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	if serializedParams != nil {
@@ -694,7 +694,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	// has-complex-paramters => HARDCODING FALSE FOR NOW
 	err = rw.WriteBool(commandBuf, false)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	serializedCmd := commandBuf.Bytes()
@@ -702,99 +702,119 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) error {
 	// command-payload-length and command-payload
 	err = rw.WriteBytes(dbc.buf, serializedCmd)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return 0, nil, oerror.NewTrace(err)
 	}
 
-	resType, err := rw.ReadByte(dbc.conx)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	// for synchronous commands the remaining content is an array of form:
+	// [(synch-result-type:byte)[(synch-result-content:?)]]+
+	// so the final value will by byte(0) to indicate the end of the array
+	// and we must use a loop here
 
-	resultType := rune(resType)
-	fmt.Printf("resultType for SQLCommand: %v\n", resultType)
-
-	if resultType == 'n' { // null result
-		panic("Result type in SQLCommand is 'n' -> what to do? nothing ???")
-
-	} else if resultType == 'r' { // single record
-		resultType, err := rw.ReadShort(dbc.conx)
+	for {
+		resType, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return oerror.NewTrace(err)
+			return 0, nil, oerror.NewTrace(err)
+		}
+		if resType == byte(0) {
+			break
 		}
 
-		if resultType == int16(-2) { // null record
-			return nil
-		}
-		if resultType == int16(-3) {
-			rid, err := readRID(dbc)
+		resultType := rune(resType)
+		ogl.Debugf("resultType for SQLCommand: %v (%s)\n", resultType, string(rune(resultType)))
+
+		if resultType == 'n' { // null result
+			ogl.Warn("Result type in SQLCommand is 'n' -> what to do? nothing ???")
+
+		} else if resultType == 'r' { // single record
+			resultType, err := rw.ReadShort(dbc.conx)
 			if err != nil {
-				return oerror.NewTrace(err)
+				return 0, nil, oerror.NewTrace(err)
 			}
-			fmt.Printf("SQLCommand resulted in RID: %v\n", rid)
-			// TODO: would now load that record from the DB if the user (Go SQL API) wants it
-		}
-		if resultType != int16(0) {
+
+			if resultType == int16(-2) { // null record
+				return 0, nil, nil
+			}
+			if resultType == int16(-3) {
+				rid, err := readRID(dbc)
+				if err != nil {
+					return 0, nil, oerror.NewTrace(err)
+				}
+				ogl.Warn(fmt.Sprintf("Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
+				// TODO: would now load that record from the DB if the user (Go SQL API) wants it
+			}
+			if resultType != int16(0) {
+				_, file, line, _ := runtime.Caller(0)
+				return 0, nil, fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d",
+					file, line+1, resultType)
+			}
+
+			doc, err := readSingleRecord(dbc)
+			if err != nil {
+				return 0, nil, oerror.NewTrace(err)
+			}
+
+			ogl.Debugf("r>doc = %v\n", doc) // DEBUG
+			nrows++
+			if docs == nil {
+				docs = make([]*oschema.ODocument, 1)
+				docs[0] = doc
+			}
+
+		} else if resultType == 'l' { // collection of records
+			// TODO: NOT SURE IF this type is ever returned from a Command ...
+			collectionDocs, err := readResultSet(dbc)
+			if err != nil {
+				return 0, nil, oerror.NewTrace(err)
+			}
+			ogl.Warn(fmt.Sprintf("resultType='l'>GOT BACK DOC Collection!!! that proves this can happen = %v\n",
+				collectionDocs)) // DEBUG
+
+			nrows += int64(len(docs))
+			if docs == nil {
+				docs = collectionDocs
+			} else {
+				docs = append(docs, collectionDocs...)
+			}
+
+		} else if resultType == 'a' { // serialized type
+			// TODO: for now I'm going to assume that this always just returns a number as a string (number of rows affected)
+			serializedRec, err := rw.ReadBytes(dbc.conx)
+			if err != nil {
+				return 0, nil, oerror.NewTrace(err)
+			}
+			ogl.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
+			nr, err := strconv.ParseInt(string(serializedRec), 10, 64)
+			if err != nil {
+				return 0, nil, oerror.NewTrace(err)
+			}
+			nrows += nr
+
+		} else {
+			// TODO: I've not yet tested this route of code -> how do so?
+			ogl.Warn(fmt.Sprintf(">> Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
+				resultType, string(rune(resultType))))
 			_, file, line, _ := runtime.Caller(0)
-			return fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d", file, line+1, resultType)
+			// TODO: returning here is NOT the correct long-term behavior
+			return 0, nil, fmt.Errorf("Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
+				resultType, string(rune(resultType)), line, file)
 		}
 
-		doc, err := readSingleRecord(dbc)
-		if err != nil {
-			return oerror.NewTrace(err)
-		}
-
-		// final byte should be 0, marking the end of the records
-		finalByte, err := rw.ReadByte(dbc.conx)
-		if err != nil {
-			return oerror.NewTrace(err)
-		}
-		if finalByte != byte(0) {
-			_, file, line, _ := runtime.Caller(0)
-			return fmt.Errorf("ERROR: (meth:SQLCommand;file:%s;line:%d): "+
-				"expected final byte to be 0 but was: %d",
-				file, line, finalByte)
-		}
-
-		// TODO: need to return this thing? -> what does the Go SQL API want from an Exec/Command?
-		fmt.Printf("r>doc = %v\n", doc) // DEBUG
-
-	} else if resultType == 'l' { // collection of records
-		// TODO: NOT SURE IF this type is ever returned from a Command ...
-		docs, err := readResultSet(dbc)
-		if err != nil {
-			return oerror.NewTrace(err)
-		}
-		log.Fatalf("l>GOT BACK DOCS, so should I return them??? = %v\n", docs) // DEBUG
-
-	} else if resultType == 'a' { // serialized type
-		serializedRec, err := rw.ReadBytes(dbc.conx)
-		if err != nil {
-			return oerror.NewTrace(err)
-		}
-		fmt.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
-
-	} else {
-		_, file, line, _ := runtime.Caller(0)
-		fmt.Printf(">> Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n", resultType, string(rune(resultType)), line, file)
-		// TODO: I've not yet tested this route of code -> how do so?
-		// log.Fatalf("NOTE NOTE NOTE: testing the resultType == '%v' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
-		// 	string(rune(resultType)), line, file)
 	}
 
-	return nil
+	return nrows, docs, err
 }
 
 // TODO: what datatypes can the params be? => right now allowing only string
@@ -828,7 +848,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	}
 	doc.FieldWithType("params", paramsMap, oschema.EMBEDDEDMAP)
 
-	fmt.Printf("DOC XX: %v\n", doc)
+	ogl.Debugf("DOC XX: %v\n", doc)
 	///////
 
 	buf := new(bytes.Buffer)
@@ -842,7 +862,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 		return nil, oerror.NewTrace(err)
 	}
 
-	fmt.Printf("serialized params: %v\n", buf.Bytes())
+	ogl.Debugf("serialized params: %v\n", buf.Bytes())
 
 	return buf.Bytes(), nil
 
@@ -967,11 +987,9 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		_, file, line, _ := runtime.Caller(0)
-		fmt.Printf("record = %v\n", record) // DEBUG
+		ogl.Debugf("record = %v\n", record) // DEBUG
 		// TODO: I've not yet tested this route of code -> how do so?
-		log.Fatalf("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!: line:%d; file:%s",
-			line, file)
+		ogl.Fatal("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!")
 
 	} else if resultType == 'l' {
 		docs, err = readResultSet(dbc)
@@ -981,11 +999,10 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 		return docs, err
 
 	} else {
-		fmt.Println(">> Not yet supported")
 		// TODO: I've not yet tested this route of code -> how do so?
-		_, file, line, _ := runtime.Caller(1)
-		log.Fatalf("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- remove this note and test it!!!: line:%d; file:%s",
-			line, file)
+		ogl.Warn(">> Not yet supported")
+		ogl.Fatal("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- " +
+			"remove this note and test it!!")
 	}
 
 	return docs, nil
@@ -1382,7 +1399,7 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	}
 	rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
 	doc, err := createDocument(rid, recVersion, recBytes, dbc)
-	fmt.Printf("::single record doc:::::: %v\n", doc)
+	ogl.Debugf("::single record doc:::::: %v\n", doc)
 	return doc, err
 }
 
@@ -1493,21 +1510,21 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 }
 
 // TODO: decide if this is needed
-func refreshGlobalProperties(dbc *DBClient) error {
-	docs, err := GetRecordByRID(dbc, "#0:1", "")
-	if err != nil {
-		return err
-	}
-	fmt.Println("=======================================\n=======================================\n=======================================")
-	fmt.Printf("len(docs):: %v\n", len(docs))
-	doc0 := docs[0]
-	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-	fmt.Println("Field names:")
-	for k, _ := range doc0.Fields {
-		fmt.Printf("  %v\n", k)
-	}
-	schemaVersion := doc0.Fields["schemaVersion"]
-	fmt.Printf("%v\n", schemaVersion)
-	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
-	return nil
-}
+// func refreshGlobalProperties(dbc *DBClient) error {
+// 	docs, err := GetRecordByRID(dbc, "#0:1", "")
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Println("=======================================\n=======================================\n=======================================")
+// 	fmt.Printf("len(docs):: %v\n", len(docs))
+// 	doc0 := docs[0]
+// 	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+// 	fmt.Println("Field names:")
+// 	for k, _ := range doc0.Fields {
+// 		fmt.Printf("  %v\n", k)
+// 	}
+// 	schemaVersion := doc0.Fields["schemaVersion"]
+// 	fmt.Printf("%v\n", schemaVersion)
+// 	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
+// 	return nil
+// }

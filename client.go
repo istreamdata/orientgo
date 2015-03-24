@@ -180,10 +180,9 @@ func databaseSqlAPI() {
 
 	/* ---[ INSERT #2 ]--- */
 	// insert with no params
-	insertSQL = "insert into Cat (name, age, caretaker) values('Filo', 34, 'Greek')"
+	insertSQL = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
 	ogl.Println(insertSQL, "=> 'Filo', 34, 'Greek'")
-	// res, err = db.Exec(insertSQL, "Filo", int64(34), "Greek")
-	res, err = db.Exec(insertSQL)
+	res, err = db.Exec(insertSQL, "Filo", 34, "Greek")
 	if err != nil {
 		ogl.Fatale(err)
 	}
@@ -203,7 +202,7 @@ func databaseSqlAPI() {
 	ogl.Printf(">> DEL2 RES num rows affected: %v\n", nrows)
 	Equals(int64(1), nrows)
 
-	/* ---[ DELETE #2 ]--- */
+	/* ---[ DELETE #3 ]--- */
 	res, err = db.Exec(delcmd)
 	if err != nil {
 		ogl.Fatale(err)
@@ -212,7 +211,7 @@ func databaseSqlAPI() {
 	ogl.Printf(">> DEL3 RES num rows affected: %v\n", nrows)
 	Equals(int64(0), nrows)
 
-	/* ---[ DELETE #3 ]--- */
+	/* ---[ DELETE #4 ]--- */
 	delcmd = "delete from Cat where name <> 'Linus' AND name <> 'Keiko'"
 	res, err = db.Exec(delcmd)
 	if err != nil {

@@ -4,8 +4,10 @@ import (
 	_ "database/sql"
 	"database/sql/driver"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/ogl"
@@ -33,7 +35,30 @@ func (c *ogonoriConn) Begin() (driver.Tx, error) {
 
 func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	ogl.Println("** ogoConn.Exec")
-	nrows, docs, err := obinary.SQLCommand(c.dbc, query)
+
+	strargs := make([]string, len(args))
+	for i, valarg := range args {
+		ogl.Printf("valarg: %T: %v; isValue=%v\n", valarg, valarg, driver.IsValue(valarg)) // DEBUG
+		switch valarg.(type) {
+		case string:
+			strargs[i] = valarg.(string)
+		case int64:
+			strargs[i] = strconv.FormatInt(valarg.(int64), 10)
+		case float64:
+			strargs[i] = strconv.FormatFloat(valarg.(float64), 'f', -1, 10)
+		case bool:
+			strargs[i] = strconv.FormatBool(valarg.(bool))
+		case []byte:
+			strargs[i] = string(valarg.([]byte))
+		case time.Time:
+			strargs[i] = valarg.(time.Time).String() // TODO: this is probably not the format we want -> fix it later
+		default:
+			_, file, line, _ := runtime.Caller(0)
+			ogl.Warn(fmt.Sprintf("Unexpected type in ogonoriConn#Exec: %T. (%s:%d)", valarg, file, line))
+		}
+	}
+
+	nrows, docs, err := obinary.SQLCommand(c.dbc, query, strargs...)
 	if err != nil {
 		return ogonoriResult{-1, -1}, err
 	}

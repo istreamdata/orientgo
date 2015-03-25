@@ -181,8 +181,8 @@ func databaseSqlAPI() {
 	/* ---[ INSERT #2 ]--- */
 	// insert with no params
 	insertSQL = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
-	ogl.Println(insertSQL, "=> 'Filo', 34, 'Greek'")
-	res, err = db.Exec(insertSQL, "Filo", 34, "Greek")
+	ogl.Println(insertSQL, "=> 'Filo', 4, 'Greek'")
+	res, err = db.Exec(insertSQL, "Filo", 4, "Greek")
 	if err != nil {
 		ogl.Fatale(err)
 	}
@@ -192,6 +192,59 @@ func databaseSqlAPI() {
 	ogl.Printf("last insert id: %v\n", lastId)
 	Equals(int64(1), nrows)
 	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	/* ---[ QUERY #1: QueryRow ]--- */
+	// it is safe to query properties -> not sure how to return docs yet
+	querySQL := "select name, age from Cat where caretaker = 'Greek'"
+	row := db.QueryRow(querySQL)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	var retname string
+	var retage int64
+	err = row.Scan(&retname, &retage)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	Equals("Filo", retname)
+	Equals(int64(4), retage)
+
+	/* ---[ QUERY #2: Query (multiple rows returned) ]--- */
+
+	// NOTE: this fails sporadically because order of fields in the document
+	//       is variable due to the unordered map: doc.Fields
+	//       we need an ordered data structure do that the order a document
+	//       is constructed in is the order of retrieval
+	querySQL = "select caretaker, age, name from Cat order by age"
+
+	var rName, rCaretaker string
+	var rAge int64
+
+	names := make([]string, 0, 4)
+	ctakers := make([]string, 0, 4)
+	ages := make([]int64, 0, 4)
+	rows, err := db.Query(querySQL)
+	for rows.Next() {
+		err = rows.Scan(&rCaretaker, &rAge, &rName)
+		names = append(names, rName)
+		ctakers = append(ctakers, rCaretaker)
+		ages = append(ages, rAge)
+	}
+	err = rows.Err()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(4, len(names))
+	Equals(4, len(ctakers))
+	Equals(4, len(ages))
+
+	Equals([]string{"Filo", "Keiko", "Jared", "Linus"}, names)
+	Equals([]string{"Greek", "Anna", "The Subway Guy", "Michael"}, ctakers)
+	Equals(4, ages[0])
+	Equals(10, ages[1])
+	Equals(11, ages[2])
+	Equals(15, ages[3])
 
 	/* ---[ DELETE #2 ]--- */
 	res, err = db.Exec(delcmd)

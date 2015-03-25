@@ -5,15 +5,31 @@ import (
 	"database/sql/driver"
 	"io"
 
-	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/ogl"
+	"github.com/quux00/ogonori/oschema"
 )
 
 //
 // ogonoriRows implements the sql/driver.Rows interface.
 //
 type ogonoriRows struct {
-	dbc *obinary.DBClient // TODO: review - following the mysql driver lead
+	pos  int // index of next row (doc) to return
+	docs []*oschema.ODocument
+	cols []string
 	// TODO: maybe a reference to the appropriate schema is needed here?
+}
+
+func NewRows(docs []*oschema.ODocument) *ogonoriRows {
+	var cols []string
+	if len(docs) == 0 {
+		cols = []string{}
+	} else {
+		cols = make([]string, 0, len(docs[0].Fields))
+		for fldName, _ := range docs[0].Fields {
+			cols = append(cols, fldName)
+		}
+	}
+	return &ogonoriRows{docs: docs, cols: cols}
 }
 
 //
@@ -22,14 +38,16 @@ type ogonoriRows struct {
 // slice.  If a particular column name isn't known, an empty
 // string should be returned for that entry.
 //
-func (rw *ogonoriRows) Columns() []string {
-	return nil
+func (rows *ogonoriRows) Columns() []string {
+	ogl.Printf("** ogonoriRows.Columns = %v\n", rows.cols)
+	return rows.cols
 }
 
 //
 // Close closes the rows iterator.
 //
-func (rw *ogonoriRows) Close() error {
+func (rows *ogonoriRows) Close() error {
+	ogl.Println("** ogonoriRows.Close")
 	return nil
 }
 
@@ -44,6 +62,19 @@ func (rw *ogonoriRows) Close() error {
 //
 // Next should return io.EOF when there are no more rows.
 //
-func (rw *ogonoriRows) Next(dest []driver.Value) error {
-	return io.EOF
+func (rows *ogonoriRows) Next(dest []driver.Value) error {
+	ogl.Println("** ogonoriRows.Next")
+	if rows.pos >= len(rows.docs) {
+		return io.EOF
+	}
+	currdoc := rows.docs[rows.pos]
+	for i := range dest {
+		// TODO: need to check field.Type and see if it is one that can map to Value
+		//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
+		field := currdoc.Fields[rows.cols[i]]
+		dest[i] = field.Value
+	}
+	rows.pos++
+	// TODO: this is where we need to return any errors that occur
+	return nil
 }

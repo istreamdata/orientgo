@@ -215,7 +215,7 @@ func databaseSqlAPI() {
 	//       is variable due to the unordered map: doc.Fields
 	//       we need an ordered data structure do that the order a document
 	//       is constructed in is the order of retrieval
-	querySQL = "select caretaker, age, name from Cat order by age"
+	querySQL = "select name, age, caretaker from Cat order by age"
 
 	var rName, rCaretaker string
 	var rAge int64
@@ -225,7 +225,7 @@ func databaseSqlAPI() {
 	ages := make([]int64, 0, 4)
 	rows, err := db.Query(querySQL)
 	for rows.Next() {
-		err = rows.Scan(&rCaretaker, &rAge, &rName)
+		err = rows.Scan(&rName, &rAge, &rCaretaker)
 		names = append(names, rName)
 		ctakers = append(ctakers, rCaretaker)
 		ages = append(ages, rAge)
@@ -241,10 +241,10 @@ func databaseSqlAPI() {
 
 	Equals([]string{"Filo", "Keiko", "Jared", "Linus"}, names)
 	Equals([]string{"Greek", "Anna", "The Subway Guy", "Michael"}, ctakers)
-	Equals(4, ages[0])
-	Equals(10, ages[1])
-	Equals(11, ages[2])
-	Equals(15, ages[3])
+	Equals(int64(4), ages[0])
+	Equals(int64(10), ages[1])
+	Equals(int64(11), ages[2])
+	Equals(int64(15), ages[3])
 
 	/* ---[ DELETE #2 ]--- */
 	res, err = db.Exec(delcmd)

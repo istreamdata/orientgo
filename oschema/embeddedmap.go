@@ -1,10 +1,8 @@
-package odatastructure
+package oschema
 
 import (
 	"bytes"
 	"fmt"
-
-	"github.com/quux00/ogonori/oschema"
 )
 
 //
@@ -85,7 +83,7 @@ func (em *OEmbeddedArrayMap) Get(key string) (interface{}, byte) {
 			return em.vals[i], em.types[i]
 		}
 	}
-	return nil, oschema.UNKNOWN
+	return nil, UNKNOWN
 }
 
 func (em *OEmbeddedArrayMap) Keys() []string {

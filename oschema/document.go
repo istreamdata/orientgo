@@ -12,9 +12,10 @@ import (
 )
 
 type ODocument struct {
-	Rid     string
-	Version int32
-	Fields  map[string]*OField // key: property-name
+	Rid        string
+	Version    int32
+	entryOrder []string           // field names in the order they were added to the ODocument
+	fields     map[string]*OField // key: property-name
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)
 
@@ -29,7 +30,7 @@ type ODocument struct {
 //
 func NewDocument(className string) *ODocument {
 	return &ODocument{
-		Fields:    make(map[string]*OField),
+		fields:    make(map[string]*OField),
 		Classname: className,
 	}
 }
@@ -39,8 +40,8 @@ func NewDocument(className string) *ODocument {
 // These fields may not have already been committed to the database.
 //
 func (doc *ODocument) FieldNames() []string {
-	names := make([]string, 0, len(doc.Fields))
-	for name := range doc.Fields {
+	names := make([]string, 0, len(doc.entryOrder))
+	for _, name := range doc.entryOrder {
 		names = append(names, name)
 	}
 	return names
@@ -51,7 +52,7 @@ func (doc *ODocument) FieldNames() []string {
 // (aka property-id). If no field is found with that id, nil is returned.
 //
 func (doc *ODocument) GetFieldById(id int32) *OField {
-	for _, fld := range doc.Fields {
+	for _, fld := range doc.fields {
 		if fld.Id == id {
 			return fld
 		}
@@ -63,8 +64,8 @@ func (doc *ODocument) GetFieldById(id int32) *OField {
 // GetFieldByName looks up the OField in this document with the specified field.
 // If no field is found with that name, nil is returned.
 //
-func (doc *ODocument) GetFieldByName(fname string) *OField {
-	return doc.Fields[fname]
+func (doc *ODocument) GetField(fname string) *OField {
+	return doc.fields[fname]
 }
 
 //
@@ -75,9 +76,14 @@ func (doc *ODocument) GetFieldByName(fname string) *OField {
 func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 	ogl.Debugf("ODocument.AddField name== %v\n", name)   // DEBUG
 	ogl.Debugf("ODocument.AddField field== %v\n", field) // DEBUG
-	doc.Fields[name] = field
+	doc.fields[name] = field
+	doc.entryOrder = append(doc.entryOrder, name)
 	doc.dirty = true
 	return doc
+}
+
+func (doc *ODocument) SetDirty(b bool) {
+	doc.dirty = b
 }
 
 //
@@ -110,7 +116,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 		ftype = DOUBLE
 	case []byte:
 		ftype = BINARY
-	case map[string]interface{}:
+	case OEmbeddedMap:
 		ftype = EMBEDDEDMAP
 		// TODO: more types need to be added
 	default:
@@ -140,13 +146,13 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte
 //
 func (doc *ODocument) String() string {
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; Fields: \n",
+	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; fields: \n",
 		doc.Classname, doc.Rid, doc.Version))
 	if err != nil {
 		panic(err)
 	}
 
-	for _, fld := range doc.Fields {
+	for _, fld := range doc.fields {
 		_, err = buf.WriteString(fmt.Sprintf("  %s\n", fld.String()))
 		if err != nil {
 			panic(err)

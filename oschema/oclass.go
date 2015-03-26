@@ -17,43 +17,43 @@ type OClass struct {
 func NewOClassFromDocument(doc *ODocument) *OClass {
 	oclass := &OClass{Properties: make(map[string]*OProperty)}
 
-	if fld, ok := doc.Fields["name"]; ok && fld.Value != nil {
+	if fld := doc.GetField("name"); fld != nil && fld.Value != nil {
 		oclass.Name = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["shortName"]; ok && fld.Value != nil {
+	if fld := doc.GetField("shortName"); fld != nil && fld.Value != nil {
 		oclass.ShortName = fld.Value.(string)
 	}
 
 	// properties comes back as an ODocument
-	if fld, ok := doc.Fields["properties"]; ok && fld.Value != nil {
+	if fld := doc.GetField("properties"); fld != nil && fld.Value != nil {
 		propsDocs := convertToODocumentRefSlice(fld.Value.([]interface{}))
 		for _, propDoc := range propsDocs {
 			oprop := NewOPropertyFromDocument(propDoc)
 			oclass.Properties[oprop.Name] = oprop
 		}
 	}
-	if fld, ok := doc.Fields["defaultClusterId"]; ok && fld.Value != nil {
+	if fld := doc.GetField("defaultClusterId"); fld != nil && fld.Value != nil {
 		oclass.DefaultClusterId = fld.Value.(int32)
 	}
-	if fld, ok := doc.Fields["clusterIds"]; ok && fld.Value != nil {
+	if fld := doc.GetField("clusterIds"); fld != nil && fld.Value != nil {
 		oclass.ClusterIds = convertToInt32Slice(fld.Value.([]interface{}))
 	}
-	if fld, ok := doc.Fields["superClass"]; ok && fld.Value != nil {
+	if fld := doc.GetField("superClass"); fld != nil && fld.Value != nil {
 		oclass.SuperClass = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["overSize"]; ok && fld.Value != nil {
+	if fld := doc.GetField("overSize"); fld != nil && fld.Value != nil {
 		oclass.OverSize = fld.Value.(float32)
 	}
-	if fld, ok := doc.Fields["strictMode"]; ok && fld.Value != nil {
+	if fld := doc.GetField("strictMode"); fld != nil && fld.Value != nil {
 		oclass.StrictMode = fld.Value.(bool)
 	}
-	if fld, ok := doc.Fields["abstract"]; ok && fld.Value != nil {
+	if fld := doc.GetField("abstract"); fld != nil && fld.Value != nil {
 		oclass.AbstractClass = fld.Value.(bool)
 	}
-	if fld, ok := doc.Fields["clusterSelection"]; ok && fld.Value != nil {
+	if fld := doc.GetField("clusterSelection"); fld != nil && fld.Value != nil {
 		oclass.ClusterSelection = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["customFields"]; ok && fld.Value != nil {
+	if fld := doc.GetField("customFields"); fld != nil && fld.Value != nil {
 		oclass.CustomFields = make(map[string]string)
 		panic("customFields handling NOT IMPLEMENTED: Don't know what data structure is coming back from the server (need example)")
 	}

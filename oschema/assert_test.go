@@ -1,4 +1,4 @@
-package odatastructure
+package oschema
 
 import (
 	"fmt"

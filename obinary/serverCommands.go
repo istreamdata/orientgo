@@ -384,7 +384,7 @@ func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	}
 
 	m := make(map[string]string)
-	fldMap := doc.Fields["databases"].Value.(map[string]interface{})
+	fldMap := doc.GetField("databases").Value.(map[string]interface{})
 	for k, v := range fldMap {
 		m[k] = v.(string)
 	}

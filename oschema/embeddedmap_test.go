@@ -1,17 +1,13 @@
-package odatastructure
+package oschema
 
-import (
-	"testing"
-
-	"github.com/quux00/ogonori/oschema"
-)
+import "testing"
 
 func createTestMap() OEmbeddedMap {
 	em := NewEmbeddedMap()
-	em.Put("foo", "bar", oschema.STRING)
-	em.Put("wibble", "wobble", oschema.STRING)
-	em.Put("one", int32(1), oschema.INTEGER)
-	em.Put("two", int16(2), oschema.SHORT)
+	em.Put("foo", "bar", STRING)
+	em.Put("wibble", "wobble", STRING)
+	em.Put("one", int32(1), INTEGER)
+	em.Put("two", int16(2), SHORT)
 	return em
 }
 
@@ -20,18 +16,18 @@ func TestEmbeddedMapLookup(t *testing.T) {
 
 	v, typ := em.Get("wibble")
 	equals(t, "wobble", v)
-	equals(t, byte(oschema.STRING), typ)
+	equals(t, byte(STRING), typ)
 
 	v, typ = em.Get("one")
 	equals(t, int32(1), v)
-	equals(t, byte(oschema.INTEGER), typ)
+	equals(t, byte(INTEGER), typ)
 
 	v = em.Value("foo")
 	equals(t, "bar", v)
 
 	v, typ = em.Get("NOT THERE")
 	equals(t, nil, v)
-	equals(t, byte(oschema.UNKNOWN), typ)
+	equals(t, byte(UNKNOWN), typ)
 }
 
 func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
@@ -49,13 +45,13 @@ func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
 	equals(t, int32(1), vals[2])
 	equals(t, int16(2), vals[3])
 
-	equals(t, byte(oschema.STRING), types[0])
-	equals(t, byte(oschema.STRING), types[1])
-	equals(t, byte(oschema.INTEGER), types[2])
-	equals(t, byte(oschema.SHORT), types[3])
+	equals(t, byte(STRING), types[0])
+	equals(t, byte(STRING), types[1])
+	equals(t, byte(INTEGER), types[2])
+	equals(t, byte(SHORT), types[3])
 
-	em.Put("ogonori?", true, oschema.BOOLEAN)
-	em.Put("last", []byte("slice"), oschema.BINARY)
+	em.Put("ogonori?", true, BOOLEAN)
+	em.Put("last", []byte("slice"), BINARY)
 	equals(t, 6, em.Len())
 
 	keys, vals, types = em.All()
@@ -63,6 +59,6 @@ func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
 	equals(t, "last", keys[5])
 	equals(t, true, vals[4])
 	equals(t, []byte("slice"), vals[5])
-	equals(t, byte(oschema.BOOLEAN), types[4])
-	equals(t, byte(oschema.BINARY), types[5])
+	equals(t, byte(BOOLEAN), types[4])
+	equals(t, byte(BINARY), types[5])
 }

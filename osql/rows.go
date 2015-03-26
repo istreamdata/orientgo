@@ -24,11 +24,12 @@ func NewRows(docs []*oschema.ODocument) *ogonoriRows {
 	if len(docs) == 0 {
 		cols = []string{}
 	} else {
-		cols = make([]string, 0, len(docs[0].Fields))
-		for fldName, _ := range docs[0].Fields {
-			cols = append(cols, fldName)
+		cols = make([]string, 0, len(docs[0].FieldNames()))
+		for _, fname := range docs[0].FieldNames() {
+			cols = append(cols, fname)
 		}
 	}
+	ogl.Printf("COLSCOLS: %v\n", cols)
 	return &ogonoriRows{docs: docs, cols: cols}
 }
 
@@ -71,7 +72,7 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	for i := range dest {
 		// TODO: need to check field.Type and see if it is one that can map to Value
 		//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
-		field := currdoc.Fields[rows.cols[i]]
+		field := currdoc.GetField(rows.cols[i])
 		dest[i] = field.Value
 	}
 	rows.pos++

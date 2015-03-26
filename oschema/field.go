@@ -75,38 +75,38 @@ type OProperty struct {
 
 func NewOPropertyFromDocument(doc *ODocument) *OProperty {
 	oprop := &OProperty{}
-	if fld, ok := doc.Fields["globalId"]; ok && fld.Value != nil {
+	if fld := doc.GetField("globalId"); fld != nil && fld.Value != nil {
 		oprop.Id = fld.Value.(int32)
 	}
-	if fld, ok := doc.Fields["name"]; ok && fld.Value != nil {
+	if fld := doc.GetField("name"); fld != nil && fld.Value != nil {
 		oprop.Name = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["type"]; ok && fld.Value != nil {
+	if fld := doc.GetField("type"); fld != nil && fld.Value != nil {
 		oprop.Type = byte(fld.Value.(int32))
 	}
-	if fld, ok := doc.Fields["notNull"]; ok && fld.Value != nil {
+	if fld := doc.GetField("notNull"); fld != nil && fld.Value != nil {
 		oprop.NotNull = fld.Value.(bool)
 	}
-	if fld, ok := doc.Fields["collate"]; ok && fld.Value != nil {
+	if fld := doc.GetField("collate"); fld != nil && fld.Value != nil {
 		oprop.Collate = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["mandatory"]; ok && fld.Value != nil {
+	if fld := doc.GetField("mandatory"); fld != nil && fld.Value != nil {
 		oprop.Mandatory = fld.Value.(bool)
 	}
-	if fld, ok := doc.Fields["min"]; ok && fld.Value != nil {
+	if fld := doc.GetField("min"); fld != nil && fld.Value != nil {
 		oprop.Min = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["max"]; ok && fld.Value != nil {
+	if fld := doc.GetField("max"); fld != nil && fld.Value != nil {
 		oprop.Max = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["regexp"]; ok && fld.Value != nil {
+	if fld := doc.GetField("regexp"); fld != nil && fld.Value != nil {
 		oprop.Regexp = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["customFields"]; ok && fld.Value != nil {
+	if fld := doc.GetField("customFields"); fld != nil && fld.Value != nil {
 		oprop.CustomFields = make(map[string]string)
 		panic("customFields handling NOT IMPLEMENTED: Don't know what data structure is coming back from the server (need example)")
 	}
-	if fld, ok := doc.Fields["readonly"]; ok && fld.Value != nil {
+	if fld := doc.GetField("readonly"); fld != nil && fld.Value != nil {
 		oprop.Readonly = fld.Value.(bool)
 	}
 

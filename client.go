@@ -337,17 +337,17 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	doc12_0 := docs[0]
 	Equals("12:0", doc12_0.Rid)
 	Assert(doc12_0.Version > 0, fmt.Sprintf("Version is: %d", doc12_0.Version))
-	Equals(3, len(doc12_0.Fields))
+	Equals(3, len(doc12_0.FieldNames()))
 	Equals("Cat", doc12_0.Classname)
 
-	nameField, ok := doc12_0.Fields["name"]
-	Assert(ok, "should be a 'name' field")
+	nameField := doc12_0.GetField("name")
+	Assert(nameField != nil, "should be a 'name' field")
 
-	ageField, ok := doc12_0.Fields["age"]
-	Assert(ok, "should be a 'age' field")
+	ageField := doc12_0.GetField("age")
+	Assert(ageField != nil, "should be a 'age' field")
 
-	caretakerField, ok := doc12_0.Fields["caretaker"]
-	Assert(ok, "should be a 'caretaker' field")
+	caretakerField := doc12_0.GetField("caretaker")
+	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
 	Equals(byte(oschema.STRING), nameField.Typ)
@@ -368,17 +368,17 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	Equals("12:0", docs[0].Rid)
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
-	Equals(3, len(docs[0].Fields))
+	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
 
-	nameField, ok = docs[0].Fields["name"]
-	Assert(ok, "should be a 'name' field")
+	nameField = docs[0].GetField("name")
+	Assert(nameField != nil, "should be a 'name' field")
 
-	ageField, ok = doc12_0.Fields["age"]
-	Assert(ok, "should be a 'age' field")
+	ageField = doc12_0.GetField("age")
+	Assert(ageField != nil, "should be a 'age' field")
 
-	caretakerField, ok = docs[0].Fields["caretaker"]
-	Assert(ok, "should be a 'caretaker' field")
+	caretakerField = docs[0].GetField("caretaker")
+	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
 	Equals(byte(oschema.STRING), nameField.Typ)
@@ -415,32 +415,32 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 		Fatal(err)
 	}
 	Equals(3, len(docs))
-	Equals(3, len(docs[0].Fields))
+	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
-	Equals(3, len(docs[1].Fields))
+	Equals(3, len(docs[1].FieldNames()))
 	Equals("Cat", docs[1].Classname)
-	Equals(3, len(docs[2].Fields))
+	Equals(3, len(docs[2].FieldNames()))
 	Equals("Cat", docs[2].Classname)
 
 	keiko := docs[0]
-	Equals("Keiko", keiko.Fields["name"].Value)
-	Equals(int32(10), keiko.Fields["age"].Value)
-	Equals("Anna", keiko.Fields["caretaker"].Value)
-	Equals(byte(oschema.STRING), keiko.Fields["caretaker"].Typ)
+	Equals("Keiko", keiko.GetField("name").Value)
+	Equals(int32(10), keiko.GetField("age").Value)
+	Equals("Anna", keiko.GetField("caretaker").Value)
+	Equals(byte(oschema.STRING), keiko.GetField("caretaker").Typ)
 	Assert(keiko.Version > int32(0), "Version should be greater than zero")
 	Assert(keiko.Rid != "", "RID should not be empty")
 
 	linus := docs[1]
-	Equals("Linus", linus.Fields["name"].Value)
-	Equals(int32(15), linus.Fields["age"].Value)
-	Equals("Michael", linus.Fields["caretaker"].Value)
+	Equals("Linus", linus.GetField("name").Value)
+	Equals(int32(15), linus.GetField("age").Value)
+	Equals("Michael", linus.GetField("caretaker").Value)
 
 	zed := docs[2]
-	Equals("Zed", zed.Fields["name"].Value)
-	Equals(int32(3), zed.Fields["age"].Value)
-	Equals("Shaw", zed.Fields["caretaker"].Value)
-	Equals(byte(oschema.STRING), zed.Fields["caretaker"].Typ)
-	Equals(byte(oschema.INTEGER), zed.Fields["age"].Typ)
+	Equals("Zed", zed.GetField("name").Value)
+	Equals(int32(3), zed.GetField("age").Value)
+	Equals("Shaw", zed.GetField("caretaker").Value)
+	Equals(byte(oschema.STRING), zed.GetField("caretaker").Typ)
+	Equals(byte(oschema.INTEGER), zed.GetField("age").Typ)
 	Assert(zed.Version > int32(0), "Version should be greater than zero")
 	Assert(zed.Rid != "", "RID should not be empty")
 
@@ -450,21 +450,21 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 		Fatal(err)
 	}
 	Equals(3, len(docs))
-	Equals(2, len(docs[0].Fields))
+	Equals(2, len(docs[0].FieldNames()))
 	Equals("", docs[0].Classname) // property queries do not come back with Classname set
-	Equals(2, len(docs[1].Fields))
+	Equals(2, len(docs[1].FieldNames()))
 	Equals("", docs[1].Classname)
-	Equals(2, len(docs[2].Fields))
+	Equals(2, len(docs[2].FieldNames()))
 
-	Equals("Anna", docs[0].Fields["caretaker"].Value)
-	Equals("Michael", docs[1].Fields["caretaker"].Value)
-	Equals("Shaw", docs[2].Fields["caretaker"].Value)
+	Equals("Anna", docs[0].GetField("caretaker").Value)
+	Equals("Michael", docs[1].GetField("caretaker").Value)
+	Equals("Shaw", docs[2].GetField("caretaker").Value)
 
-	Equals("Keiko", docs[0].Fields["name"].Value)
-	Equals("Linus", docs[1].Fields["name"].Value)
-	Equals("Zed", docs[2].Fields["name"].Value)
+	Equals("Keiko", docs[0].GetField("name").Value)
+	Equals("Linus", docs[1].GetField("name").Value)
+	Equals("Zed", docs[2].GetField("name").Value)
 
-	Equals("name", docs[0].Fields["name"].Name)
+	Equals("name", docs[0].GetField("name").Name)
 
 	/* ---[ delete newly added record(s) ]--- */
 	fmt.Println("Deleting (sync) record #" + zed.Rid)

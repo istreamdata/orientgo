@@ -13,7 +13,6 @@ import (
 
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
-	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
@@ -134,8 +133,9 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 			fld.Value = val
 		}
 
-		doc.Fields[fld.Name] = fld
+		doc.AddField(fld.Name, fld)
 	}
+	doc.SetDirty(false)
 
 	return nil
 }
@@ -192,7 +192,7 @@ func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.B
 }
 
 func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
-	nfields := len(doc.Fields)
+	nfields := len(doc.FieldNames())
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 	ptrVal := make([]int, 0, nfields) // data ptr value to write into buf
 	subPtrPos := make([]int, 0, 8)
@@ -202,7 +202,8 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 
 	if doc.Classname == "" {
 		// serializing a property or SQL params map -> use propertyName
-		for fldName, fld := range doc.Fields {
+		for _, fldName := range doc.FieldNames() {
+			fld := doc.GetField(fldName)
 			// propertyName
 			err = varint.WriteString(buf, fldName)
 			if err != nil {
@@ -473,8 +474,8 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 		// ogl.Debugf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
 		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDMAP:
-		ptrPos, ptrVal, err = serde.writeEmbeddedMap(buf, value.(odatastructure.OEmbeddedMap))
-		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(odatastructure.OEmbeddedMap))
+		ptrPos, ptrVal, err = serde.writeEmbeddedMap(buf, value.(oschema.OEmbeddedMap))
+		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(oschema.OEmbeddedMap))
 	case oschema.LINK:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
@@ -595,7 +596,7 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: this may not need to be a method -> change to fn ?
-func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m odatastructure.OEmbeddedMap) ([]int, []int, error) {
+func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m oschema.OEmbeddedMap) ([]int, []int, error) {
 	// number of entries in the map
 	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
 	if err != nil {
@@ -723,7 +724,7 @@ func getDataType(val interface{}) byte {
 	case map[string]struct{}: // TODO: settle on this convention for how to specify an OrientDB SET  ??
 		return oschema.EMBEDDEDSET
 	// case map[string]interface{}: // TODO: this may require some reflection -> how does the JSON library detect types?
-	case *odatastructure.OEmbeddedMap: // TODO: this may require some reflection -> how does the JSON library detect types?
+	case *oschema.OEmbeddedMap: // TODO: this may require some reflection -> how does the JSON library detect types?
 		return oschema.EMBEDDEDMAP
 	default:
 		return oschema.ANY
@@ -734,7 +735,7 @@ func getDataType(val interface{}) byte {
 // readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
-// TODO: change to: func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*odatastructure.OEmbeddedMap, error) {  ??
+// TODO: change to: func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*oschema.OEmbeddedMap, error) {  ??
 func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {

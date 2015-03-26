@@ -22,13 +22,13 @@ func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
 	name := ""
 	typ := byte(ANY) // TODO: this may not be the right choice - might need to create UNKNOWN ?
 
-	if fld, ok := doc.Fields["id"]; ok {
+	if fld := doc.GetField("id"); fld != nil {
 		id = fld.Value.(int32)
 	}
-	if fld, ok := doc.Fields["name"]; ok {
+	if fld := doc.GetField("name"); fld != nil {
 		name = fld.Value.(string)
 	}
-	if fld, ok := doc.Fields["type"]; ok {
+	if fld := doc.GetField("type"); fld != nil {
 		typ = typeFromString(fld.Value.(string))
 	}
 

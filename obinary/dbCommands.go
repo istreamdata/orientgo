@@ -10,7 +10,6 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/rw"
-	"github.com/quux00/ogonori/odatastructure"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
@@ -330,10 +329,10 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 	}
 
 	/* ---[ schemaVersion ]--- */
-	dbc.currDb.SchemaVersion = docs[0].Fields["schemaVersion"].Value.(int32)
+	dbc.currDb.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
 
 	/* ---[ globalProperties ]--- */
-	globalPropsFld := docs[0].Fields["globalProperties"]
+	globalPropsFld := docs[0].GetField("globalProperties")
 
 	var globalProperty oschema.OGlobalProperty
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
@@ -355,7 +354,7 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 
 	/* ---[ classes ]--- */
 	var oclass *oschema.OClass
-	classesFld := docs[0].Fields["classes"]
+	classesFld := docs[0].GetField("classes")
 	for _, cfield := range classesFld.Value.([]interface{}) {
 		cdoc := cfield.(*oschema.ODocument)
 		oclass = oschema.NewOClassFromDocument(cdoc)
@@ -842,7 +841,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	//   Field.Name = params
 	//   Field.Value = {0=>paramVal1, 1=>paramVal2}} (map[string]interface{})
 
-	paramsMap := odatastructure.NewEmbeddedMapWithCapacity(2)
+	paramsMap := oschema.NewEmbeddedMapWithCapacity(2)
 	for i, pval := range params {
 		paramsMap.Put(strconv.Itoa(i), pval, oschema.STRING)
 	}

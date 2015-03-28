@@ -152,6 +152,11 @@ func databaseSqlAPI() {
 	}
 	defer db.Close()
 
+	err = db.Ping()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+
 	/* ---[ DELETE #1 ]--- */
 	// should not delete any rows
 	delcmd := "delete from Cat where name ='Jared'"
@@ -211,10 +216,6 @@ func databaseSqlAPI() {
 
 	/* ---[ QUERY #2: Query (multiple rows returned) ]--- */
 
-	// NOTE: this fails sporadically because order of fields in the document
-	//       is variable due to the unordered map: doc.Fields
-	//       we need an ordered data structure do that the order a document
-	//       is constructed in is the order of retrieval
 	querySQL = "select name, age, caretaker from Cat order by age"
 
 	var rName, rCaretaker string
@@ -226,6 +227,36 @@ func databaseSqlAPI() {
 	rows, err := db.Query(querySQL)
 	for rows.Next() {
 		err = rows.Scan(&rName, &rAge, &rCaretaker)
+		names = append(names, rName)
+		ctakers = append(ctakers, rCaretaker)
+		ages = append(ages, rAge)
+	}
+	err = rows.Err()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(4, len(names))
+	Equals(4, len(ctakers))
+	Equals(4, len(ages))
+
+	Equals([]string{"Filo", "Keiko", "Jared", "Linus"}, names)
+	Equals([]string{"Greek", "Anna", "The Subway Guy", "Michael"}, ctakers)
+	Equals(int64(4), ages[0])
+	Equals(int64(10), ages[1])
+	Equals(int64(11), ages[2])
+	Equals(int64(15), ages[3])
+
+	/* ---[ QUERY #3: Same Query as above but change property order ]--- */
+
+	querySQL = "select age, caretaker, name from Cat order by age"
+
+	names = make([]string, 0, 4)
+	ctakers = make([]string, 0, 4)
+	ages = make([]int64, 0, 4)
+	rows, err = db.Query(querySQL)
+	for rows.Next() {
+		err = rows.Scan(&rAge, &rCaretaker, &rName)
 		names = append(names, rName)
 		ctakers = append(ctakers, rCaretaker)
 		ages = append(ages, rAge)

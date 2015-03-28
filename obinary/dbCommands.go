@@ -903,6 +903,15 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	return nil, nil
 }
 
+//
+// SQLQuery
+//
+// TODO: right now I return the entire resultSet as an array, thus all loaded into memory
+//       it would be better to have obinary.dbCommands provide an iterator based model
+//       that only needs to read a "row" (ODocument) at a time
+// Perhaps SQLQuery() -> iterator/cursor
+//         SQLQueryGetAll() -> []*ODocument ??
+//
 func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
@@ -1000,8 +1009,8 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 	} else {
 		// TODO: I've not yet tested this route of code -> how do so?
 		ogl.Warn(">> Not yet supported")
-		ogl.Fatal("NOTE NOTE NOTE: testing the resultType == '?' (else) route of code -- " +
-			"remove this note and test it!!")
+		ogl.Fatal(fmt.Sprintf("NOTE NOTE NOTE: testing the resultType == '%v' (else) route of code -- "+
+			"remove this note and test it!!", string(resultType)))
 	}
 
 	return docs, nil

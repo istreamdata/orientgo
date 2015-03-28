@@ -37,9 +37,13 @@ func (c *ogonoriConn) Begin() (driver.Tx, error) {
 func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	ogl.Println("** ogoConn.Exec")
 
+	return doExec(c.dbc, query, args)
+}
+
+func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Result, error) {
 	strargs := valuesToStrings(args)
 
-	nrows, docs, err := obinary.SQLCommand(c.dbc, query, strargs...)
+	nrows, docs, err := obinary.SQLCommand(dbc, cmd, strargs...)
 	if err != nil {
 		return ogonoriResult{-1, -1}, err
 	}

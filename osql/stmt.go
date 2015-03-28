@@ -12,14 +12,14 @@ import (
 //
 type ogonoriStmt struct {
 	dbc        *obinary.DBClient // TODO: review this - this is how the mysql driver does it
-	paramCount int
+	paramCount int               // TODO: can we know this in OrientDB w/o parsing the SQL?
 }
 
 //
 // NumInput returns the number of placeholder parameters.
 //
 func (st *ogonoriStmt) NumInput() int {
-	return st.paramCount
+	return -1 // -1 means sql package will not "sanity check" arg counts
 }
 
 //

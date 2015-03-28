@@ -29,7 +29,6 @@ func NewRows(docs []*oschema.ODocument) *ogonoriRows {
 			cols = append(cols, fname)
 		}
 	}
-	ogl.Printf("COLSCOLS: %v\n", cols)
 	return &ogonoriRows{docs: docs, cols: cols}
 }
 
@@ -45,14 +44,6 @@ func (rows *ogonoriRows) Columns() []string {
 }
 
 //
-// Close closes the rows iterator.
-//
-func (rows *ogonoriRows) Close() error {
-	ogl.Println("** ogonoriRows.Close")
-	return nil
-}
-
-//
 // Next is called to populate the next row of data into
 // the provided slice. The provided slice will be the same
 // size as the Columns() are wide.
@@ -65,6 +56,9 @@ func (rows *ogonoriRows) Close() error {
 //
 func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	ogl.Println("** ogonoriRows.Next")
+	// TODO: right now I return the entire resultSet as an array, thus all loaded into memory
+	//       it would be better to have obinary.dbCommands provide an iterator based model
+	//       that only needs to read a "row" (ODocument) at a time
 	if rows.pos >= len(rows.docs) {
 		return io.EOF
 	}
@@ -77,5 +71,13 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	}
 	rows.pos++
 	// TODO: this is where we need to return any errors that occur
+	return nil
+}
+
+//
+// Close closes the rows iterator.
+//
+func (rows *ogonoriRows) Close() error {
+	ogl.Println("** ogonoriRows.Close")
 	return nil
 }

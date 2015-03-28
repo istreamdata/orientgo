@@ -6,6 +6,7 @@ package oschema
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/quux00/ogonori/ogl"
@@ -33,6 +34,13 @@ func NewDocument(className string) *ODocument {
 		fields:    make(map[string]*OField),
 		Classname: className,
 	}
+}
+
+//
+// Testing out JSON marshalling -> this method may change to something else
+//
+func (doc *ODocument) ToJSON() ([]byte, error) {
+	return json.Marshal(doc)
 }
 
 //

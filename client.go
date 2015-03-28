@@ -547,5 +547,24 @@ func main() {
 
 	dropOgonoriTestDB(dbc, fullTest)
 
+	//
+	// Experimenting with JSON functionality
+	//
+	fmt.Println("-------- JSON ---------")
+	fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
+	bsjson, err := fld.ToJSON()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	fmt.Printf("%v\n", string(bsjson))
+
+	doc := oschema.NewDocument("Coolio")
+	doc.AddField("foo", &fld)
+	bsjson, err = doc.ToJSON()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	fmt.Printf("%v\n", string(bsjson))
+
 	fmt.Println("DONE")
 }

@@ -1,6 +1,9 @@
 package oschema
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type ODataType byte
 
@@ -47,6 +50,13 @@ type OField struct {
 }
 
 //
+// Testing out JSON marshalling -> this method may change to something else
+//
+func (fld *OField) ToJSON() ([]byte, error) {
+	return json.Marshal(fld)
+}
+
+//
 // *OField implements Stringer interface
 //
 func (fld *OField) String() string {
@@ -57,6 +67,7 @@ func (fld *OField) String() string {
 //
 // OProperty roughly corresponds to OProperty in Java client.
 // It represents a property of a class in OrientDb.
+// TODO: need to clarify the relationship between OProperty and OField ...
 //
 type OProperty struct {
 	Id           int32 // TODO: is the size specified in OrientDB docs?

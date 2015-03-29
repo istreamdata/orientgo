@@ -6,6 +6,7 @@ package oschema
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 
@@ -16,7 +17,7 @@ type ODocument struct {
 	Rid        string
 	Version    int32
 	entryOrder []string           // field names in the order they were added to the ODocument
-	fields     map[string]*OField // key: property-name
+	Fields     map[string]*OField // key: property-name
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)
 
@@ -31,9 +32,48 @@ type ODocument struct {
 //
 func NewDocument(className string) *ODocument {
 	return &ODocument{
-		fields:    make(map[string]*OField),
+		Fields:    make(map[string]*OField),
 		Classname: className,
 	}
+}
+
+//
+// Implements database/sql.Scanner interface
+//
+func (doc *ODocument) Scan(src interface{}) error {
+	fmt.Println("** ODocument.Scan")
+
+	locdoc := src.(*ODocument)
+	*doc = *locdoc
+
+	// switch src.(type) {
+	// case *ODocument:
+	// 	locdoc := src.(*ODocument)
+	// 	*doc = *locdoc
+	// default:
+	// 	return errors.New("Say what???")
+	// }
+	return nil
+}
+
+//
+// Implements database/sql/driver.Valuer interface
+// TODO: haven't detected when this is called yet (probably when serializing ODocument for insertion into DB??)
+//
+func (doc *ODocument) Value() (driver.Value, error) {
+	fmt.Println("** ODocument.Value")
+
+	return []byte(`{"b": 2}`), nil // FIXME: bogus
+}
+
+//
+// Implements database/sql/driver.ValueConverter interface
+// TODO: haven't detected when this is called yet
+//
+func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
+	fmt.Printf("** ODocument.ConvertValue: %T: %v\n", v)
+
+	return []byte(`{"a": 1}`), nil // FIXME: bogus
 }
 
 //
@@ -60,7 +100,7 @@ func (doc *ODocument) FieldNames() []string {
 // (aka property-id). If no field is found with that id, nil is returned.
 //
 func (doc *ODocument) GetFieldById(id int32) *OField {
-	for _, fld := range doc.fields {
+	for _, fld := range doc.Fields {
 		if fld.Id == id {
 			return fld
 		}
@@ -73,7 +113,7 @@ func (doc *ODocument) GetFieldById(id int32) *OField {
 // If no field is found with that name, nil is returned.
 //
 func (doc *ODocument) GetField(fname string) *OField {
-	return doc.fields[fname]
+	return doc.Fields[fname]
 }
 
 //
@@ -84,7 +124,7 @@ func (doc *ODocument) GetField(fname string) *OField {
 func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 	ogl.Debugf("ODocument.AddField name== %v\n", name)   // DEBUG
 	ogl.Debugf("ODocument.AddField field== %v\n", field) // DEBUG
-	doc.fields[name] = field
+	doc.Fields[name] = field
 	doc.entryOrder = append(doc.entryOrder, name)
 	doc.dirty = true
 	return doc
@@ -160,7 +200,7 @@ func (doc *ODocument) String() string {
 		panic(err)
 	}
 
-	for _, fld := range doc.fields {
+	for _, fld := range doc.Fields {
 		_, err = buf.WriteString(fmt.Sprintf("  %s\n", fld.String()))
 		if err != nil {
 			panic(err)

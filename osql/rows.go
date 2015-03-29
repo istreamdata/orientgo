@@ -13,23 +13,34 @@ import (
 // ogonoriRows implements the sql/driver.Rows interface.
 //
 type ogonoriRows struct {
-	pos  int // index of next row (doc) to return
-	docs []*oschema.ODocument
-	cols []string
+	pos     int // index of next row (doc) to return
+	docs    []*oschema.ODocument
+	cols    []string
+	fulldoc bool // whether query returned a full document or just properties
 	// TODO: maybe a reference to the appropriate schema is needed here?
 }
 
 func NewRows(docs []*oschema.ODocument) *ogonoriRows {
 	var cols []string
-	if len(docs) == 0 {
+	if docs == nil || len(docs) == 0 {
 		cols = []string{}
-	} else {
+		return &ogonoriRows{docs: docs, cols: cols}
+	}
+
+	var fulldoc bool
+	if docs[0].Classname == "" {
 		cols = make([]string, 0, len(docs[0].FieldNames()))
 		for _, fname := range docs[0].FieldNames() {
 			cols = append(cols, fname)
 		}
+	} else {
+		fulldoc = true
+		// if Classname is set then the user queried for a full document
+		// not individual properties of a Document/Class
+		cols = []string{docs[0].Classname}
 	}
-	return &ogonoriRows{docs: docs, cols: cols}
+	ogl.Printf("COLSCOLS: %v\n", cols)
+	return &ogonoriRows{docs: docs, cols: cols, fulldoc: fulldoc}
 }
 
 //
@@ -62,13 +73,22 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	if rows.pos >= len(rows.docs) {
 		return io.EOF
 	}
+	// TODO: may need to do a type switch here -> what else can come in from a query in OrientDB
+	//       besides an ODocument ??
 	currdoc := rows.docs[rows.pos]
-	for i := range dest {
-		// TODO: need to check field.Type and see if it is one that can map to Value
-		//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
-		field := currdoc.GetField(rows.cols[i])
-		dest[i] = field.Value
+	if rows.fulldoc {
+		dest[0] = currdoc
+
+	} else {
+		// was a property only query
+		for i := range dest {
+			// TODO: need to check field.Type and see if it is one that can map to Value
+			//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
+			field := currdoc.GetField(rows.cols[i])
+			dest[i] = field.Value
+		}
 	}
+
 	rows.pos++
 	// TODO: this is where we need to return any errors that occur
 	return nil

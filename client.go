@@ -202,9 +202,7 @@ func databaseSqlAPI() {
 	// it is safe to query properties -> not sure how to return docs yet
 	querySQL := "select name, age from Cat where caretaker = 'Greek'"
 	row := db.QueryRow(querySQL)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+
 	var retname string
 	var retage int64
 	err = row.Scan(&retname, &retage)
@@ -305,6 +303,43 @@ func databaseSqlAPI() {
 	ogl.Printf(">> DEL4 RES num rows affected: %v\n", nrows)
 	Equals(int64(1), nrows)
 
+	/* ---[ Full ODocument Queries with database/sql ]--- */
+	/* ---[ QueryRow ]--- */
+	ogl.Println(">>>>>>>>> QueryRow of full ODocument<<<<<<<<<<<")
+	querySQL = "select from Cat where name = 'Linus'"
+
+	row = db.QueryRow(querySQL)
+
+	var retdoc oschema.ODocument
+	err = row.Scan(&retdoc)
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	Equals("Cat", retdoc.Classname)
+	Equals(3, len(retdoc.FieldNames()))
+	Equals("Linus", retdoc.GetField("name").Value)
+	Equals(int32(15), retdoc.GetField("age").Value)
+	Equals("Michael", retdoc.GetField("caretaker").Value)
+
+	/* ---[ Query (return multiple rows) ]--- */
+	querySQL = "select from Cat order by caretaker desc"
+	rows, err = db.Query(querySQL)
+	rowdocs := make([]*oschema.ODocument, 0, 2)
+	for rows.Next() {
+		var newdoc oschema.ODocument
+		err = rows.Scan(&newdoc)
+		rowdocs = append(rowdocs, &newdoc)
+	}
+	err = rows.Err()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(2, len(rowdocs))
+	Equals("Cat", rowdocs[0].Classname)
+	Equals("Linus", rowdocs[0].GetField("name").Value)
+	Equals("Keiko", rowdocs[1].GetField("name").Value)
+	Equals("Anna", rowdocs[1].GetField("caretaker").Value)
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
@@ -577,6 +612,25 @@ func main() {
 	databaseSqlAPI()
 
 	dropOgonoriTestDB(dbc, fullTest)
+
+	//
+	// Experimenting with JSON functionality
+	//
+	fmt.Println("-------- JSON ---------")
+	fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
+	bsjson, err := fld.ToJSON()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	fmt.Printf("%v\n", string(bsjson))
+
+	doc := oschema.NewDocument("Coolio")
+	doc.AddField("foo", &fld)
+	bsjson, err = doc.ToJSON()
+	if err != nil {
+		ogl.Fatale(err)
+	}
+	fmt.Printf("%v\n", string(bsjson))
 
 	fmt.Println("DONE")
 }

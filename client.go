@@ -275,6 +275,36 @@ func databaseSqlAPI() {
 	Equals(int64(11), ages[2])
 	Equals(int64(15), ages[3])
 
+	/* ---[ QUERY #4: Property query using parameterized SQL ]--- */
+	querySQL = "select caretaker, name, age from Cat where age >= ? order by age desc"
+
+	names = make([]string, 0, 2)
+	ctakers = make([]string, 0, 2)
+	ages = make([]int64, 0, 2)
+
+	rows, err = db.Query(querySQL, "11")
+	for rows.Next() {
+		err = rows.Scan(&rCaretaker, &rName, &rAge)
+		names = append(names, rName)
+		ctakers = append(ctakers, rCaretaker)
+		ages = append(ages, rAge)
+	}
+	if err = rows.Err(); err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(2, len(names))
+	Equals("Linus", names[0])
+	Equals("Jared", names[1])
+
+	Equals(2, len(ctakers))
+	Equals("Michael", ctakers[0])
+	Equals("The Subway Guy", ctakers[1])
+
+	Equals(2, len(ages))
+	Equals(int64(15), ages[0])
+	Equals(int64(11), ages[1])
+
 	/* ---[ DELETE #2 ]--- */
 	res, err = db.Exec(delcmd)
 	if err != nil {
@@ -556,9 +586,32 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Printf("nrows: %v\n", nrows)
 	fmt.Printf("docs: %v\n", docs)
 
-	origLevel := ogl.GetLevel()
-	ogl.SetLevel(ogl.DEBUG)
-	sql = "delete from Cat where name ='June'"
+	sql = "select name, age from Cat where caretaker = ?"
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "Cleaver")
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(1, len(docs))
+	Equals(2, len(docs[0].FieldNames()))
+	Equals("", docs[0].Classname) // property queries do not come back with Classname set
+	Equals("June", docs[0].GetField("name").Value)
+	Equals(int32(8), docs[0].GetField("age").Value)
+
+	sql = "select caretaker, name, age from Cat where age > ? order by age desc"
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "9")
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(2, len(docs))
+	Equals(3, len(docs[0].FieldNames()))
+	Equals("", docs[0].Classname) // property queries do not come back with Classname set
+	Equals("Linus", docs[0].GetField("name").Value)
+	Equals(int32(15), docs[0].GetField("age").Value)
+	Equals("Keiko", docs[1].GetField("name").Value)
+	Equals(int32(10), docs[1].GetField("age").Value)
+	Equals("Anna", docs[1].GetField("caretaker").Value)
+
+	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
 	fmt.Println(sql)
 	nrows, docs, err = obinary.SQLCommand(dbc, sql)
 	if err != nil {
@@ -566,7 +619,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	}
 	fmt.Printf("nrows: %v\n", nrows)
 	fmt.Printf("docs: %v\n", docs)
-	ogl.SetLevel(origLevel)
 	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
 	obinary.CloseDatabase(dbc)

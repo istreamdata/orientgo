@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"net/http"
@@ -36,6 +37,15 @@ func Equals(exp, act interface{}) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n",
 			filepath.Base(file), line, exp, act)
+		os.Exit(1)
+	}
+}
+
+func Ok(err error) {
+	if err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
+			append([]interface{}{filepath.Base(file), line})...)
 		os.Exit(1)
 	}
 }
@@ -69,26 +79,21 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 	outf.WriteString("-------- Create OgonoriTest DB --------\n")
 
 	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
+
 	fmt.Fprintf(outf, "ConnectToServer: sessionId: %v\n", dbc.GetSessionId())
 	Assert(dbc.GetSessionId() >= int32(0), "sessionid")
 	Assert(dbc.GetCurrDB() == nil, "currDB should be nil")
 
 	mapDBs, err := obinary.RequestDBList(dbc)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	gratefulTestPath, ok := mapDBs["GratefulDeadConcerts"]
 	Assert(ok, "GratefulDeadConcerts not in DB list")
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
 	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 
 	if dbexists {
 		if !fullTest {
@@ -96,20 +101,14 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 		}
 
 		err = obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
-		if err != nil {
-			Fatal(err)
-		}
+		Ok(err)
 	}
 
 	// // err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, constants.Volatile)
 	err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDb, constants.Persistent)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Assert(dbexists, ogonoriDBName+" should now exists after creating it")
 
 	// BUG in OrientDB 2.0.1? :
@@ -125,16 +124,24 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 	// fmt.Fprintf(outf, "DB list: ogonoriTest: %v\n", ogonoriTestPath)
 }
 
-func dropOgonoriTestDB(dbc *obinary.DBClient, fullTest bool) {
+func deleteNewRecords(dbc *obinary.DBClient) {
+	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	Ok(err)
+	_, _, err = obinary.SQLCommand(dbc, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
+	Ok(err)
+	err = obinary.CloseDatabase(dbc)
+	Ok(err)
+}
+
+func cleanUp(dbc *obinary.DBClient, fullTest bool) {
 	if !fullTest {
+		deleteNewRecords(dbc)
 		return
 	}
 
 	// err = obinary.DropDatabase(dbc, ogonoriDBName, constants.Persistent)
 	err := obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
 	if err != nil {
 		Fatal(err)
@@ -142,28 +149,22 @@ func dropOgonoriTestDB(dbc *obinary.DBClient, fullTest bool) {
 	Assert(!dbexists, ogonoriDBName+" should not exists after deleting it")
 }
 
-func databaseSqlAPI() {
+func databaseSqlAPI(conxStr string) {
 	fmt.Println("\n-------- Using database/sql API --------\n")
 
 	/* ---[ OPEN ]--- */
-	db, err := sql.Open("ogonori", "admin@admin:localhost/ogonoriTest")
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	db, err := sql.Open("ogonori", conxStr)
+	Ok(err)
 	defer db.Close()
 
 	err = db.Ping()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 
 	/* ---[ DELETE #1 ]--- */
 	// should not delete any rows
 	delcmd := "delete from Cat where name ='Jared'"
 	res, err := db.Exec(delcmd)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	nrows, _ := res.RowsAffected()
 	ogl.Printf(">> RES num rows affected: %v\n", nrows)
 	Equals(int64(0), nrows)
@@ -173,9 +174,8 @@ func databaseSqlAPI() {
 	insertSQL := "insert into Cat (name, age, caretaker) values('Jared', 11, 'The Subway Guy')"
 	ogl.Println(insertSQL, "=> 'Jared', 11, 'The Subway Guy'")
 	res, err = db.Exec(insertSQL)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
+
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
 	lastId, _ := res.LastInsertId()
@@ -188,9 +188,7 @@ func databaseSqlAPI() {
 	insertSQL = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
 	ogl.Println(insertSQL, "=> 'Filo', 4, 'Greek'")
 	res, err = db.Exec(insertSQL, "Filo", 4, "Greek")
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
 	lastId, _ = res.LastInsertId()
@@ -206,9 +204,7 @@ func databaseSqlAPI() {
 	var retname string
 	var retage int64
 	err = row.Scan(&retname, &retage)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	Equals("Filo", retname)
 	Equals(int64(4), retage)
 
@@ -230,9 +226,7 @@ func databaseSqlAPI() {
 		ages = append(ages, rAge)
 	}
 	err = rows.Err()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 
 	Equals(4, len(names))
 	Equals(4, len(ctakers))
@@ -260,9 +254,7 @@ func databaseSqlAPI() {
 		ages = append(ages, rAge)
 	}
 	err = rows.Err()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 
 	Equals(4, len(names))
 	Equals(4, len(ctakers))
@@ -307,18 +299,14 @@ func databaseSqlAPI() {
 
 	/* ---[ DELETE #2 ]--- */
 	res, err = db.Exec(delcmd)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf(">> DEL2 RES num rows affected: %v\n", nrows)
 	Equals(int64(1), nrows)
 
 	/* ---[ DELETE #3 ]--- */
 	res, err = db.Exec(delcmd)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf(">> DEL3 RES num rows affected: %v\n", nrows)
 	Equals(int64(0), nrows)
@@ -326,9 +314,7 @@ func databaseSqlAPI() {
 	/* ---[ DELETE #4 ]--- */
 	delcmd = "delete from Cat where name <> 'Linus' AND name <> 'Keiko'"
 	res, err = db.Exec(delcmd)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf(">> DEL4 RES num rows affected: %v\n", nrows)
 	Equals(int64(1), nrows)
@@ -342,9 +328,7 @@ func databaseSqlAPI() {
 
 	var retdoc oschema.ODocument
 	err = row.Scan(&retdoc)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	Equals("Cat", retdoc.Classname)
 	Equals(3, len(retdoc.FieldNames()))
 	Equals("Linus", retdoc.GetField("name").Value)
@@ -361,15 +345,146 @@ func databaseSqlAPI() {
 		rowdocs = append(rowdocs, &newdoc)
 	}
 	err = rows.Err()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 
 	Equals(2, len(rowdocs))
 	Equals("Cat", rowdocs[0].Classname)
 	Equals("Linus", rowdocs[0].GetField("name").Value)
 	Equals("Keiko", rowdocs[1].GetField("name").Value)
 	Equals("Anna", rowdocs[1].GetField("caretaker").Value)
+}
+
+func databaseSqlPreparedStmtAPI(conxStr string) {
+	fmt.Println("\n-------- Using database/sql PreparedStatement API --------\n")
+
+	db, err := sql.Open("ogonori", conxStr)
+	Ok(err)
+	defer db.Close()
+
+	querySQL := "select caretaker, name, age from Cat where age >= ? order by age desc"
+
+	stmt, err := db.Prepare(querySQL)
+	Ok(err)
+	defer stmt.Close()
+
+	names := make([]string, 0, 2)
+	ctakers := make([]string, 0, 2)
+	ages := make([]int64, 0, 2)
+
+	var (
+		rCaretaker, rName string
+		rAge              int64
+	)
+
+	/* ---[ First use ]--- */
+	rows, err := stmt.Query("10")
+	for rows.Next() {
+		err = rows.Scan(&rCaretaker, &rName, &rAge)
+		names = append(names, rName)
+		ctakers = append(ctakers, rCaretaker)
+		ages = append(ages, rAge)
+	}
+	if err = rows.Err(); err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(2, len(names))
+	Equals("Linus", names[0])
+	Equals("Keiko", names[1])
+
+	Equals(2, len(ctakers))
+	Equals("Michael", ctakers[0])
+	Equals("Anna", ctakers[1])
+
+	Equals(2, len(ages))
+	Equals(int64(15), ages[0])
+	Equals(int64(10), ages[1])
+
+	/* ---[ Second use ]--- */
+	rows, err = stmt.Query("14")
+
+	names = make([]string, 0, 2)
+	ctakers = make([]string, 0, 2)
+	ages = make([]int64, 0, 2)
+
+	for rows.Next() {
+		err = rows.Scan(&rCaretaker, &rName, &rAge)
+		names = append(names, rName)
+		ctakers = append(ctakers, rCaretaker)
+		ages = append(ages, rAge)
+	}
+	if err = rows.Err(); err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(1, len(names))
+	Equals("Linus", names[0])
+	Equals(int64(15), ages[0])
+	Equals("Michael", ctakers[0])
+
+	/* ---[ Third use ]--- */
+	rows, err = stmt.Query("100")
+
+	names = make([]string, 0, 2)
+	ctakers = make([]string, 0, 2)
+	ages = make([]int64, 0, 2)
+
+	if err = rows.Err(); err != nil {
+		ogl.Fatale(err)
+	}
+
+	Equals(0, len(names))
+	Equals(0, len(ages))
+	Equals(0, len(ctakers))
+
+	stmt.Close()
+
+	/* ---[ Now prepare Command, not query ]--- */
+	cmdStmt, err := db.Prepare("INSERT INTO Cat (age, caretaker, name) VALUES(?, ?, ?)")
+	Ok(err)
+	defer cmdStmt.Close()
+
+	// use once
+	result, err := cmdStmt.Exec(1, "Ralph", "Max")
+	Ok(err)
+	nrows, err := result.RowsAffected()
+	Ok(err)
+	Equals(1, int(nrows))
+	insertId, err := result.LastInsertId()
+	Ok(err)
+	Assert(int(insertId) >= 0, "insertId was: "+strconv.Itoa(int(insertId)))
+
+	// use again
+	result, err = cmdStmt.Exec(2, "Jimmy", "John")
+	Ok(err)
+	nrows, err = result.RowsAffected()
+	Ok(err)
+	Equals(1, int(nrows))
+	insertId2, err := result.LastInsertId()
+	Ok(err)
+	Assert(insertId != insertId2, "insertId was: "+strconv.Itoa(int(insertId)))
+
+	row := db.QueryRow("select count(*) from Cat")
+	var cnt int64
+	err = row.Scan(&cnt)
+	Ok(err)
+	Equals(4, int(cnt))
+
+	cmdStmt.Close()
+
+	/* ---[ Prepare DELETE command ]--- */
+	delStmt, err := db.Prepare("DELETE from Cat where name = ? OR caretaker = ?")
+	Ok(err)
+	defer delStmt.Close()
+	result, err = delStmt.Exec("Max", "Jimmy")
+	Ok(err)
+	nrows, err = result.RowsAffected()
+	Ok(err)
+	Equals(2, int(nrows))
+	insertId3, err := result.LastInsertId()
+	Ok(err)
+	Assert(int(insertId3) < 0, "should have negative insertId for a DELETE")
+
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
@@ -405,30 +520,22 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	// }
 
 	cnt1, err := obinary.GetClusterCountIncludingDeleted(dbc, "default", "index", "ouser")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 
 	cnt2, err := obinary.GetClusterCount(dbc, "default", "index", "ouser")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Assert(cnt1 > 0, "should be clusters")
 	Assert(cnt1 >= cnt2, "counts should match or have more deleted")
 
 	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Assert(end >= begin, "begin and end of ClusterDataRange")
 
 	/* ---[ query from the ogonoriTest database ]--- */
 
 	// REDO
 	docs, err := obinary.GetRecordByRID(dbc, "12:0", "")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Equals(1, len(docs))
 	doc12_0 := docs[0]
 	Equals("12:0", doc12_0.Rid)
@@ -458,9 +565,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	sql := "select from Cat where name = 'Linus'"
 	fetchPlan := ""
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 
 	Equals("12:0", docs[0].Rid)
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
@@ -486,18 +591,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	/* ---[ cluster data range ]--- */
 	begin, end, err = obinary.GetClusterDataRange(dbc, "cat")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	outf.WriteString(fmt.Sprintf("ClusterDataRange for cat: %d-%d\n", begin, end))
 
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
 
 	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
 	nrows, docs, err := obinary.SQLCommand(dbc, sql)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	fmt.Printf("nrows: %v\n", nrows)
 	fmt.Printf("docs: %v\n", docs)
 	fmt.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
@@ -507,9 +608,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	sql = "select * from Cat order by name asc"
 	fmt.Println("Issuing command query: " + sql)
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Equals(3, len(docs))
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
@@ -542,9 +641,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	sql = "select name, caretaker from Cat order by caretaker"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Equals(3, len(docs))
 	Equals(2, len(docs[0].FieldNames()))
 	Equals("", docs[0].Classname) // property queries do not come back with Classname set
@@ -565,9 +662,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	/* ---[ delete newly added record(s) ]--- */
 	fmt.Println("Deleting (sync) record #" + zed.Rid)
 	err = obinary.DeleteRecordByRID(dbc, zed.Rid, zed.Version)
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 
 	// fmt.Println("Deleting (Async) record #11:4")
 	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
@@ -580,17 +675,13 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
 	fmt.Println(sql, "=> June", "8", "Cleaver")
 	nrows, docs, err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	fmt.Printf("nrows: %v\n", nrows)
 	fmt.Printf("docs: %v\n", docs)
 
 	sql = "select name, age from Cat where caretaker = ?"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "Cleaver")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Equals(1, len(docs))
 	Equals(2, len(docs[0].FieldNames()))
 	Equals("", docs[0].Classname) // property queries do not come back with Classname set
@@ -599,9 +690,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	sql = "select caretaker, name, age from Cat where age > ? order by age desc"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "9")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	Equals(2, len(docs))
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("", docs[0].Classname) // property queries do not come back with Classname set
@@ -614,9 +703,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
 	fmt.Println(sql)
 	nrows, docs, err = obinary.SQLCommand(dbc, sql)
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	fmt.Printf("nrows: %v\n", nrows)
 	fmt.Printf("docs: %v\n", docs)
 	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
@@ -634,9 +721,7 @@ func main() {
 		outf *os.File
 	)
 	outf, err = os.Create("./ftest.out")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	defer outf.Close()
 
 	go func() {
@@ -647,9 +732,7 @@ func main() {
 	ogl.SetLevel(ogl.NORMAL)
 
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	defer dbc.Close()
 
 	adminUser := "root"
@@ -658,12 +741,14 @@ func main() {
 
 	/* ---[ Use "native" API ]--- */
 	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, fullTest)
+	defer cleanUp(dbc, fullTest)
+
 	dbCommandsNativeAPI(dbc, outf, fullTest)
 
 	/* ---[ Use Go database/sql API ]--- */
-	databaseSqlAPI()
-
-	dropOgonoriTestDB(dbc, fullTest)
+	conxStr := "admin@admin:localhost/ogonoriTest"
+	databaseSqlAPI(conxStr)
+	databaseSqlPreparedStmtAPI(conxStr)
 
 	//
 	// Experimenting with JSON functionality
@@ -671,17 +756,13 @@ func main() {
 	fmt.Println("-------- JSON ---------")
 	fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
 	bsjson, err := fld.ToJSON()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	fmt.Printf("%v\n", string(bsjson))
 
 	doc := oschema.NewDocument("Coolio")
 	doc.AddField("foo", &fld)
 	bsjson, err = doc.ToJSON()
-	if err != nil {
-		ogl.Fatale(err)
-	}
+	Ok(err)
 	fmt.Printf("%v\n", string(bsjson))
 
 	fmt.Println("DONE")

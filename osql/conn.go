@@ -26,7 +26,8 @@ type ogonoriConn struct {
 
 func (c *ogonoriConn) Prepare(query string) (driver.Stmt, error) {
 	fmt.Println("** ogoConn.Prepare")
-	return nil, nil
+
+	return &ogonoriStmt{dbc: c.dbc, query: query}, nil
 }
 
 func (c *ogonoriConn) Begin() (driver.Tx, error) {
@@ -66,6 +67,10 @@ func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Resu
 func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	ogl.Println("** ogoConn.Query")
 
+	return doQuery(c.dbc, query, args)
+}
+
+func doQuery(dbc *obinary.DBClient, query string, args []driver.Value) (driver.Rows, error) {
 	var (
 		docs []*oschema.ODocument
 		err  error
@@ -73,7 +78,7 @@ func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, err
 
 	strargs := valuesToStrings(args)
 	fetchPlan := ""
-	docs, err = obinary.SQLQuery(c.dbc, query, fetchPlan, strargs...)
+	docs, err = obinary.SQLQuery(dbc, query, fetchPlan, strargs...)
 	ogl.Printf("oC.Q:  %v\n", docs)
 	return NewRows(docs), err
 }

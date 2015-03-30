@@ -794,7 +794,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 			if err != nil {
 				return 0, nil, oerror.NewTrace(err)
 			}
-			ogl.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
+			ogl.Debugf("serializedRec from 'a' return type: %v\n", serializedRec)
 			nr, err := strconv.ParseInt(string(serializedRec), 10, 64)
 			if err != nil {
 				return 0, nil, oerror.NewTrace(err)

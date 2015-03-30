@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/ogl"
 )
 
 //
@@ -12,6 +13,7 @@ import (
 //
 type ogonoriStmt struct {
 	dbc        *obinary.DBClient // TODO: review this - this is how the mysql driver does it
+	query      string            // the SQL query/cmd specified by the user
 	paramCount int               // TODO: can we know this in OrientDB w/o parsing the SQL?
 }
 
@@ -19,6 +21,7 @@ type ogonoriStmt struct {
 // NumInput returns the number of placeholder parameters.
 //
 func (st *ogonoriStmt) NumInput() int {
+	ogl.Debugln("** ogonoriStmt.NumInput")
 	return -1 // -1 means sql package will not "sanity check" arg counts
 }
 
@@ -27,14 +30,17 @@ func (st *ogonoriStmt) NumInput() int {
 // as an INSERT or UPDATE.
 //
 func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
-	return nil, nil
+	ogl.Debugln("** ogonoriStmt.Exec")
+
+	return doExec(st.dbc, st.query, args)
 }
 
 //
 // Query executes a query that may return rows, such as a SELECT.
 //
 func (st *ogonoriStmt) Query(args []driver.Value) (driver.Rows, error) {
-	return nil, nil
+	ogl.Debugln("** ogonoriStmt.Query")
+	return doQuery(st.dbc, st.query, args)
 }
 
 //
@@ -44,5 +50,8 @@ func (st *ogonoriStmt) Query(args []driver.Value) (driver.Rows, error) {
 // by any queries.
 //
 func (st *ogonoriStmt) Close() error {
+	ogl.Debugln("** ogonoriStmt.Close")
+	// TODO:  I'm guessing this is wrong -> the stmt should probably NOT close the database
+	// return obinary.CloseDatabase(st.dbc)
 	return nil
 }

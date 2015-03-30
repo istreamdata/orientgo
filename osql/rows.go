@@ -39,7 +39,6 @@ func NewRows(docs []*oschema.ODocument) *ogonoriRows {
 		// not individual properties of a Document/Class
 		cols = []string{docs[0].Classname}
 	}
-	ogl.Printf("COLSCOLS: %v\n", cols)
 	return &ogonoriRows{docs: docs, cols: cols, fulldoc: fulldoc}
 }
 

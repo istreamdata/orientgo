@@ -106,3 +106,13 @@ func (e IncorrectNetworkRead) Error() string {
 	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
 		e.Expected, e.Actual)
 }
+
+// ------
+
+type ErrInvalidConn struct {
+	Msg string
+}
+
+func (e ErrInvalidConn) Error() string {
+	return "Invalid Connection: %s" + e.Msg
+}

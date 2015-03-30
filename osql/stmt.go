@@ -4,7 +4,7 @@ import (
 	_ "database/sql"
 	"database/sql/driver"
 
-	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 )
 
@@ -12,9 +12,10 @@ import (
 // ogonoriStmt implements the Go sql/driver.Stmt interface.
 //
 type ogonoriStmt struct {
-	dbc        *obinary.DBClient // TODO: review this - this is how the mysql driver does it
-	query      string            // the SQL query/cmd specified by the user
-	paramCount int               // TODO: can we know this in OrientDB w/o parsing the SQL?
+	// dbc        *obinary.DBClient // TODO: review this - this is how the mysql driver does it
+	conn  *ogonoriConn
+	query string // the SQL query/cmd specified by the user
+	// paramCount int    // TODO: can we know this in OrientDB w/o parsing the SQL?
 }
 
 //
@@ -31,8 +32,11 @@ func (st *ogonoriStmt) NumInput() int {
 //
 func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 	ogl.Debugln("** ogonoriStmt.Exec")
+	if st.conn == nil || st.conn.dbc == nil {
+		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriStmt#Exec"}
+	}
 
-	return doExec(st.dbc, st.query, args)
+	return doExec(st.conn.dbc, st.query, args)
 }
 
 //
@@ -40,18 +44,21 @@ func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 //
 func (st *ogonoriStmt) Query(args []driver.Value) (driver.Rows, error) {
 	ogl.Debugln("** ogonoriStmt.Query")
-	return doQuery(st.dbc, st.query, args)
+	if st.conn == nil || st.conn.dbc == nil {
+		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriStmt#Query"}
+	}
+
+	return doQuery(st.conn.dbc, st.query, args)
 }
 
 //
 // Close closes the statement.
 //
-// As of Go 1.1, a Stmt will not be closed if it's in use
-// by any queries.
+// As of Go 1.1, a Stmt will not be closed if it's in use by any queries.
 //
 func (st *ogonoriStmt) Close() error {
 	ogl.Debugln("** ogonoriStmt.Close")
-	// TODO:  I'm guessing this is wrong -> the stmt should probably NOT close the database
-	// return obinary.CloseDatabase(st.dbc)
+	// nothing to do here since there is no special statement handle in OrientDB
+	// that is referenced by a client driver
 	return nil
 }

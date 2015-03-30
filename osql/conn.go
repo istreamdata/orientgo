@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -27,7 +28,7 @@ type ogonoriConn struct {
 func (c *ogonoriConn) Prepare(query string) (driver.Stmt, error) {
 	fmt.Println("** ogoConn.Prepare")
 
-	return &ogonoriStmt{dbc: c.dbc, query: query}, nil
+	return &ogonoriStmt{conn: c, query: query}, nil
 }
 
 func (c *ogonoriConn) Begin() (driver.Tx, error) {
@@ -38,6 +39,9 @@ func (c *ogonoriConn) Begin() (driver.Tx, error) {
 func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	ogl.Println("** ogoConn.Exec")
 
+	if c.dbc == nil {
+		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriConn#Exec"}
+	}
 	return doExec(c.dbc, query, args)
 }
 
@@ -67,6 +71,9 @@ func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Resu
 func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	ogl.Println("** ogoConn.Query")
 
+	if c.dbc == nil {
+		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriConn#Exec"}
+	}
 	return doQuery(c.dbc, query, args)
 }
 

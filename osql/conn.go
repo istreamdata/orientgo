@@ -48,24 +48,36 @@ func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, er
 func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Result, error) {
 	strargs := valuesToStrings(args)
 
-	nrows, docs, err := obinary.SQLCommand(dbc, cmd, strargs...)
+	retval, docs, err := obinary.SQLCommand(dbc, cmd, strargs...)
+	fmt.Printf("exec1: %T: %v\n", retval, retval)
 	if err != nil {
 		return ogonoriResult{-1, -1}, err
 	}
+
 	if docs == nil {
+		fmt.Println("exec2")
+		nrows, err := strconv.ParseInt(retval, 10, 64)
+		if err != nil {
+			fmt.Printf("exec3: %T: %v\n", err, err)
+			nrows = -1
+		}
 		return ogonoriResult{nrows, -1}, err
 	}
 
 	lastDoc := docs[len(docs)-1]
 	sepIdx := strings.Index(lastDoc.Rid, ":")
 	if sepIdx < 0 {
-		return ogonoriResult{nrows, -1}, fmt.Errorf("RID of returned doc not of expected format: %v", lastDoc.Rid)
+		return ogonoriResult{len64(docs), -1}, fmt.Errorf("RID of returned doc not of expected format: %v", lastDoc.Rid)
 	}
 	lastId, err := strconv.ParseInt(lastDoc.Rid[sepIdx+1:], 10, 64)
 	if err != nil {
-		return ogonoriResult{nrows, -1}, fmt.Errorf("Couldn't parse ID from doc RID: %v: %v", lastDoc.Rid, err)
+		return ogonoriResult{len64(docs), -1}, fmt.Errorf("Couldn't parse ID from doc RID: %v: %v", lastDoc.Rid, err)
 	}
-	return ogonoriResult{nrows, lastId}, err
+	return ogonoriResult{len64(docs), lastId}, err
+}
+
+func len64(docs []*oschema.ODocument) int64 {
+	return int64(len(docs))
 }
 
 func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, error) {

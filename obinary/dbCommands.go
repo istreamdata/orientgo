@@ -637,24 +637,55 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 }
 
 //
-// name may change -> placeholder for now
+// SQLCommand executes SQL commands that are not queries. Any SQL statement
+// that does not being with "SELECT" should be sent here.  All SELECT
+// statements should go to the SQLQuery function.
+//
+// Commands can be optionally paramterized using ?, such as:
+//
+//     INSERT INTO Foo VALUES(a, b, c) (?, ?, ?)
+//
+// The values for the placeholders (currently) must be provided as strings.
+//
 // Constraints (for now):
 // 1. cmds with only simple positional parameters allowed
 // 2. cmds with lists of parameters ("complex") NOT allowed
 // 3. parameter types allowed: string only for now
 //
-func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs []*oschema.ODocument, err error) {
+// SQL commands in OrientDB tend to return one of two types - a string return value or
+// one or more documents. The meaning are specific to the type of query.
+//
+// ----------------
+// For example:
+// ----------------
+//  for a DELETE statement:
+//    retval = number of rows deleted (as a string)
+//    docs = empty list
+//
+//  for an INSERT statement:
+//    n = ?
+//    docs = ?
+//
+//  for an CREATE CLASS statement:
+//    retval = cluster id of the class (TODO: or it might be number of classes in cluster)
+//    docs = empty list
+//
+//  for an DROP CLASS statement:
+//    retval = "true" if successful, "" if class didn't exist (technically it returns null)
+//    docs = empty list
+//
+func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, docs []*oschema.ODocument, err error) {
 	dbc.buf.Reset()
 
 	err = writeCommandAndSessionId(dbc, REQUEST_COMMAND)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	mode := byte('s') // synchronous only supported for now
 	err = rw.WriteByte(dbc.buf, mode)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	// need a separate buffer to write the command-payload to, so
@@ -664,7 +695,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 	// "classname" (command-type, really) and the sql command
 	err = rw.WriteStrings(commandBuf, "c", sql) // c for command(non-idempotent)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	// SQLCommand
@@ -676,13 +707,13 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 
 	serializedParams, err := serializeSimpleSQLParams(dbc, params)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	// has-simple-parameters
 	err = rw.WriteBool(commandBuf, serializedParams != nil)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	if serializedParams != nil {
@@ -693,7 +724,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 	// has-complex-paramters => HARDCODING FALSE FOR NOW
 	err = rw.WriteBool(commandBuf, false)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	serializedCmd := commandBuf.Bytes()
@@ -701,20 +732,20 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 	// command-payload-length and command-payload
 	err = rw.WriteBytes(dbc.buf, serializedCmd)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	/* ---[ Read Response ]--- */
 
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
-		return 0, nil, oerror.NewTrace(err)
+		return "", nil, oerror.NewTrace(err)
 	}
 
 	// for synchronous commands the remaining content is an array of form:
@@ -725,81 +756,76 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 	for {
 		resType, err := rw.ReadByte(dbc.conx)
 		if err != nil {
-			return 0, nil, oerror.NewTrace(err)
+			return "", nil, oerror.NewTrace(err)
 		}
 		if resType == byte(0) {
 			break
 		}
 
 		resultType := rune(resType)
-		ogl.Debugf("resultType for SQLCommand: %v (%s)\n", resultType, string(rune(resultType)))
+		ogl.Printf("resultType for SQLCommand: %v (%s)\n", resultType, string(rune(resultType)))
 
 		if resultType == 'n' { // null result
-			ogl.Warn("Result type in SQLCommand is 'n' -> what to do? nothing ???")
+			// do nothing - anything need to be done here?
 
 		} else if resultType == 'r' { // single record
 			resultType, err := rw.ReadShort(dbc.conx)
 			if err != nil {
-				return 0, nil, oerror.NewTrace(err)
+				return "", nil, oerror.NewTrace(err)
 			}
 
 			if resultType == int16(-2) { // null record
-				return 0, nil, nil
+				return "", nil, nil
 			}
 			if resultType == int16(-3) {
 				rid, err := readRID(dbc)
 				if err != nil {
-					return 0, nil, oerror.NewTrace(err)
+					return "", nil, oerror.NewTrace(err)
 				}
 				ogl.Warn(fmt.Sprintf("Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
 				// TODO: would now load that record from the DB if the user (Go SQL API) wants it
 			}
 			if resultType != int16(0) {
 				_, file, line, _ := runtime.Caller(0)
-				return 0, nil, fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d",
+				return "", nil, fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d",
 					file, line+1, resultType)
 			}
 
 			doc, err := readSingleRecord(dbc)
 			if err != nil {
-				return 0, nil, oerror.NewTrace(err)
+				return "", nil, oerror.NewTrace(err)
 			}
 
 			ogl.Debugf("r>doc = %v\n", doc) // DEBUG
-			nrows++
 			if docs == nil {
 				docs = make([]*oschema.ODocument, 1)
 				docs[0] = doc
 			}
 
 		} else if resultType == 'l' { // collection of records
-			// TODO: NOT SURE IF this type is ever returned from a Command ...
 			collectionDocs, err := readResultSet(dbc)
 			if err != nil {
-				return 0, nil, oerror.NewTrace(err)
+				return "", nil, oerror.NewTrace(err)
 			}
-			ogl.Warn(fmt.Sprintf("resultType='l'>GOT BACK DOC Collection!!! that proves this can happen = %v\n",
-				collectionDocs)) // DEBUG
 
-			nrows += int64(len(docs))
 			if docs == nil {
 				docs = collectionDocs
 			} else {
 				docs = append(docs, collectionDocs...)
 			}
+			break // TODO: not sure this is right !!
 
 		} else if resultType == 'a' { // serialized type
 			// TODO: for now I'm going to assume that this always just returns a number as a string (number of rows affected)
 			serializedRec, err := rw.ReadBytes(dbc.conx)
 			if err != nil {
-				return 0, nil, oerror.NewTrace(err)
+				return "", nil, oerror.NewTrace(err)
 			}
-			ogl.Debugf("serializedRec from 'a' return type: %v\n", serializedRec)
-			nr, err := strconv.ParseInt(string(serializedRec), 10, 64)
+			ogl.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
+			retval = string(serializedRec)
 			if err != nil {
-				return 0, nil, oerror.NewTrace(err)
+				return "", nil, oerror.NewTrace(err)
 			}
-			nrows += nr
 
 		} else {
 			// TODO: I've not yet tested this route of code -> how do so?
@@ -807,13 +833,12 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (nrows int64, docs 
 				resultType, string(rune(resultType))))
 			_, file, line, _ := runtime.Caller(0)
 			// TODO: returning here is NOT the correct long-term behavior
-			return 0, nil, fmt.Errorf("Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
+			return "", nil, fmt.Errorf("Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
 				resultType, string(rune(resultType)), line, file)
 		}
-
 	}
 
-	return nrows, docs, err
+	return retval, docs, err
 }
 
 // TODO: what datatypes can the params be? => right now allowing only string

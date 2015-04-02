@@ -37,7 +37,7 @@ func Equals(exp, act interface{}) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n",
 			filepath.Base(file), line, exp, act)
-		os.Exit(1)
+		panic("Equals fail")
 	}
 }
 
@@ -46,7 +46,7 @@ func Ok(err error) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
 			append([]interface{}{filepath.Base(file), line})...)
-		os.Exit(1)
+		panic("Ok fail")
 	}
 }
 
@@ -55,7 +55,7 @@ func Assert(b bool, msg string) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31mFAIL: %s:%d: "+msg+"\033[39m\n\n",
 			append([]interface{}{filepath.Base(file), line})...)
-		os.Exit(1)
+		panic("Assert fail")
 	}
 }
 
@@ -68,12 +68,12 @@ func Pause(msg string) {
 	}
 }
 
-func Fatal(err error) {
-	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
-		append([]interface{}{filepath.Base(file), line})...)
-	os.Exit(1)
-}
+// func Fatal(err error) {
+// 	_, file, line, _ := runtime.Caller(1)
+// 	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
+// 		append([]interface{}{filepath.Base(file), line})...)
+// 	os.Exit(1)
+// }
 
 func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, outf *os.File, fullTest bool) {
 	outf.WriteString("-------- Create OgonoriTest DB --------\n")
@@ -126,11 +126,20 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 
 func deleteNewRecords(dbc *obinary.DBClient) {
 	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
-	Ok(err)
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
 	_, _, err = obinary.SQLCommand(dbc, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
-	Ok(err)
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
 	err = obinary.CloseDatabase(dbc)
-	Ok(err)
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
 }
 
 func cleanUp(dbc *obinary.DBClient, fullTest bool) {
@@ -144,7 +153,8 @@ func cleanUp(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
 	if err != nil {
-		Fatal(err)
+		ogl.Warn(err.Error())
+		return
 	}
 	Assert(!dbexists, ogonoriDBName+" should not exists after deleting it")
 }
@@ -490,13 +500,12 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	outf.WriteString("\n-------- database-level commands --------\n")
 
-	// var sql string
+	var sql string
+	var retval string
 
 	fmt.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
-	if err != nil {
-		Fatal(err)
-	}
+	Ok(err)
 	// fmt.Printf("%v\n", dbc) // DEBUG
 
 	// clusterId, err := obinary.AddCluster(dbc, "bigapple")
@@ -562,7 +571,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
-	sql := "select from Cat where name = 'Linus'"
+	sql = "select from Cat where name = 'Linus'"
 	fetchPlan := ""
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	Ok(err)
@@ -702,11 +711,95 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
 	fmt.Println(sql)
-	nrows, docs, err = obinary.SQLCommand(dbc, sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("nrows: %v\n", nrows)
+	fmt.Printf("retval: %v\n", retval)
 	fmt.Printf("docs: %v\n", docs)
 	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
+
+	fmt.Println("+++++++++ START: Basic DDL ++++++++++++===")
+
+	sql = "DROP CLASS Patient"
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+	if retval != "" {
+		Equals("true", retval)
+	}
+
+	sql = "CREATE CLASS Patient"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+	ncls, err := strconv.ParseInt(retval, 10, 64)
+	Ok(err)
+	Assert(ncls > 10, "classnum should be greater than 10 but was: "+retval)
+
+	sql = "Create property Patient.name string"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", nrows)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "alter property Patient.name min 3"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "Create property Patient.married boolean"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "TRUNCATE CLASS Patient"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true'), ('Martha', 'false')"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sql = "SELECT count(*) from Patient"
+	fmt.Println(sql)
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(1, len(docs))
+	fldCount := docs[0].GetField("count")
+	Equals(int64(2), fldCount.Value)
+
+	sql = "DROP CLASS Patient"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	// TODO: check that this one returns a server exception
+	// sql = "TRUNCATE CLASS Patient"
+	// fmt.Println(sql)
+	// retval, docs, err = obinary.SQLCommand(dbc, sql)
+	// Ok(err)
+	// fmt.Printf("retval: %v\n", retval)
+	// fmt.Printf("docs: %v\n", docs)
 
 	obinary.CloseDatabase(dbc)
 }
@@ -731,13 +824,22 @@ func main() {
 	/* ---[ set ogl log level ]--- */
 	ogl.SetLevel(ogl.NORMAL)
 
+	adminUser := "root"
+	adminPassw := "jiffylube"
+	fullTest := false
+
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
 	Ok(err)
 	defer dbc.Close()
 
-	adminUser := "root"
-	adminPassw := "jiffylube"
-	fullTest := false
+	/* ---[ set up clean up in case of panics ]--- */
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
+			cleanUp(dbc, fullTest)
+			os.Exit(1)
+		}
+	}()
 
 	/* ---[ Use "native" API ]--- */
 	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, fullTest)

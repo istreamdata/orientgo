@@ -211,42 +211,46 @@ func ReadBool(rdr io.Reader) (bool, error) {
 
 //
 // ReadErrorResponse reads an "Exception" message from the OrientDB server.
-// The OrientDB server can return multiple exceptions, so a slice of
-// OServerException objects are returned.
+// The OrientDB server can return multiple exceptions, all of which are
+// incorporated into a single ogonori OServerException Error struct.
+// If error (the second return arg) is not nil, then there was a
+// problem reading the server exception on the wire.
 //
-func ReadErrorResponse(rdr io.Reader) ([]oerror.OServerException, error) {
+func ReadErrorResponse(rdr io.Reader) (oerror.OServerException, error) {
 	var (
 		exClass, exMsg string
 		err            error
 	)
-	exs := make([]oerror.OServerException, 0, 1) // usually only one ?
+	classes := make([]string, 0, 1) // usually only one ?
+	messages := make([]string, 0, 1)
 	for {
 		// before class/message combo there is a 1 (continue) or 0 (no more)
 		marker, err := ReadByte(rdr)
 		if err != nil {
-			return nil, err
+			return oerror.OServerException{}, err
 		}
 		if marker == byte(0) {
 			break
 		}
 		exClass, err = ReadString(rdr)
 		if err != nil {
-			return nil, err
+			return oerror.OServerException{}, err
 		}
+		classes = append(classes, exClass)
 		exMsg, err = ReadString(rdr)
 		if err != nil {
-			return nil, err
+			return oerror.OServerException{}, err
 		}
-		exs = append(exs, oerror.OServerException{exClass, exMsg})
+		messages = append(messages, exMsg)
 	}
 
-	// next there *may* a serialized exception of bytes, but it is only useful to Java clients,
-	// so read and ignore if present
-	// if there is no serialized exception, EOF will be returned, so ignore that "error"
+	// Next there *may* a serialized exception of bytes, but it is only
+	// useful to Java clients, so read and ignore if present.
+	// If there is no serialized exception, EOF will be returned
 	_, err = ReadBytes(rdr)
 	if err != nil && err != io.EOF {
-		return nil, err
+		return oerror.OServerException{}, err
 	}
 
-	return exs, nil
+	return oerror.OServerException{classes, messages}, nil
 }

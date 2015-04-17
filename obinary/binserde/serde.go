@@ -69,7 +69,7 @@ type ORecordSerializerV0 struct {
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the bytes.Buffer being passed in
 //
-func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -89,8 +89,8 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
 
 	if len(header.propertyNames) > 0 {
-		// propertyNames naes are set when a query returns properties, not a full record/document
-		// classname is an empty string in this case
+		// propertyNames names are set when a query returns properties, not a full record/document
+		// Hote: classname is an empty string in this case, so this could also be used
 		for i, pname := range header.propertyNames {
 			ofield := &oschema.OField{
 				Name: pname,
@@ -112,11 +112,19 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 					Typ:  property.Type,
 				}
 			} else {
-				errmsg := fmt.Sprintf("TODO: Need refresh of GlobalProperties since property with id %d was not found", fid)
-				panic(errmsg)
-				// TODO: need to do a refresh of the GlobalProperties from the database and try again
-				// if that fails then there is a bug in OrientDB, so throw an error
-				//  NOTE: see the method refreshGlobalProperties() in dbCommands
+				// local cache of GlobalProperties is stale - can't lookup the name of the property
+				// so put empty string for now and UNKNOWN type
+				ofield = &oschema.OField{
+					Id:   fid,
+					Name: "",
+					Typ:  oschema.UNKNOWN,
+				}
+				err = oerror.ErrStaleGlobalProperties
+				// errmsg := fmt.Sprintf("TODO: Need refresh of GlobalProperties since property with id %d was not found", fid)
+				// panic(errmsg)
+				// // TODO: need to do a refresh of the GlobalProperties from the database and try again
+				// // if that fails then there is a bug in OrientDB, so throw an error
+				// //  NOTE: see the method refreshGlobalProperties() in dbCommands
 			}
 			ofields = append(ofields, ofield)
 		}

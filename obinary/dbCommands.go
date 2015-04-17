@@ -816,12 +816,13 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			break // TODO: not sure this is right !!
 
 		} else if resultType == 'a' { // serialized type
-			// TODO: for now I'm going to assume that this always just returns a number as a string (number of rows affected)
 			serializedRec, err := rw.ReadBytes(dbc.conx)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
 			}
 			ogl.Printf("serializedRec from 'a' return type: %v\n", serializedRec)
+			// TODO: for now I'm going to assume that this always just returns a string
+			//       need a use case that violates this assumption
 			retval = string(serializedRec)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
@@ -1353,11 +1354,11 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 	}
 
 	if status == RESPONSE_STATUS_ERROR {
-		serverExceptions, err := rw.ReadErrorResponse(dbc.conx)
+		serverException, err := rw.ReadErrorResponse(dbc.conx)
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
-		return fmt.Errorf("Server Error(s): %v", serverExceptions)
+		return serverException
 	}
 
 	return nil
@@ -1543,21 +1544,21 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 }
 
 // TODO: decide if this is needed
-// func refreshGlobalProperties(dbc *DBClient) error {
-// 	docs, err := GetRecordByRID(dbc, "#0:1", "")
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Println("=======================================\n=======================================\n=======================================")
-// 	fmt.Printf("len(docs):: %v\n", len(docs))
-// 	doc0 := docs[0]
-// 	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-// 	fmt.Println("Field names:")
-// 	for k, _ := range doc0.Fields {
-// 		fmt.Printf("  %v\n", k)
-// 	}
-// 	schemaVersion := doc0.Fields["schemaVersion"]
-// 	fmt.Printf("%v\n", schemaVersion)
-// 	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
-// 	return nil
-// }
+func refreshGlobalProperties(dbc *DBClient) error {
+	docs, err := GetRecordByRID(dbc, "#0:1", "")
+	if err != nil {
+		return err
+	}
+	fmt.Println("=======================================\n=======================================\n=======================================")
+	fmt.Printf("len(docs):: %v\n", len(docs))
+	doc0 := docs[0]
+	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+	fmt.Println("Field names:")
+	for k, _ := range doc0.Fields {
+		fmt.Printf("  %v\n", k)
+	}
+	schemaVersion := doc0.Fields["schemaVersion"]
+	fmt.Printf("%v\n", schemaVersion)
+	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
+	return nil
+}

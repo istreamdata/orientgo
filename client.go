@@ -16,6 +16,7 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
 	_ "github.com/quux00/ogonori/osql"
@@ -25,12 +26,33 @@ import (
 // This is a "functional" tester class against a live OrientDB 2.x I'm using
 // while developing the ogonori OrientDB Go client.
 //
-// Before running this test, you need to run the scripts/ogonori-setup.sql
-// with the `console.sh` program of OrientDB:
-//   ./console.sh ogonori-setup.sql
+// How to run:
+// OPTION 1: Set up before hand and only run data statements, not DDL
+//
+//  Before running this test, you can to run the scripts/ogonori-setup.sql
+//  with the `console.sh` program of OrientDB:
+//     ./console.sh ogonori-setup.sql
+//
+//  Then run this code with:
+//     ./ogonori
+//
+// OPTION 2: Run full DDL - create and drop the database, in between
+//           run the data statements
+//      ./ogonori full
+//
+// OPTION 3: Run create DDL, but not the drop
+//      ./ogonori create
+//   After doing this then you can run with
+//      ./ogonori
+//   to test the data statements only
 //
 
-var ogonoriDBName string = "ogonoriTest"
+// EDIT THESE to match your setup
+var (
+	ogonoriDBName string = "ogonoriTest"
+	adminUser            = "root"
+	adminPassw           = "jiffylube"
+)
 
 func Equals(exp, act interface{}) {
 	if !reflect.DeepEqual(exp, act) {
@@ -68,12 +90,12 @@ func Pause(msg string) {
 	}
 }
 
-// func Fatal(err error) {
-// 	_, file, line, _ := runtime.Caller(1)
-// 	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
-// 		append([]interface{}{filepath.Base(file), line})...)
-// 	os.Exit(1)
-// }
+func Fatal(err error) {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
+		append([]interface{}{filepath.Base(file), line})...)
+	panic(err)
+}
 
 func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, outf *os.File, fullTest bool) {
 	outf.WriteString("-------- Create OgonoriTest DB --------\n")
@@ -104,14 +126,16 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 		Ok(err)
 	}
 
-	// // err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, constants.Volatile)
+	// err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, constants.Volatile)
 	err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDb, constants.Persistent)
 	Ok(err)
 	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
 	Ok(err)
 	Assert(dbexists, ogonoriDBName+" should now exists after creating it")
 
-	// BUG in OrientDB 2.0.1? :
+	seedInitialData(dbc)
+
+	// bug in OrientDB 2.0.1? :
 	//  ERROR: com.orientechnologies.orient.core.exception.ODatabaseException Database 'plocal:/home/midpeter444/apps/orientdb-community-2.0.1/databases/ogonoriTest' is closed}
 	// mapDBs, err = obinary.RequestDBList(dbc)
 	// if err != nil {
@@ -122,6 +146,58 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 	// Assert(ok, ogonoriDBName+" not in DB list")
 	// Assert(strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 	// fmt.Fprintf(outf, "DB list: ogonoriTest: %v\n", ogonoriTestPath)
+}
+
+func seedInitialData(dbc *obinary.DBClient) {
+	fmt.Println("OpenDatabase (seed round)")
+	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	Ok(err)
+
+	defer obinary.CloseDatabase(dbc)
+
+	// seed initial data
+	var sqlCmd string
+	sqlCmd = "CREATE CLASS Animal"
+	fmt.Println(sqlCmd)
+	retval, docs, err := obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sqlCmd = "CREATE property Animal.name string"
+	fmt.Println(sqlCmd)
+	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sqlCmd = "CREATE property Animal.age integer"
+	fmt.Println(sqlCmd)
+	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sqlCmd = "CREATE CLASS Cat extends Animal"
+	fmt.Println(sqlCmd)
+	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sqlCmd = "CREATE property Cat.caretaker string"
+	fmt.Println(sqlCmd)
+	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
+
+	sqlCmd = `INSERT INTO Cat (name, age, caretaker) VALUES ("Linus", 15, "Michael"), ("Keiko", 10, "Anna")`
+	fmt.Println(sqlCmd)
+	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
 }
 
 func deleteNewRecords(dbc *obinary.DBClient) {
@@ -148,8 +224,12 @@ func cleanUp(dbc *obinary.DBClient, fullTest bool) {
 		return
 	}
 
+	_ = obinary.CloseDatabase(dbc)
+	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	Ok(err)
+
 	// err = obinary.DropDatabase(dbc, ogonoriDBName, constants.Persistent)
-	err := obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
+	err = obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
 	Ok(err)
 	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
 	if err != nil {
@@ -538,27 +618,57 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 
 	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
 	Ok(err)
+	fmt.Println(">> cluster data range: %d, %d", begin, end)
 	Assert(end >= begin, "begin and end of ClusterDataRange")
 
 	/* ---[ query from the ogonoriTest database ]--- */
 
-	// REDO
-	docs, err := obinary.GetRecordByRID(dbc, "12:0", "")
+	sql = "select from Cat where name = 'Linus'"
+	fetchPlan := ""
+	docs, err := obinary.SQLQuery(dbc, sql, fetchPlan)
 	Ok(err)
-	Equals(1, len(docs))
-	doc12_0 := docs[0]
-	Equals("12:0", doc12_0.Rid)
-	Assert(doc12_0.Version > 0, fmt.Sprintf("Version is: %d", doc12_0.Version))
-	Equals(3, len(doc12_0.FieldNames()))
-	Equals("Cat", doc12_0.Classname)
 
-	nameField := doc12_0.GetField("name")
+	linusDocRID := docs[0].Rid
+
+	Assert(linusDocRID != "", "linusDocRID should not be nil")
+	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
+	Equals(3, len(docs[0].FieldNames()))
+	Equals("Cat", docs[0].Classname)
+
+	nameField := docs[0].GetField("name")
 	Assert(nameField != nil, "should be a 'name' field")
 
-	ageField := doc12_0.GetField("age")
+	ageField := docs[0].GetField("age")
 	Assert(ageField != nil, "should be a 'age' field")
 
-	caretakerField := doc12_0.GetField("caretaker")
+	caretakerField := docs[0].GetField("caretaker")
+	Assert(caretakerField != nil, "should be a 'caretaker' field")
+
+	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
+	Equals(byte(oschema.STRING), nameField.Typ)
+	Equals(byte(oschema.STRING), caretakerField.Typ)
+	Equals(byte(oschema.INTEGER), ageField.Typ)
+	Equals("Linus", nameField.Value)
+	Equals(int32(15), ageField.Value)
+	Equals("Michael", caretakerField.Value)
+
+	/* ---[ get by RID ]--- */
+	docs, err = obinary.GetRecordByRID(dbc, linusDocRID, "")
+	Ok(err)
+	Equals(1, len(docs))
+	docByRID := docs[0]
+	Equals(linusDocRID, docByRID.Rid)
+	Assert(docByRID.Version > 0, fmt.Sprintf("Version is: %d", docByRID.Version))
+	Equals(3, len(docByRID.FieldNames()))
+	Equals("Cat", docByRID.Classname)
+
+	nameField = docByRID.GetField("name")
+	Assert(nameField != nil, "should be a 'name' field")
+
+	ageField = docByRID.GetField("age")
+	Assert(ageField != nil, "should be a 'age' field")
+
+	caretakerField = docByRID.GetField("caretaker")
 	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
@@ -570,33 +680,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals("Michael", caretakerField.Value)
 
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
-
-	sql = "select from Cat where name = 'Linus'"
-	fetchPlan := ""
-	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
-	Ok(err)
-
-	Equals("12:0", docs[0].Rid)
-	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
-	Equals(3, len(docs[0].FieldNames()))
-	Equals("Cat", docs[0].Classname)
-
-	nameField = docs[0].GetField("name")
-	Assert(nameField != nil, "should be a 'name' field")
-
-	ageField = doc12_0.GetField("age")
-	Assert(ageField != nil, "should be a 'age' field")
-
-	caretakerField = docs[0].GetField("caretaker")
-	Assert(caretakerField != nil, "should be a 'caretaker' field")
-
-	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
-	Equals(byte(oschema.STRING), nameField.Typ)
-	Equals(byte(oschema.STRING), caretakerField.Typ)
-	Equals(byte(oschema.INTEGER), ageField.Typ)
-	Equals("Linus", nameField.Value)
-	Equals(int32(15), ageField.Value)
-	Equals("Michael", caretakerField.Value)
 
 	/* ---[ cluster data range ]--- */
 	begin, end, err = obinary.GetClusterDataRange(dbc, "cat")
@@ -793,13 +876,19 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Printf("retval: %v\n", retval)
 	fmt.Printf("docs: %v\n", docs)
 
-	// TODO: check that this one returns a server exception
-	// sql = "TRUNCATE CLASS Patient"
-	// fmt.Println(sql)
-	// retval, docs, err = obinary.SQLCommand(dbc, sql)
-	// Ok(err)
-	// fmt.Printf("retval: %v\n", retval)
-	// fmt.Printf("docs: %v\n", docs)
+	sql = "TRUNCATE CLASS Patient"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Assert(err != nil, "Error from TRUNCATE should not be null")
+	ogl.Println(oerror.GetFullTrace(err))
+
+	err = oerror.ExtractCause(err)
+	switch err.(type) {
+	case oerror.OServerException:
+		ogl.Debugln("type == oerror.OServerException")
+	default:
+		Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
+	}
 
 	obinary.CloseDatabase(dbc)
 }
@@ -813,6 +902,7 @@ func main() {
 		err  error
 		outf *os.File
 	)
+
 	outf, err = os.Create("./ftest.out")
 	Ok(err)
 	defer outf.Close()
@@ -824,9 +914,13 @@ func main() {
 	/* ---[ set ogl log level ]--- */
 	ogl.SetLevel(ogl.NORMAL)
 
-	adminUser := "root"
-	adminPassw := "jiffylube"
-	fullTest := false
+	testType := "dataOnly"
+
+	if len(os.Args) > 1 {
+		if os.Args[1] == "full" || os.Args[1] == "create" {
+			testType = os.Args[1]
+		}
+	}
 
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
 	Ok(err)
@@ -836,36 +930,36 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
-			cleanUp(dbc, fullTest)
+			cleanUp(dbc, testType == "full")
 			os.Exit(1)
 		}
 	}()
 
 	/* ---[ Use "native" API ]--- */
-	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, fullTest)
-	defer cleanUp(dbc, fullTest)
+	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, testType != "dataOnly")
+	defer cleanUp(dbc, testType == "full")
 
-	dbCommandsNativeAPI(dbc, outf, fullTest)
+	dbCommandsNativeAPI(dbc, outf, testType != "dataOnly")
 
-	/* ---[ Use Go database/sql API ]--- */
+	// /* ---[ Use Go database/sql API ]--- */
 	conxStr := "admin@admin:localhost/ogonoriTest"
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)
 
 	//
-	// Experimenting with JSON functionality
+	// experimenting with JSON functionality
 	//
-	fmt.Println("-------- JSON ---------")
-	fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
-	bsjson, err := fld.ToJSON()
-	Ok(err)
-	fmt.Printf("%v\n", string(bsjson))
+	// fmt.Println("-------- JSON ---------")
+	// fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
+	// bsjson, err := fld.ToJSON()
+	// Ok(err)
+	// fmt.Printf("%v\n", string(bsjson))
 
-	doc := oschema.NewDocument("Coolio")
-	doc.AddField("foo", &fld)
-	bsjson, err = doc.ToJSON()
-	Ok(err)
-	fmt.Printf("%v\n", string(bsjson))
+	// doc := oschema.NewDocument("Coolio")
+	// doc.AddField("foo", &fld)
+	// bsjson, err = doc.ToJSON()
+	// Ok(err)
+	// fmt.Printf("%v\n", string(bsjson))
 
 	fmt.Println("DONE")
 }

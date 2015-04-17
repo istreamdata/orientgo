@@ -4,6 +4,7 @@
 package oerror
 
 import (
+	"bytes"
 	"fmt"
 	"runtime"
 	"strings"
@@ -23,6 +24,37 @@ type Trace struct {
 func (e Trace) Error() string {
 	idx := strings.Index(e.File, "github.com") // strip off abs path
 	return fmt.Sprintf("%s:%d; cause: %v", e.File[idx:], e.Line, e.Cause)
+}
+
+func (e Trace) traceInfo() string {
+	idx := strings.Index(e.File, "github.com") // strip off abs path
+	return fmt.Sprintf("%s:%d", e.File[idx:], e.Line)
+}
+
+//
+// GetFullTrace extracts an error "stack" trace for the Trace error
+// wrappers down to the ultimate cause. If a non-Trace error is
+// passed in then just the "Cause" info is returned.
+//
+func GetFullTrace(err error) string {
+	var buf bytes.Buffer
+	buf.Write([]byte("Trace:"))
+OUTER:
+	for {
+		buf.Write([]byte("  "))
+		switch err.(type) {
+		case Trace:
+			buf.WriteString(err.(Trace).traceInfo())
+			err = err.(Trace).Cause
+
+		default:
+			buf.Write([]byte("Cause: "))
+			buf.WriteString(err.Error())
+			break OUTER
+		}
+		buf.WriteRune('\n')
+	}
+	return buf.String()
 }
 
 //
@@ -86,13 +118,28 @@ func (e InvalidDatabaseType) Error() string {
 // ------
 
 //
-// Exception (Java-based) from the OrientDB server-side.
+// OServerException encapsulates Java-based Exceptions from
+// the OrientDB server. OrientDB can return multiple exceptions
+// for a single query/command, so they are all encapsulated in
+// one ogonori OServerException object.
 // Class = Java exception class
 // Message = error message from the server
 //
 type OServerException struct {
-	Class   string
-	Message string
+	Classes  []string
+	Messages []string
+}
+
+func (e OServerException) Error() string {
+	var buf bytes.Buffer
+	buf.WriteString("OrientDB Server Exception: ")
+	for i, cls := range e.Classes {
+		buf.WriteString("\n  ")
+		buf.WriteString(cls)
+		buf.WriteString(": ")
+		buf.WriteString(e.Messages[i])
+	}
+	return buf.String()
 }
 
 // ------
@@ -116,3 +163,7 @@ type ErrInvalidConn struct {
 func (e ErrInvalidConn) Error() string {
 	return "Invalid Connection: %s" + e.Msg
 }
+
+// ------
+
+var ErrStaleGlobalProperties error

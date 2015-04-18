@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
@@ -120,8 +121,8 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 					Typ:  oschema.UNKNOWN,
 				}
 				err = oerror.ErrStaleGlobalProperties
-				// errmsg := fmt.Sprintf("TODO: Need refresh of GlobalProperties since property with id %d was not found", fid)
-				// panic(errmsg)
+				fmt.Println("PANIC: ErrStaleGlobalProperties")
+				panic(err)
 				// // TODO: need to do a refresh of the GlobalProperties from the database and try again
 				// // if that fails then there is a bug in OrientDB, so throw an error
 				// //  NOTE: see the method refreshGlobalProperties() in dbCommands
@@ -849,4 +850,24 @@ func encodeFieldIdForHeader(id int32) []byte {
 func decodeFieldIdInHeader(decoded int32) int32 {
 	propertyId := (decoded * -1) - 1
 	return propertyId
+}
+
+// TODO: decide if this is needed
+func refreshGlobalProperties(dbc *obinary.DBClient) error {
+	docs, err := GetRecordByRID(dbc, "#0:1", "")
+	if err != nil {
+		return err
+	}
+	fmt.Println("=======================================\n=======================================\n=======================================")
+	fmt.Printf("len(docs):: %v\n", len(docs))
+	doc0 := docs[0]
+	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+	fmt.Println("Field names:")
+	for k, _ := range doc0.Fields {
+		fmt.Printf("  %v\n", k)
+	}
+	schemaVersion := doc0.Fields["schemaVersion"]
+	fmt.Printf("%v\n", schemaVersion)
+	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
+	return nil
 }

@@ -926,7 +926,7 @@ func main() {
 	Ok(err)
 	defer dbc.Close()
 
-	/* ---[ set up clean up in case of panics ]--- */
+	/* ---[ run clean up in case of panics ]--- */
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG

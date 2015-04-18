@@ -1542,23 +1542,3 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 	}
 	return docs, nil
 }
-
-// TODO: decide if this is needed
-func refreshGlobalProperties(dbc *DBClient) error {
-	docs, err := GetRecordByRID(dbc, "#0:1", "")
-	if err != nil {
-		return err
-	}
-	fmt.Println("=======================================\n=======================================\n=======================================")
-	fmt.Printf("len(docs):: %v\n", len(docs))
-	doc0 := docs[0]
-	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-	fmt.Println("Field names:")
-	for k, _ := range doc0.Fields {
-		fmt.Printf("  %v\n", k)
-	}
-	schemaVersion := doc0.Fields["schemaVersion"]
-	fmt.Printf("%v\n", schemaVersion)
-	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
-	return nil
-}

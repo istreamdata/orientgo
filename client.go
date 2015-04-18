@@ -840,34 +840,34 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Printf("retval: %v\n", retval)
 	fmt.Printf("docs: %v\n", docs)
 
-	// sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
-	// fmt.Println(sql)
-	// retval, docs, err = obinary.SQLCommand(dbc, sql)
-	// Ok(err)
-	// fmt.Printf("retval: %v\n", retval)
-	// fmt.Printf("docs: %v\n", docs)
+	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
 
-	// sql = "TRUNCATE CLASS Patient"
-	// fmt.Println(sql)
-	// retval, docs, err = obinary.SQLCommand(dbc, sql)
-	// Ok(err)
-	// fmt.Printf("retval: %v\n", retval)
-	// fmt.Printf("docs: %v\n", docs)
+	sql = "TRUNCATE CLASS Patient"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
 
-	// sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true'), ('Martha', 'false')"
-	// fmt.Println(sql)
-	// retval, docs, err = obinary.SQLCommand(dbc, sql)
-	// Ok(err)
-	// fmt.Printf("retval: %v\n", retval)
-	// fmt.Printf("docs: %v\n", docs)
+	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true'), ('Martha', 'false')"
+	fmt.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	fmt.Printf("retval: %v\n", retval)
+	fmt.Printf("docs: %v\n", docs)
 
 	sql = "SELECT count(*) from Patient"
 	fmt.Println(sql)
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
-	// Equals(1, len(docs))
-	// fldCount := docs[0].GetField("count")
-	// Equals(int64(2), fldCount.Value)
+	Equals(1, len(docs))
+	fldCount := docs[0].GetField("count")
+	Equals(int64(2), fldCount.Value)
 
 	sql = "DROP CLASS Patient"
 	fmt.Println(sql)

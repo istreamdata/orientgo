@@ -10,8 +10,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 
+	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
@@ -65,6 +67,8 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 	}
 
 	if len(ofields) == 0 {
+		refreshGlobalPropertiesIfRequired(dbc, header)
+
 		// was a Document query which returns propertyIds, not property names
 		for _, fid := range header.propertyIds {
 			// property, ok := serde.GlobalProperties[int(fid)]
@@ -816,22 +820,53 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 	return propertyId
 }
 
-// // TODO: decide if this is needed
-// func refreshGlobalProperties(dbc *obinary.DBClient) error {
-// 	docs, err := GetRecordByRID(dbc, "#0:1", "")
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Println("=======================================\n=======================================\n=======================================")
-// 	fmt.Printf("len(docs):: %v\n", len(docs))
-// 	doc0 := docs[0]
-// 	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-// 	fmt.Println("Field names:")
-// 	for k, _ := range doc0.Fields {
-// 		fmt.Printf("  %v\n", k)
-// 	}
-// 	schemaVersion := doc0.Fields["schemaVersion"]
-// 	fmt.Printf("%v\n", schemaVersion)
-// 	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
-// 	return nil
-// }
+//
+// refreshGlobalPropertiesIfRequired iterates through all the fields
+// of the binserde header. If any of the fieldIds are NOT in the GlobalProperties
+// map of the current ODatabase object, then the GlobalProperties are
+// stale and need to be refresh (this likely means CREATE PROPERTY statements
+// were recently issued).
+//
+// If the GlobalProperties data is stale, then it must be refreshed, so
+// refreshGlobalProperties is called.
+//
+func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
+	for _, fid := range hdr.propertyIds {
+		_, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
+		if !ok {
+			return refreshGlobalProperties(dbc)
+		}
+	}
+	return nil
+}
+
+//
+// refreshGlobalProperties is called when it is discovered,
+// *while in the middle* of reading the response from the OrientDB
+// server, that the GlobalProperties are stale.  The solution
+// chosen to get around this is to open a new client connection
+// via OpenDatabase, which will automatically read in the
+// current state of the GlobalProperties.  The GlobalProperties
+// are then copied from the new DBClient.currDb to the old one,
+// and the new connection (DBClient) is closed.  This allows
+// the code that called this to resume reading from its data
+// stream where it left off.
+//
+func refreshGlobalProperties(dbc *DBClient) error {
+	ogl.Warn("+++++++ refreshGlobalProperties *****")
+	defer ogl.Warn("+++++++ END refreshGlobalProperties ***********")
+	dbctmp, err := NewDBClient(ClientOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
+		return err
+	}
+	defer dbctmp.Close()
+	err = OpenDatabase(dbctmp, dbc.GetCurrDB().Name, constants.DocumentDb, "admin", "admin")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
+		return err
+	}
+
+	dbc.currDb = dbctmp.currDb
+	return nil
+}

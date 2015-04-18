@@ -55,6 +55,10 @@ func Warn(warnMsg string) {
 		append([]interface{}{filepath.Base(file), line})...)
 }
 
+func Warnf(format string, a ...interface{}) {
+	Warn(fmt.Sprintf(format, a...))
+}
+
 func Fatal(msg string) {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Printf("\033[31mFATAL: %s:%d: "+msg+"\033[39m\n\n",

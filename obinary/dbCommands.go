@@ -155,13 +155,15 @@ func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, u
 		return oerror.NewTrace(err)
 	}
 
-	// load #0:0
+	//
+	/* ---[ load #0:0 - config record ]--- */
 	schemaRID, err := loadConfigRecord(dbc)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
-	// load schemaRecord (usually #0:1)
+	//
+	/* ---[ load #0:1 - schema record ]--- */
 	err = loadSchema(dbc, schemaRID)
 	if err != nil {
 		return oerror.NewTrace(err)

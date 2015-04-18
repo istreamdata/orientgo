@@ -1,9 +1,10 @@
+package obinary
+
 //
 // binserde stands for binary Serializer/Deserializer.
-// It holds the interface and implementations for SerDes for the
+// This file holds the interface implementations for SerDes for the
 // OrientDB Network Binary Protocol.
 //
-package binserde
 
 import (
 	"bytes"
@@ -11,7 +12,6 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/quux00/ogonori/obinary"
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
@@ -20,57 +20,20 @@ import (
 )
 
 //
-// ORecordSerializer is the interface for the binary Serializer/Deserializer.
-// More than one implementation will be needed if/when OrientDB creates additional
-// versions of the binary serialization format.
-// TODO: may want to use this interface for the csv serializer also - if so need to move this interface up a level
-//
-type ORecordSerializer interface {
-	//
-	// Deserialize reads bytes from the bytes.Buffer and puts the data into the
-	// ODocument object.  The ODocument must already be created; nil cannot be
-	// passed in for the `doc` field.  The serialization version (the first byte
-	// of the serialized record) should be stripped off (already read) from the
-	// bytes.Buffer being passed in
-	//
-	Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) error // TODO: should this take an io.Reader instead of *bytes.Buffer ???
-
-	//
-	// Deserialize reads bytes from the bytes.Buffer and updates the ODocument object
-	// passed in, but only for the fields specified in the `fields` slice.
-	// The ODocument must already be created; nil cannot be passed in for the `doc` field.
-	//
-	DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error
-
-	//
-	// Serialize reads the ODocument and serializes to bytes into the bytes.Buffer.
-	//
-	Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error
-
-	//
-	// SerializeClass gets the class from the ODocument and serializes it to bytes
-	// into the bytes.Buffer.
-	//
-	SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error
-}
-
-// NOTE: once there is a V1, the V0 code should be moved to its own file
-
-//
 // ORecordSerializerBinaryV0 implements the ORecordSerializerBinary
 // interface for version 0
 //
 type ORecordSerializerV0 struct {
-	// the global properties (in record #0:1) are unique to each database (I think)
-	// so each client database obj needs to have its own ORecordSerializerV0
-	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
+	// // the global properties (in record #0:1) are unique to each database (I think)
+	// // so each client database obj needs to have its own ORecordSerializerV0
+	// GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)  // TODO: remove me -> use the one in the dbc
 }
 
 //
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the bytes.Buffer being passed in
 //
-func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -104,7 +67,8 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 	if len(ofields) == 0 {
 		// was a Document query which returns propertyIds, not property names
 		for _, fid := range header.propertyIds {
-			property, ok := serde.GlobalProperties[int(fid)]
+			// property, ok := serde.GlobalProperties[int(fid)]
+			property, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
 			var ofield *oschema.OField
 			if ok {
 				ofield = &oschema.OField{
@@ -135,7 +99,7 @@ func (serde *ORecordSerializerV0) Deserialize(doc *oschema.ODocument, buf *bytes
 	for i, fld := range ofields {
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
-			val, err := serde.readDataValue(buf, fld.Typ)
+			val, err := serde.readDataValue(dbc, buf, fld.Typ)
 			if err != nil {
 				return err
 			}
@@ -519,7 +483,7 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte) (interface{}, error) {
+func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -558,17 +522,17 @@ func (serde *ORecordSerializerV0) readDataValue(buf *bytes.Buffer, datatype byte
 		ogl.Debugf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDRECORD:
 		doc := oschema.NewDocument("")
-		err = serde.Deserialize(doc, buf)
+		err = serde.Deserialize(dbc, doc, buf)
 		val = interface{}(doc)
 		// ogl.Debugf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDLIST:
-		val, err = serde.readEmbeddedCollection(buf)
+		val, err = serde.readEmbeddedCollection(dbc, buf)
 		// ogl.Debugf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDSET:
-		val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
+		val, err = serde.readEmbeddedCollection(dbc, buf) // TODO: may need to create a set type as well
 		// ogl.Debugf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDMAP:
-		val, err = serde.readEmbeddedMap(buf)
+		val, err = serde.readEmbeddedMap(dbc, buf)
 		// ogl.Debugf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
 		// TODO: impl me
@@ -745,7 +709,7 @@ func getDataType(val interface{}) byte {
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: change to: func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*oschema.OEmbeddedMap, error) {  ??
-func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string]interface{}, error) {
+func (serde *ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buffer) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -786,7 +750,7 @@ func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string
 
 	// read map values
 	for i := 0; i < nrecs; i++ {
-		val, err := serde.readDataValue(buf, valtypes[i])
+		val, err := serde.readDataValue(dbc, buf, valtypes[i])
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -803,7 +767,7 @@ func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (map[string
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde *ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]interface{}, error) {
+func (serde *ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *bytes.Buffer) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -829,7 +793,7 @@ func (serde *ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Buffer) ([]i
 			continue
 		}
 
-		val, err := serde.readDataValue(buf, itemtype)
+		val, err := serde.readDataValue(dbc, buf, itemtype)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -852,22 +816,22 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 	return propertyId
 }
 
-// TODO: decide if this is needed
-func refreshGlobalProperties(dbc *obinary.DBClient) error {
-	docs, err := GetRecordByRID(dbc, "#0:1", "")
-	if err != nil {
-		return err
-	}
-	fmt.Println("=======================================\n=======================================\n=======================================")
-	fmt.Printf("len(docs):: %v\n", len(docs))
-	doc0 := docs[0]
-	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
-	fmt.Println("Field names:")
-	for k, _ := range doc0.Fields {
-		fmt.Printf("  %v\n", k)
-	}
-	schemaVersion := doc0.Fields["schemaVersion"]
-	fmt.Printf("%v\n", schemaVersion)
-	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
-	return nil
-}
+// // TODO: decide if this is needed
+// func refreshGlobalProperties(dbc *obinary.DBClient) error {
+// 	docs, err := GetRecordByRID(dbc, "#0:1", "")
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Println("=======================================\n=======================================\n=======================================")
+// 	fmt.Printf("len(docs):: %v\n", len(docs))
+// 	doc0 := docs[0]
+// 	fmt.Printf("len(doc0.Fields):: %v\n", len(doc0.Fields))
+// 	fmt.Println("Field names:")
+// 	for k, _ := range doc0.Fields {
+// 		fmt.Printf("  %v\n", k)
+// 	}
+// 	schemaVersion := doc0.Fields["schemaVersion"]
+// 	fmt.Printf("%v\n", schemaVersion)
+// 	fmt.Printf("%v\n", doc0.Fields["globalProperties"])
+// 	return nil
+// }

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-
-	"github.com/quux00/ogonori/obinary/binserde"
 )
 
 //
@@ -26,8 +24,8 @@ type DBClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	serializationVersion  byte
-	currDb                *ODatabase                   // only one db session open at a time
-	RecordSerDes          []binserde.ORecordSerializer // serdes w/o globalProps - for server-level cmds
+	currDb                *ODatabase          // only one db session open at a time
+	RecordSerDes          []ORecordSerializer // serdes w/o globalProps - for server-level cmds
 	//
 	// There are two separate arrays of ORecordSerializers - the one here does NOT
 	// have its GlobalProperties field set, which means it cannot be used for some
@@ -85,7 +83,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 
 	var (
 		svrProtocolNum int16
-		serdeV0        binserde.ORecordSerializer
+		serdeV0        ORecordSerializer
 		serializerType string
 	)
 	binary.Read(buf, binary.BigEndian, &svrProtocolNum)
@@ -96,7 +94,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	}
 
 	serializerType = BinarySerialization
-	serdeV0 = &binserde.ORecordSerializerV0{}
+	serdeV0 = &ORecordSerializerV0{}
 	if svrProtocolNum < MinBinarySerializerVersion {
 		serializerType = CsvSerialization
 		// TODO: change serializer to ORecordSerializerCsvVxxx once that is built
@@ -111,7 +109,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 		binaryProtocolVersion: svrProtocolNum,
 		serializationVersion:  byte(0), // default is 0 // TODO: need to detect if server is using a higher version
 		sessionId:             NoSessionId,
-		RecordSerDes:          []binserde.ORecordSerializer{serdeV0},
+		RecordSerDes:          []ORecordSerializer{serdeV0},
 	}
 
 	return dbc, nil

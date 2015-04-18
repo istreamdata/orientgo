@@ -2,7 +2,6 @@ package obinary // TODO: these types need to move into package odb ??
 
 import (
 	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/obinary/binserde"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -15,26 +14,21 @@ type ODatabase struct {
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
 	SchemaVersion    int32
-	RecordSerDes     []binserde.ORecordSerializer    // serdes w/ global properties - for db-level cmds
+	RecordSerDes     []ORecordSerializer             // serdes w/ global properties - for db-level cmds
 	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
 	Classes          map[string]*oschema.OClass      // key: class name (TODO: check how Java client does it)
-	//
-	// The map of GlobalProperties is shared between the ODatabase struct and the ORecordSerializer
-	// objects - it is the same map.  So changes to one will change the other.
-	//
 }
 
 func NewDatabase(name string, dbtype constants.DatabaseType) *ODatabase {
 	gp := make(map[int]oschema.OGlobalProperty)
-
-	serdeV0 := &binserde.ORecordSerializerV0{gp}
+	serdeV0 := &ORecordSerializerV0{}
 
 	return &ODatabase{
 		Name:             name,
 		Typ:              dbtype,
 		SchemaVersion:    -1,
 		GlobalProperties: gp,
-		RecordSerDes:     []binserde.ORecordSerializer{serdeV0},
+		RecordSerDes:     []ORecordSerializer{serdeV0},
 		Classes:          make(map[string]*oschema.OClass),
 	}
 }

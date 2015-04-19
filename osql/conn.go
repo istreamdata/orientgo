@@ -106,8 +106,9 @@ func (c *ogonoriConn) Close() error {
 	ogl.Println("** ogoConn.Close")
 	// Close() must be idempotent
 	if c.dbc != nil {
-		return obinary.CloseDatabase(c.dbc)
+		err := obinary.CloseDatabase(c.dbc)
 		c.dbc = nil
+		return err
 	}
 	return nil
 }

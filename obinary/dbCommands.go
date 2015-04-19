@@ -831,10 +831,10 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			}
 
 		} else {
-			// TODO: I've not yet tested this route of code -> how do so?
-			ogl.Warn(fmt.Sprintf(">> Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
-				resultType, string(rune(resultType))))
 			_, file, line, _ := runtime.Caller(0)
+			// TODO: I've not yet tested this route of code -> how do so?
+			ogl.Warnf(">> Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
+				resultType, string(rune(resultType)), line, file)
 			// TODO: returning here is NOT the correct long-term behavior
 			return "", nil, fmt.Errorf("Got back resultType %v (%v): Not yet supported: line:%d; file:%s\n",
 				resultType, string(rune(resultType)), line, file)
@@ -928,7 +928,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	//    OLogManager.instance().warn(this, "Received unexpected result from query: %d", type);
 	//  }
 
-	return nil, nil
+	// return nil, nil
 }
 
 //

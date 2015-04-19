@@ -90,7 +90,6 @@ func Pause(msg string) {
 	_, err := fmt.Scan(&s)
 	if err != nil {
 		panic(err)
-		ogl.Fatale(err)
 	}
 }
 

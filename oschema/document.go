@@ -71,7 +71,7 @@ func (doc *ODocument) Value() (driver.Value, error) {
 // TODO: haven't detected when this is called yet
 //
 func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
-	fmt.Printf("** ODocument.ConvertValue: %T: %v\n", v)
+	fmt.Printf("** ODocument.ConvertValue: %T: %v\n", v, v)
 
 	return []byte(`{"a": 1}`), nil // FIXME: bogus
 }

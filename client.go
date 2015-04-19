@@ -59,6 +59,7 @@ func Equals(exp, act interface{}) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n",
 			filepath.Base(file), line, exp, act)
+		ogl.SetLevel(ogl.WARN)
 		panic("Equals fail")
 	}
 }
@@ -68,6 +69,7 @@ func Ok(err error) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
 			append([]interface{}{filepath.Base(file), line})...)
+		ogl.SetLevel(ogl.WARN)
 		panic("Ok fail")
 	}
 }
@@ -77,6 +79,7 @@ func Assert(b bool, msg string) {
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf("\033[31mFAIL: %s:%d: "+msg+"\033[39m\n\n",
 			append([]interface{}{filepath.Base(file), line})...)
+		ogl.SetLevel(ogl.WARN)
 		panic("Assert fail")
 	}
 }
@@ -86,6 +89,7 @@ func Pause(msg string) {
 	var s string
 	_, err := fmt.Scan(&s)
 	if err != nil {
+		panic(err)
 		ogl.Fatale(err)
 	}
 }
@@ -94,6 +98,7 @@ func Fatal(err error) {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
 		append([]interface{}{filepath.Base(file), line})...)
+	ogl.SetLevel(ogl.WARN)
 	panic(err)
 }
 
@@ -211,16 +216,27 @@ func deleteNewRecords(dbc *obinary.DBClient) {
 		ogl.Warn(err.Error())
 		return
 	}
-	err = obinary.CloseDatabase(dbc)
-	if err != nil {
-		ogl.Warn(err.Error())
-		return
+}
+
+func deleteNewClusters(dbc *obinary.DBClient) {
+	// doing DROP CLUSTER via SQL will not return an exception - it just
+	// returns "false" as the retval (first return value), so safe to this here
+	// even if these cluster don't exist
+	for _, clustName := range []string{"CatUSA", "CatAmerica", "bigapple"} {
+		_, _, err := obinary.SQLCommand(dbc, "DROP CLUSTER "+clustName)
+		Ok(err)
 	}
 }
 
 func cleanUp(dbc *obinary.DBClient, fullTest bool) {
 	if !fullTest {
 		deleteNewRecords(dbc)
+		deleteNewClusters(dbc)
+		err := obinary.CloseDatabase(dbc)
+		if err != nil {
+			ogl.Warn(err.Error())
+			return
+		}
 		return
 	}
 
@@ -372,7 +388,7 @@ func databaseSqlAPI(conxStr string) {
 		ages = append(ages, rAge)
 	}
 	if err = rows.Err(); err != nil {
-		ogl.Fatale(err)
+		Fatal(err)
 	}
 
 	Equals(2, len(names))
@@ -475,7 +491,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 		ages = append(ages, rAge)
 	}
 	if err = rows.Err(); err != nil {
-		ogl.Fatale(err)
+		Fatal(err)
 	}
 
 	Equals(2, len(names))
@@ -504,7 +520,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 		ages = append(ages, rAge)
 	}
 	if err = rows.Err(); err != nil {
-		ogl.Fatale(err)
+		Fatal(err)
 	}
 
 	Equals(1, len(names))
@@ -520,7 +536,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 	ages = make([]int64, 0, 2)
 
 	if err = rows.Err(); err != nil {
-		ogl.Fatale(err)
+		Fatal(err)
 	}
 
 	Equals(0, len(names))
@@ -577,6 +593,71 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 
 }
 
+func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
+	ogl.Debugln("\n-------- CLUSTER commands --------\n")
+
+	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	Ok(err)
+	defer obinary.CloseDatabase(dbc)
+
+	cnt1, err := obinary.GetClusterCountIncludingDeleted(dbc, "default", "index", "ouser")
+	Ok(err)
+	Assert(cnt1 > 0, "should be clusters")
+
+	cnt2, err := obinary.GetClusterCount(dbc, "default", "index", "ouser")
+	Ok(err)
+	Assert(cnt1 >= cnt2, "counts should match or have more deleted")
+	ogl.Debugf("Cluster count: %d\n", cnt2)
+
+	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	Ok(err)
+	ogl.Debugln(">> cluster data range: %d, %d", begin, end)
+	Assert(end >= begin, "begin and end of ClusterDataRange")
+
+	ogl.Debugln("\n-------- CLUSTER SQL commands --------\n")
+
+	retval, docs, err := obinary.SQLCommand(dbc, "CREATE CLUSTER CatUSA")
+	Ok(err)
+	ival, err := strconv.Atoi(retval)
+	Ok(err)
+	Assert(ival > 5, fmt.Sprintf("Unexpected value of ival: %d", ival))
+
+	retval, docs, err = obinary.SQLCommand(dbc, "ALTER CLUSTER CatUSA Name CatAmerica")
+	Ok(err)
+	ogl.Printf("ALTER CLUSTER CatUSA Name CatAmerica: retval: %v; docs: %v\n", retval, docs)
+
+	retval, docs, err = obinary.SQLCommand(dbc, "DROP CLUSTER CatUSA")
+	Ok(err)
+	Equals("false", retval)
+
+	retval, docs, err = obinary.SQLCommand(dbc, "DROP CLUSTER CatAmerica")
+	Ok(err)
+	Equals("true", retval)
+	ogl.Printf("DROP CLUSTER CatAmerica: retval: %v; docs: %v\n", retval, docs)
+
+	ogl.Debugln("\n-------- CLUSTER Direct commands (not SQL) --------\n")
+	clusterId, err := obinary.AddCluster(dbc, "bigapple")
+	if err != nil {
+		Fatal(err)
+	}
+	Assert(clusterId > 0, "clusterId should be bigger than zero")
+
+	cnt, err := obinary.GetClusterCount(dbc, "bigapple")
+	if err != nil {
+		Fatal(err)
+	}
+	Equals(0, int(cnt)) // should be no records in bigapple cluster
+
+	err = obinary.DropCluster(dbc, "bigapple")
+	if err != nil {
+		Fatal(err)
+	}
+
+	// this time it should return an error
+	err = obinary.DropCluster(dbc, "bigapple")
+	Assert(err != nil, "DropCluster should return error when cluster doesn't exist")
+}
+
 func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	outf.WriteString("\n-------- database-level commands --------\n")
 
@@ -586,40 +667,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
 	Ok(err)
-	// fmt.Printf("%v\n", dbc) // DEBUG
-
-	// clusterId, err := obinary.AddCluster(dbc, "bigapple")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("bigapple cluster added => clusterId in `cars`: %v\n", clusterId)
-
-	// cnt, err := obinary.GetClusterCount(dbc, "bigapple")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Printf("bigapple cluster count = %d\n", cnt)
-
-	// for _, name := range []string{"bigApple"} {
-	// 	err = obinary.DropCluster(dbc, name)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	fmt.Printf("cluster %v dropped successfully\n", name)
-	// }
-
-	cnt1, err := obinary.GetClusterCountIncludingDeleted(dbc, "default", "index", "ouser")
-	Ok(err)
-
-	cnt2, err := obinary.GetClusterCount(dbc, "default", "index", "ouser")
-	Ok(err)
-	Assert(cnt1 > 0, "should be clusters")
-	Assert(cnt1 >= cnt2, "counts should match or have more deleted")
-
-	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
-	Ok(err)
-	fmt.Println(">> cluster data range: %d, %d", begin, end)
-	Assert(end >= begin, "begin and end of ClusterDataRange")
+	defer obinary.CloseDatabase(dbc)
 
 	/* ---[ query from the ogonoriTest database ]--- */
 
@@ -682,7 +730,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	/* ---[ cluster data range ]--- */
-	begin, end, err = obinary.GetClusterDataRange(dbc, "cat")
+	begin, end, err := obinary.GetClusterDataRange(dbc, "cat")
 	Ok(err)
 	outf.WriteString(fmt.Sprintf("ClusterDataRange for cat: %d-%d\n", begin, end))
 
@@ -759,7 +807,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	// fmt.Println("Deleting (Async) record #11:4")
 	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
 	// if err != nil {
-	// 	log.Fatal(err)
+	// 	Fatal(err)
 	// }
 
 	fmt.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
@@ -889,8 +937,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	default:
 		Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
 	}
-
-	obinary.CloseDatabase(dbc)
 }
 
 //
@@ -929,7 +975,7 @@ func main() {
 	/* ---[ run clean up in case of panics ]--- */
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
+			ogl.Warn(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
 			cleanUp(dbc, testType == "full")
 			os.Exit(1)
 		}
@@ -939,9 +985,15 @@ func main() {
 	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, testType != "dataOnly")
 	defer cleanUp(dbc, testType == "full")
 
+	ogl.SetLevel(ogl.WARN)
 	dbCommandsNativeAPI(dbc, outf, testType != "dataOnly")
+	// if testType == "full" {
+	ogl.SetLevel(ogl.DEBUG)
+	dbClusterCommandsNativeAPI(dbc)
+	ogl.SetLevel(ogl.WARN)
+	// }
 
-	// /* ---[ Use Go database/sql API ]--- */
+	/* ---[ Use Go database/sql API ]--- */
 	conxStr := "admin@admin:localhost/ogonoriTest"
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)

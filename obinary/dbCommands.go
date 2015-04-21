@@ -343,16 +343,16 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
-	ogl.Debugln("=======================================")
-	ogl.Debugln("=======================================")
-	ogl.Debugf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
-	ogl.Debugf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
-	ogl.Debugf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
-	ogl.Debugf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
-	ogl.Debugf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
-	ogl.Debugf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
-	ogl.Debugln("=======================================")
-	ogl.Debugln("=======================================")
+	ogl.Println("=======================================")
+	ogl.Println("=======================================")
+	ogl.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
+	ogl.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
+	ogl.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
+	ogl.Printf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
+	ogl.Printf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
+	ogl.Printf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	ogl.Println("=======================================")
+	ogl.Println("=======================================")
 
 	/* ---[ classes ]--- */
 	var oclass *oschema.OClass
@@ -805,6 +805,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			}
 
 		} else if resultType == 'l' { // collection of records
+			ogl.Println("... resultType l")
 			collectionDocs, err := readResultSet(dbc)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
@@ -929,6 +930,14 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	//  }
 
 	// return nil, nil
+}
+
+//
+// ReloadSchema should be called after a schema is altered, such as properties
+// added, deleted or renamed.
+//
+func ReloadSchema(dbc *DBClient) error {
+	return loadSchema(dbc, "#0:1")
 }
 
 //
@@ -1467,7 +1476,8 @@ func readRID(dbc *DBClient) (string, error) {
 }
 
 //
-// should only be called for collections -> TODO: what should be called for single records?
+// readResultSet should be called for collections (resultType = 'l')
+// from a SQLQuery call.
 //
 func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 	// for Collection

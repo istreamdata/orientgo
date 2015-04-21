@@ -1,17 +1,18 @@
-* DONE Get all existing unit tests working
-* DONE Why do we need globalProperties off currDb and currDb.RecordSerDe ?
-* DONE Add unit tests for ReadFloat and ReadDouble (obinary/rw)
-* DONE better test coverage for code written so far  => run go coverage
-* TODO Re-evaluate db/network reader API
-* TODO Do UPDATE sql command and see if it works with code written for INSERT sql cmd
+* TODO Write issue for stale GlobalProperties problem and possible solutions (including parsing of the queries and adding specific "create property" commands in the native API -> how does Java client do it?
 * TODO Try a fancy query like: =>select * from animaltype where races contains (name.toLowerCase().subString(0,1) = 'e')<=
-* IN-PROGRESS Add in use of Trace Error all over the place
-* TODO Determine what a ResultSet is going to be -> obinary/dbCommands#readResultSet needs to return something
-* DONE-FOR-TODAY Run the go static analysis tool that checks for places not checking error return values
-* TODO ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
+* IN-PROGRESS Queries to try:
+** CREATE PROPERTY Cat.tags EMBEDDLIST STRING
+** DONE ALTER PROPERTY Cat.gender REGEXP [M|F]
+** DONE DROP PROPERTY Cat.gender  => feeds into the stale GlobalProperties problem
+* TODO Write ReloadSchema in obinary/dbCommands
+* TODO Learn what different fetchPlan options are in OrientDB and try those in ogonori
+** I suspect any that pull links will fail, since I don't yet know how to support links
+* TODO Run the go static analysis tool that checks for places not checking error return values
 * TODO Write SerDe Serializer
-* TODO Implement SQL commands (not just queries)
-* IN-PROGRESS Get functional tests in place -> need to script a database set up for this
+* TODO [#C] ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
+* TODO [#C] Determine if result of SQLQuery needs a ResultSet cursor for large queries?  Review what Java client does.
+* DEFERRED Re-evaluate db/network reader API -> think about building better byteBuffer
+** See https://github.com/djherbis/buffer for ideas
 
 # ---[ Command Implementations ]--- #
 * TODO REQUEST_SHUTDOWN                       = 1

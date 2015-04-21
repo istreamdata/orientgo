@@ -52,9 +52,15 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 		return oerror.NewTrace(err)
 	}
 
+	ogl.Printf("++ Deser 11: header: %v\n", header)
+	if dbc.currDb != nil {
+		ogl.Printf("++ Deser 12: dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	}
+
 	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
 
 	if len(header.propertyNames) > 0 {
+		ogl.Println("++ Deser 13")
 		// propertyNames names are set when a query returns properties, not a full record/document
 		// Hote: classname is an empty string in this case, so this could also be used
 		for i, pname := range header.propertyNames {
@@ -67,12 +73,14 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 	}
 
 	if len(ofields) == 0 {
+		ogl.Println("++ Deser 14")
 		refreshGlobalPropertiesIfRequired(dbc, header)
 
 		// was a Document query which returns propertyIds, not property names
 		for _, fid := range header.propertyIds {
 			// property, ok := serde.GlobalProperties[int(fid)]
 			property, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
+			ogl.Printf("++ Deser 15: fieldId: %v ;; property: %v\n", fid, property)
 			var ofield *oschema.OField
 			if ok {
 				ofield = &oschema.OField{
@@ -101,6 +109,7 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 
 	// once the fields are created, we can now fill in the values
 	for i, fld := range ofields {
+		ogl.Printf("++ Deser 16: field: %v\n", fld)
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
 			val, err := serde.readDataValue(dbc, buf, fld.Typ)

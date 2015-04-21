@@ -101,13 +101,12 @@ func Fatal(err error) {
 	panic(err)
 }
 
-func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, outf *os.File, fullTest bool) {
-	outf.WriteString("-------- Create OgonoriTest DB --------\n")
+func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fullTest bool) {
+	ogl.Println("-------- Create OgonoriTest DB --------\n")
 
 	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
 	Ok(err)
 
-	fmt.Fprintf(outf, "ConnectToServer: sessionId: %v\n", dbc.GetSessionId())
 	Assert(dbc.GetSessionId() >= int32(0), "sessionid")
 	Assert(dbc.GetCurrDB() == nil, "currDB should be nil")
 
@@ -149,7 +148,6 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, ou
 	// ogonoriTestPath, ok := mapDBs[ogonoriDBName]
 	// Assert(ok, ogonoriDBName+" not in DB list")
 	// Assert(strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
-	// fmt.Fprintf(outf, "DB list: ogonoriTest: %v\n", ogonoriTestPath)
 }
 
 func seedInitialData(dbc *obinary.DBClient) {
@@ -460,7 +458,7 @@ func databaseSqlAPI(conxStr string) {
 }
 
 func databaseSqlPreparedStmtAPI(conxStr string) {
-	fmt.Println("\n-------- Using database/sql PreparedStatement API --------\n")
+	ogl.Println("\n-------- Using database/sql PreparedStatement API --------\n")
 
 	db, err := sql.Open("ogonori", conxStr)
 	Ok(err)
@@ -657,13 +655,13 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	Assert(err != nil, "DropCluster should return error when cluster doesn't exist")
 }
 
-func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
-	outf.WriteString("\n-------- database-level commands --------\n")
+func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
+	ogl.Println("\n-------- database-level commands --------\n")
 
 	var sql string
 	var retval string
 
-	fmt.Println("OpenDatabase")
+	ogl.Println("OpenDatabase")
 	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
@@ -726,26 +724,26 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals(int32(15), ageField.Value)
 	Equals("Michael", caretakerField.Value)
 
-	fmt.Printf("docs returned by RID: %v\n", *(docs[0]))
+	ogl.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	/* ---[ cluster data range ]--- */
 	begin, end, err := obinary.GetClusterDataRange(dbc, "cat")
 	Ok(err)
-	outf.WriteString(fmt.Sprintf("ClusterDataRange for cat: %d-%d\n", begin, end))
+	ogl.Printf("begin = %v; end = %v\n", begin, end)
 
-	fmt.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
+	ogl.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
 
 	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
 	nrows, docs, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("nrows: %v\n", nrows)
-	fmt.Printf("docs: %v\n", docs)
-	fmt.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
+	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Printf("docs: %v\n", docs)
+	ogl.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
 
 	/* ---[ query after inserting record(s) ]--- */
 
 	sql = "select * from Cat order by name asc"
-	fmt.Println("Issuing command query: " + sql)
+	ogl.Println("Issuing command query: " + sql)
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
 	Ok(err)
 	Equals(3, len(docs))
@@ -799,24 +797,24 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals("name", docs[0].GetField("name").Name)
 
 	/* ---[ delete newly added record(s) ]--- */
-	fmt.Println("Deleting (sync) record #" + zed.Rid)
+	ogl.Println("Deleting (sync) record #" + zed.Rid)
 	err = obinary.DeleteRecordByRID(dbc, zed.Rid, zed.Version)
 	Ok(err)
 
-	// fmt.Println("Deleting (Async) record #11:4")
+	// ogl.Println("Deleting (Async) record #11:4")
 	// err = obinary.DeleteRecordByRIDAsync(dbc, "11:4", 1)
 	// if err != nil {
 	// 	Fatal(err)
 	// }
 
-	fmt.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
+	ogl.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
 
 	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
-	fmt.Println(sql, "=> June", "8", "Cleaver")
+	ogl.Println(sql, "=> June", "8", "Cleaver")
 	nrows, docs, err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
 	Ok(err)
-	fmt.Printf("nrows: %v\n", nrows)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Printf("docs: %v\n", docs)
 
 	sql = "select name, age from Cat where caretaker = ?"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "Cleaver")
@@ -840,14 +838,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Equals("Anna", docs[1].GetField("caretaker").Value)
 
 	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
-	fmt.Println(sql)
+	ogl.Println(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
-	fmt.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
+	ogl.Printf("retval: %v\n", retval)
+	ogl.Printf("docs: %v\n", docs)
+	ogl.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
-	fmt.Println("+++++++++ START: Basic DDL ++++++++++++===")
+	ogl.Println("+++++++++ START: Basic DDL ++++++++++++===")
 
 	sql = "DROP CLASS Patient"
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -858,7 +856,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	}
 
 	sql = "CREATE CLASS Patient"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(0, len(docs))
@@ -867,64 +865,145 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 	Assert(ncls > 10, "classnum should be greater than 10 but was: "+retval)
 
 	sql = "Create property Patient.name string"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", nrows)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", nrows)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "alter property Patient.name min 3"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "Create property Patient.married boolean"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "TRUNCATE CLASS Patient"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true'), ('Martha', 'false')"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
 
 	sql = "SELECT count(*) from Patient"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
 	Equals(1, len(docs))
 	fldCount := docs[0].GetField("count")
 	Equals(int64(2), fldCount.Value)
 
-	sql = "DROP CLASS Patient"
-	fmt.Println(sql)
+	sql = "CREATE PROPERTY Patient.gender STRING"
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
+
+	sql = "ALTER PROPERTY Patient.gender REGEXP [M|F]"
+	ogl.Debugln(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
+
+	sql = "INSERT INTO Patient (name, married, gender) VALUES ('Larry', 'true', 'M'), ('Shirley', 'false', 'F')"
+	ogl.Debugln(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	ogl.Debugf("retval: %v\n", retval)
+	ogl.Debugf("docs: %v\n", docs)
+
+	sql = "INSERT INTO Patient (name, married, gender) VALUES ('Lt. Dan', 'true', 'T'), ('Sally', 'false', 'F')"
+	ogl.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Assert(err != nil, "should be error - T is not an allowed gender")
+	err = oerror.ExtractCause(err)
+	switch err.(type) {
+	case oerror.OServerException:
+		ogl.Debugln("type == oerror.OServerException")
+	default:
+		Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
+	}
+
+	sql = "select from Patient order by RID"
+	ogl.Println(sql)
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	ogl.Println(docs)
+	ogl.Println("- - - - - - - 111 - - - - - - - ")
+
+	sql = "ALTER PROPERTY Patient.gender NAME sex"
+	ogl.Debugln(sql)
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+
+	err = obinary.ReloadSchema(dbc)
+	Ok(err)
+
+	sql = "select from Patient order by RID"
+	ogl.Println(sql)
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	ogl.Println(docs)
+	ogl.Println("- - - - - - - 222 - - - - - - - ")
+	// Equals(4, len(docs))
+	// Equals(2, len(docs[0].Fields)) // has name and married
+	// Equals("Hank", docs[0].Fields["name"].Value)
+
+	// Equals(3, len(docs[3].Fields)) // has name and married and gender
+	// Equals("Shirley", docs[3].Fields["name"].Value)
+	// Equals("F", docs[3].Fields["gender"].Value)
+
+	sql = "DROP PROPERTY Patient.sex"
+	ogl.Debugln(sql)
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+
+	sql = "select from Patient order by RID"
+	ogl.Debugln(sql)
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(4, len(docs))
+	Equals(2, len(docs[0].Fields)) // has name and married
+	Equals("Hank", docs[0].Fields["name"].Value)
+
+	Equals(3, len(docs[3].Fields)) // has name and married and gender
+	Equals("Shirley", docs[3].Fields["name"].Value)
+	Equals("F", docs[3].Fields["gender"].Value)
+
+	sql = "DROP CLASS Patient"
+	ogl.Debugln(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("true", retval)
+	Equals(0, len(docs))
 
 	sql = "TRUNCATE CLASS Patient"
-	fmt.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Assert(err != nil, "Error from TRUNCATE should not be null")
 	ogl.Println(oerror.GetFullTrace(err))
@@ -943,14 +1022,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, outf *os.File, fullTest bool) {
 //
 func main() {
 	var (
-		dbc  *obinary.DBClient
-		err  error
-		outf *os.File
+		dbc *obinary.DBClient
+		err error
 	)
-
-	outf, err = os.Create("./ftest.out")
-	Ok(err)
-	defer outf.Close()
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
@@ -981,36 +1055,35 @@ func main() {
 	}()
 
 	/* ---[ Use "native" API ]--- */
-	createOgonoriTestDB(dbc, adminUser, adminPassw, outf, testType != "dataOnly")
+	createOgonoriTestDB(dbc, adminUser, adminPassw, testType != "dataOnly")
 	defer cleanUp(dbc, testType == "full")
 
-	ogl.SetLevel(ogl.WARN)
-	dbCommandsNativeAPI(dbc, outf, testType != "dataOnly")
+	ogl.SetLevel(ogl.NORMAL)
+	dbCommandsNativeAPI(dbc, testType != "dataOnly")
 	// if testType == "full" {
-	ogl.SetLevel(ogl.DEBUG)
-	dbClusterCommandsNativeAPI(dbc)
-	ogl.SetLevel(ogl.WARN)
+	// ogl.SetLevel(ogl.WARN)
+	// dbClusterCommandsNativeAPI(dbc)
 	// }
 
 	/* ---[ Use Go database/sql API ]--- */
-	conxStr := "admin@admin:localhost/ogonoriTest"
-	databaseSqlAPI(conxStr)
-	databaseSqlPreparedStmtAPI(conxStr)
+	// conxStr := "admin@admin:localhost/ogonoriTest"
+	// databaseSqlAPI(conxStr)
+	// databaseSqlPreparedStmtAPI(conxStr)
 
 	//
 	// experimenting with JSON functionality
 	//
-	// fmt.Println("-------- JSON ---------")
+	// ogl.Println("-------- JSON ---------")
 	// fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
 	// bsjson, err := fld.ToJSON()
 	// Ok(err)
-	// fmt.Printf("%v\n", string(bsjson))
+	// ogl.Printf("%v\n", string(bsjson))
 
 	// doc := oschema.NewDocument("Coolio")
 	// doc.AddField("foo", &fld)
 	// bsjson, err = doc.ToJSON()
 	// Ok(err)
-	// fmt.Printf("%v\n", string(bsjson))
+	// ogl.Printf("%v\n", string(bsjson))
 
-	fmt.Println("DONE")
+	ogl.Println("DONE")
 }

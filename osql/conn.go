@@ -26,7 +26,7 @@ type ogonoriConn struct {
 }
 
 func (c *ogonoriConn) Prepare(query string) (driver.Stmt, error) {
-	fmt.Println("** ogoConn.Prepare")
+	ogl.Println("** ogoConn.Prepare")
 
 	return &ogonoriStmt{conn: c, query: query}, nil
 }
@@ -49,16 +49,16 @@ func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Resu
 	strargs := valuesToStrings(args)
 
 	retval, docs, err := obinary.SQLCommand(dbc, cmd, strargs...)
-	fmt.Printf("exec1: %T: %v\n", retval, retval)
+	ogl.Debugf("exec1: %T: %v\n", retval, retval)
 	if err != nil {
 		return ogonoriResult{-1, -1}, err
 	}
 
 	if docs == nil {
-		fmt.Println("exec2")
+		ogl.Debugln("exec2")
 		nrows, err := strconv.ParseInt(retval, 10, 64)
 		if err != nil {
-			fmt.Printf("exec3: %T: %v\n", err, err)
+			ogl.Debugf("exec3: %T: %v\n", err, err)
 			nrows = -1
 		}
 		return ogonoriResult{nrows, -1}, err
@@ -116,7 +116,7 @@ func (c *ogonoriConn) Close() error {
 func valuesToStrings(args []driver.Value) []string {
 	strargs := make([]string, len(args))
 	for i, valarg := range args {
-		ogl.Printf("valarg: %T: %v; isValue=%v\n", valarg, valarg, driver.IsValue(valarg)) // DEBUG
+		ogl.Debugf("valarg: %T: %v; isValue=%v\n", valarg, valarg, driver.IsValue(valarg)) // DEBUG
 		switch valarg.(type) {
 		case string:
 			strargs[i] = valarg.(string)

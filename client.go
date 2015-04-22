@@ -112,6 +112,7 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 
 	mapDBs, err := obinary.RequestDBList(dbc)
 	Ok(err)
+	ogl.Debugf("mapDBs: %v\n", mapDBs)
 	gratefulTestPath, ok := mapDBs["GratefulDeadConcerts"]
 	Assert(ok, "GratefulDeadConcerts not in DB list")
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
@@ -677,7 +678,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	Assert(linusDocRID != "", "linusDocRID should not be nil")
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
-	ogl.Warnf("docs: %v\n", docs)
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
 
@@ -992,7 +992,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(2, len(docs[0].Fields)) // has name and married
 	Equals("Hank", docs[0].Fields["name"].Value)
 
-	Equals(3, len(docs[3].Fields)) // has name and married and gender
+	Equals(4, len(docs[3].Fields)) // has name, married, sex and for some reason still has `gender`
 	Equals("Shirley", docs[3].Fields["name"].Value)
 	Equals("F", docs[3].Fields["gender"].Value)
 
@@ -1061,15 +1061,15 @@ func main() {
 
 	ogl.SetLevel(ogl.NORMAL)
 	dbCommandsNativeAPI(dbc, testType != "dataOnly")
-	// if testType == "full" {
-	// ogl.SetLevel(ogl.WARN)
-	// dbClusterCommandsNativeAPI(dbc)
-	// }
+	if testType == "full" {
+		ogl.SetLevel(ogl.WARN)
+		dbClusterCommandsNativeAPI(dbc)
+	}
 
 	/* ---[ Use Go database/sql API ]--- */
-	// conxStr := "admin@admin:localhost/ogonoriTest"
-	// databaseSqlAPI(conxStr)
-	// databaseSqlPreparedStmtAPI(conxStr)
+	conxStr := "admin@admin:localhost/ogonoriTest"
+	databaseSqlAPI(conxStr)
+	databaseSqlPreparedStmtAPI(conxStr)
 
 	//
 	// experimenting with JSON functionality

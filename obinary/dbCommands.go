@@ -343,16 +343,16 @@ func loadSchema(dbc *DBClient, schemaRID string) error {
 		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
-	ogl.Println("=======================================")
-	ogl.Println("=======================================")
-	ogl.Printf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
-	ogl.Printf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
-	ogl.Printf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
-	ogl.Printf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
-	ogl.Printf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
-	ogl.Printf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
-	ogl.Println("=======================================")
-	ogl.Println("=======================================")
+	ogl.Debugln("=======================================")
+	ogl.Debugln("=======================================")
+	ogl.Debugf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
+	ogl.Debugf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
+	ogl.Debugf("dbc.currDb.GlobalProperties[19].Name: %v\n", dbc.currDb.GlobalProperties[19].Name)
+	ogl.Debugf("dbc.currDb.GlobalProperties[2].Type: %v\n", dbc.currDb.GlobalProperties[2].Type)
+	ogl.Debugf("dbc.currDb.GlobalProperties[13].Name: %v\n", dbc.currDb.GlobalProperties[13].Name)
+	ogl.Debugf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	ogl.Debugln("=======================================")
+	ogl.Debugln("=======================================")
 
 	/* ---[ classes ]--- */
 	var oclass *oschema.OClass

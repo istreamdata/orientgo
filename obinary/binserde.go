@@ -25,15 +25,11 @@ import (
 // ORecordSerializerBinaryV0 implements the ORecordSerializerBinary
 // interface for version 0
 //
-type ORecordSerializerV0 struct {
-	// // the global properties (in record #0:1) are unique to each database (I think)
-	// // so each client database obj needs to have its own ORecordSerializerV0
-	// GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)  // TODO: remove me -> use the one in the dbc
-}
+type ORecordSerializerV0 struct{}
 
 //
 // The serialization version (the first byte of the serialized record) should
-// be stripped off (already read) from the bytes.Buffer being passed in
+// be stripped off (already read) from the bytes.Buffer being passed
 //
 func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
 	if doc == nil {
@@ -47,108 +43,16 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 
 	doc.Classname = classname
 
-	// example of mixed header:
-	// header: {[0 22 23] [sex] [34 42 43 45] [7]}
 	header, err := readHeader(buf)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
-	ogl.Printf("++ Deser 11: header: %v\n", header)
-	if dbc.currDb != nil {
-		ogl.Printf("++ Deser 12: dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
-	}
-
-	ofields := make([]*oschema.OField, 0, len(header.dataPtrs))
-
-	if len(header.propertyNames) > 0 {
-		ogl.Println("++ Deser 13")
-		// propertyNames names are set when a query returns properties, not a full record/document
-		// Hote: classname is an empty string in this case, so this could also be used
-		for i, pname := range header.propertyNames {
-			ofield := &oschema.OField{
-				Name: pname,
-				Typ:  header.types[i],
-			}
-			ofields = append(ofields, ofield)
-		}
-	}
-
-	if len(ofields) == 0 {
-		ogl.Println("++ Deser 14")
-		refreshGlobalPropertiesIfRequired(dbc, header)
-
-		// was a Document query which returns propertyIds, not property names
-		for _, fid := range header.propertyIds {
-			// property, ok := serde.GlobalProperties[int(fid)]
-			property, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
-			ogl.Printf("++ Deser 15: fieldId: %v ;; property: %v\n", fid, property)
-			var ofield *oschema.OField
-			if ok {
-				ofield = &oschema.OField{
-					Id:   fid,
-					Name: property.Name,
-					Typ:  property.Type,
-				}
-			} else {
-				// local cache of GlobalProperties is stale - can't lookup the name of the property
-				// so put empty string for now and UNKNOWN type
-				ofield = &oschema.OField{
-					Id:   fid,
-					Name: "",
-					Typ:  oschema.UNKNOWN,
-				}
-				err = oerror.ErrStaleGlobalProperties
-				fmt.Println("PANIC: ErrStaleGlobalProperties")
-				panic(err)
-				// // TODO: need to do a refresh of the GlobalProperties from the database and try again
-				// // if that fails then there is a bug in OrientDB, so throw an error
-				// //  NOTE: see the method refreshGlobalProperties() in dbCommands
-			}
-			ofields = append(ofields, ofield)
-		}
-	}
-
-	// once the fields are created, we can now fill in the values
-	for i, fld := range ofields {
-		ogl.Printf("++ Deser 16: field: %v\n", fld)
-		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
-		if header.dataPtrs[i] != 0 {
-			val, err := serde.readDataValue(dbc, buf, fld.Typ)
-			if err != nil {
-				return err
-			}
-			fld.Value = val
-		}
-
-		doc.AddField(fld.Name, fld)
-	}
-	doc.SetDirty(false)
-
-	return nil
-}
-
-func (serde *ORecordSerializerV0) Deserialize2(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
-	if doc == nil {
-		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
-	}
-
-	classname, err := readClassname(buf)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
-	doc.Classname = classname
-
-	header, err := readHeader2(buf)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-	refreshGlobalPropertiesIfRequired2(dbc, header)
+	refreshGlobalPropertiesIfRequired(dbc, header)
 
 	for i, prop := range header.properties {
 		var ofield *oschema.OField
-		if prop.name == nil {
+		if len(prop.name) == 0 {
 			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
 			if !ok {
 				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
@@ -369,24 +273,19 @@ func (serde *ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *by
 }
 
 //
-// header in the schemaless serialization format.
-// Generally only one of propertyIds or propertyNames
-// will be filled in, not both.
+// Either id or name+typ will be filled in but not both.
+// So in C this would be a union, not a struct.
 //
-type header struct {
-	propertyIds   []int32
-	propertyNames []string
-	dataPtrs      []int32
-	types         []byte
-}
-
 type headerProperty struct {
 	id   int32
 	name []byte
 	typ  byte
 }
 
-type header2 struct {
+//
+// header in the schemaless serialization format.
+//
+type header struct {
 	properties []headerProperty
 	dataPtrs   []int32
 }
@@ -419,74 +318,10 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 	return string(cnameBytes), nil
 }
 
-func readHeader2(buf *bytes.Buffer) (header2, error) {
-	hdr := header2{
-		properties: make([]headerProperty, 8),
-		dataPtrs:   make([]int32, 8),
-	}
-
-	for {
-		decoded, err := varint.ReadVarIntAndDecode32(buf)
-		if err != nil {
-			_, _, line, _ := runtime.Caller(0)
-			return header2{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
-		}
-
-		if decoded == 0 { // 0 marks end of header
-			break
-
-		} else if decoded > 0 {
-			// have a property, not a document, so the number is a zigzag encoded length
-			// for a string (property name)
-
-			// read property name
-			size := int(decoded)
-			data := buf.Next(size)
-			if len(data) != size {
-				return header2{}, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
-			}
-			// hdr.propertyNames = append(hdr.propertyNames, string(data))
-
-			// read data pointer
-			ptr, err := rw.ReadInt(buf)
-			if err != nil {
-				return header2{}, oerror.NewTrace(err)
-			}
-
-			// read data type
-			dataType, err := buf.ReadByte()
-			if err != nil {
-				return header2{}, oerror.NewTrace(err)
-			}
-
-			hdrProp := headerProperty{name: data, typ: dataType}
-			hdr.properties = append(hdr.properties, hdrProp)
-			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
-
-		} else {
-			// have a document, not a property, so the number is an encoded property id,
-			// convert to (positive) property-id
-			propertyId := decodeFieldIdInHeader(decoded)
-
-			ptr, err := rw.ReadInt(buf)
-			if err != nil {
-				return header2{}, oerror.NewTrace(err)
-			}
-
-			hdrProp := headerProperty{id: propertyId}
-			hdr.properties = append(hdr.properties, hdrProp)
-			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
-		}
-	}
-	return hdr, nil
-}
-
 func readHeader(buf *bytes.Buffer) (header, error) {
 	hdr := header{
-		propertyIds:   make([]int32, 0, 4),
-		propertyNames: make([]string, 0, 4),
-		dataPtrs:      make([]int32, 0, 8),
-		types:         make([]byte, 0, 8),
+		properties: make([]headerProperty, 0, 8),
+		dataPtrs:   make([]int32, 0, 8),
 	}
 
 	for {
@@ -501,7 +336,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 
 		} else if decoded > 0 {
 			// have a property, not a document, so the number is a zigzag encoded length
-			// for string (property name)
+			// for a string (property name)
 
 			// read property name
 			size := int(decoded)
@@ -509,7 +344,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			if len(data) != size {
 				return header{}, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
 			}
-			hdr.propertyNames = append(hdr.propertyNames, string(data))
+			// hdr.propertyNames = append(hdr.propertyNames, string(data))
 
 			// read data pointer
 			ptr, err := rw.ReadInt(buf)
@@ -522,7 +357,9 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			if err != nil {
 				return header{}, oerror.NewTrace(err)
 			}
-			hdr.types = append(hdr.types, dataType)
+
+			hdrProp := headerProperty{name: data, typ: dataType}
+			hdr.properties = append(hdr.properties, hdrProp)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 
 		} else {
@@ -535,11 +372,11 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 				return header{}, oerror.NewTrace(err)
 			}
 
-			hdr.propertyIds = append(hdr.propertyIds, propertyId)
+			hdrProp := headerProperty{id: propertyId}
+			hdr.properties = append(hdr.properties, hdrProp)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 		}
 	}
-
 	return hdr, nil
 }
 
@@ -970,16 +807,12 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 // refreshGlobalProperties is called.
 //
 func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
-	for _, fid := range hdr.propertyIds {
-		_, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
-		if !ok {
-			return refreshGlobalProperties(dbc)
-		}
+	if dbc.GetCurrDB() == nil {
+		return nil
 	}
-	return nil
-}
-
-func refreshGlobalPropertiesIfRequired2(dbc *DBClient, hdr header2) error {
+	if dbc.GetCurrDB().GlobalProperties == nil {
+		return nil
+	}
 	for _, prop := range hdr.properties {
 		if prop.name == nil {
 			_, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
@@ -1004,8 +837,8 @@ func refreshGlobalPropertiesIfRequired2(dbc *DBClient, hdr header2) error {
 // stream where it left off.
 //
 func refreshGlobalProperties(dbc *DBClient) error {
-	ogl.Warn("+++++++ refreshGlobalProperties *****")
-	defer ogl.Warn("+++++++ END refreshGlobalProperties ***********")
+	ogl.Println("+++++++ refreshGlobalProperties *****")
+	defer ogl.Println("+++++++ END refreshGlobalProperties ***********")
 	dbctmp, err := NewDBClient(ClientOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)

@@ -9,6 +9,10 @@
 ** I suspect any that pull links will fail, since I don't yet know how to support links
 * TODO Run the go static analysis tool that checks for places not checking error return values
 * TODO Write SerDe Serializer
+** Try query: insert into Person content {"name": "Charlie", "age":10}
+* TODO Advanced queries to try:
+** INSERT INTO Diver SET name = 'Bill', buddy = (SELECT FROM Diver WHERE name = 'Max')
+** INSERT INTO Husband SET name = 'Wayne', wife = (INSERT into Diver name = 'Jill')
 * TODO [#C] ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
 * TODO [#C] Determine if result of SQLQuery needs a ResultSet cursor for large queries?  Review what Java client does.
 * DEFERRED Re-evaluate db/network reader API -> think about building better byteBuffer

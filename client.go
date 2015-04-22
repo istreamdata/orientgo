@@ -677,6 +677,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	Assert(linusDocRID != "", "linusDocRID should not be nil")
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
+	ogl.Warnf("docs: %v\n", docs)
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
 

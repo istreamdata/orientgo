@@ -47,6 +47,8 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 
 	doc.Classname = classname
 
+	// example of mixed header:
+	// header: {[0 22 23] [sex] [34 42 43 45] [7]}
 	header, err := readHeader(buf)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -120,6 +122,60 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 		}
 
 		doc.AddField(fld.Name, fld)
+	}
+	doc.SetDirty(false)
+
+	return nil
+}
+
+func (serde *ORecordSerializerV0) Deserialize2(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+	if doc == nil {
+		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
+	}
+
+	classname, err := readClassname(buf)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	doc.Classname = classname
+
+	header, err := readHeader2(buf)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	refreshGlobalPropertiesIfRequired2(dbc, header)
+
+	for i, prop := range header.properties {
+		var ofield *oschema.OField
+		if prop.name == nil {
+			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			if !ok {
+				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
+			}
+			ofield = &oschema.OField{
+				Id:   prop.id,
+				Name: globalProp.Name,
+				Typ:  globalProp.Type,
+			}
+
+		} else {
+			ofield = &oschema.OField{
+				Id:   int32(-1),
+				Name: string(prop.name),
+				Typ:  prop.typ,
+			}
+		}
+		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
+		if header.dataPtrs[i] != 0 {
+			val, err := serde.readDataValue(dbc, buf, ofield.Typ)
+			if err != nil {
+				return err
+			}
+			ofield.Value = val
+		}
+
+		doc.AddField(ofield.Name, ofield)
 	}
 	doc.SetDirty(false)
 
@@ -324,6 +380,17 @@ type header struct {
 	types         []byte
 }
 
+type headerProperty struct {
+	id   int32
+	name []byte
+	typ  byte
+}
+
+type header2 struct {
+	properties []headerProperty
+	dataPtrs   []int32
+}
+
 /* ---[ helper fns ]--- */
 
 func readClassname(buf *bytes.Buffer) (string, error) {
@@ -352,6 +419,68 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 	return string(cnameBytes), nil
 }
 
+func readHeader2(buf *bytes.Buffer) (header2, error) {
+	hdr := header2{
+		properties: make([]headerProperty, 8),
+		dataPtrs:   make([]int32, 8),
+	}
+
+	for {
+		decoded, err := varint.ReadVarIntAndDecode32(buf)
+		if err != nil {
+			_, _, line, _ := runtime.Caller(0)
+			return header2{}, fmt.Errorf("Error in binserde.readHeader (line %d): %v", line-2, err)
+		}
+
+		if decoded == 0 { // 0 marks end of header
+			break
+
+		} else if decoded > 0 {
+			// have a property, not a document, so the number is a zigzag encoded length
+			// for a string (property name)
+
+			// read property name
+			size := int(decoded)
+			data := buf.Next(size)
+			if len(data) != size {
+				return header2{}, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+			}
+			// hdr.propertyNames = append(hdr.propertyNames, string(data))
+
+			// read data pointer
+			ptr, err := rw.ReadInt(buf)
+			if err != nil {
+				return header2{}, oerror.NewTrace(err)
+			}
+
+			// read data type
+			dataType, err := buf.ReadByte()
+			if err != nil {
+				return header2{}, oerror.NewTrace(err)
+			}
+
+			hdrProp := headerProperty{name: data, typ: dataType}
+			hdr.properties = append(hdr.properties, hdrProp)
+			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
+
+		} else {
+			// have a document, not a property, so the number is an encoded property id,
+			// convert to (positive) property-id
+			propertyId := decodeFieldIdInHeader(decoded)
+
+			ptr, err := rw.ReadInt(buf)
+			if err != nil {
+				return header2{}, oerror.NewTrace(err)
+			}
+
+			hdrProp := headerProperty{id: propertyId}
+			hdr.properties = append(hdr.properties, hdrProp)
+			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
+		}
+	}
+	return hdr, nil
+}
+
 func readHeader(buf *bytes.Buffer) (header, error) {
 	hdr := header{
 		propertyIds:   make([]int32, 0, 4),
@@ -371,7 +500,8 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			break
 
 		} else if decoded > 0 {
-			// have a property, not a document, so the number is a zigzag encoded length for string (property name)
+			// have a property, not a document, so the number is a zigzag encoded length
+			// for string (property name)
 
 			// read property name
 			size := int(decoded)
@@ -844,6 +974,18 @@ func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
 		_, ok := dbc.GetCurrDB().GlobalProperties[int(fid)]
 		if !ok {
 			return refreshGlobalProperties(dbc)
+		}
+	}
+	return nil
+}
+
+func refreshGlobalPropertiesIfRequired2(dbc *DBClient, hdr header2) error {
+	for _, prop := range hdr.properties {
+		if prop.name == nil {
+			_, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			if !ok {
+				return refreshGlobalProperties(dbc)
+			}
 		}
 	}
 	return nil

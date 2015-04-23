@@ -1,7 +1,8 @@
 * TODO Write issue for stale GlobalProperties problem and possible solutions (including parsing of the queries and adding specific "create property" commands in the native API -> how does Java client do it?
 * TODO Try a fancy query like: =>select * from animaltype where races contains (name.toLowerCase().subString(0,1) = 'e')<=
 * IN-PROGRESS Queries to try:
-** CREATE PROPERTY Cat.tags EMBEDDLIST STRING
+** CREATE PROPERTY Cat.tags EMBEDDEDLIST STRING
+*** insert into Cat (name, age, caretaker, tags) values ("X", 4, "Y", ["hugger", "cuddler"])
 ** DONE ALTER PROPERTY Cat.gender REGEXP [M|F]
 ** DONE DROP PROPERTY Cat.gender  => feeds into the stale GlobalProperties problem
 * TODO Write ReloadSchema in obinary/dbCommands
@@ -13,6 +14,12 @@
 * TODO Advanced queries to try:
 ** INSERT INTO Diver SET name = 'Bill', buddy = (SELECT FROM Diver WHERE name = 'Max')
 ** INSERT INTO Husband SET name = 'Wayne', wife = (INSERT into Diver name = 'Jill')
+** SELECT FROM [#10:3, #10:4, #10:5]
+** SELECT FROM Profile ORDER BY @rid DESC
+** SELECT FROM Profile 
+   LET $city = address.city
+   WHERE $city.name like '%Saint%' and 
+        ($city.country.name = 'Italy' or $city.country.name = 'France')
 * TODO [#C] ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
 * TODO [#C] Determine if result of SQLQuery needs a ResultSet cursor for large queries?  Review what Java client does.
 * DEFERRED Re-evaluate db/network reader API -> think about building better byteBuffer

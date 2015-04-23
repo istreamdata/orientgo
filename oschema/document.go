@@ -41,7 +41,7 @@ func NewDocument(className string) *ODocument {
 // Implements database/sql.Scanner interface
 //
 func (doc *ODocument) Scan(src interface{}) error {
-	fmt.Println("** ODocument.Scan")
+	ogl.Debugln("** ODocument.Scan")
 
 	locdoc := src.(*ODocument)
 	*doc = *locdoc
@@ -61,7 +61,7 @@ func (doc *ODocument) Scan(src interface{}) error {
 // TODO: haven't detected when this is called yet (probably when serializing ODocument for insertion into DB??)
 //
 func (doc *ODocument) Value() (driver.Value, error) {
-	fmt.Println("** ODocument.Value")
+	ogl.Debugln("** ODocument.Value")
 
 	return []byte(`{"b": 2}`), nil // FIXME: bogus
 }
@@ -71,7 +71,7 @@ func (doc *ODocument) Value() (driver.Value, error) {
 // TODO: haven't detected when this is called yet
 //
 func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
-	fmt.Printf("** ODocument.ConvertValue: %T: %v\n", v, v)
+	ogl.Printf("** ODocument.ConvertValue: %T: %v\n", v, v)
 
 	return []byte(`{"a": 1}`), nil // FIXME: bogus
 }

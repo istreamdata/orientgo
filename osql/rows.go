@@ -49,7 +49,7 @@ func NewRows(docs []*oschema.ODocument) *ogonoriRows {
 // string should be returned for that entry.
 //
 func (rows *ogonoriRows) Columns() []string {
-	ogl.Printf("** ogonoriRows.Columns = %v\n", rows.cols)
+	ogl.Debugf("** ogonoriRows.Columns = %v\n", rows.cols)
 	return rows.cols
 }
 
@@ -65,7 +65,7 @@ func (rows *ogonoriRows) Columns() []string {
 // Next should return io.EOF when there are no more rows.
 //
 func (rows *ogonoriRows) Next(dest []driver.Value) error {
-	ogl.Println("** ogonoriRows.Next")
+	ogl.Debugln("** ogonoriRows.Next")
 	// TODO: right now I return the entire resultSet as an array, thus all loaded into memory
 	//       it would be better to have obinary.dbCommands provide an iterator based model
 	//       that only needs to read a "row" (ODocument) at a time
@@ -97,6 +97,6 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 // Close closes the rows iterator.
 //
 func (rows *ogonoriRows) Close() error {
-	ogl.Println("** ogonoriRows.Close")
+	ogl.Debugln("** ogonoriRows.Close")
 	return nil
 }

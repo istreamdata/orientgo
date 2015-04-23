@@ -23,11 +23,11 @@ import (
 )
 
 //
-// This is a "functional" tester class against a live OrientDB 2.x I'm using
-// while developing the ogonori OrientDB Go client.
+// This is a "functional" tester class against a live OrientDB 2.x server
+// I'm using while developing the ogonori OrientDB Go client.
 //
 // How to run:
-// OPTION 1: Set up before hand and only run data statements, not DDL
+// OPTION 1: Set schema and data up before hand and only run data statements, not DDL
 //
 //  Before running this test, you can to run the scripts/ogonori-setup.sql
 //  with the `console.sh` program of OrientDB:
@@ -996,12 +996,54 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Shirley", docs[3].Fields["name"].Value)
 	Equals("F", docs[3].Fields["gender"].Value)
 
+	sql = "TRUNCATE CLASS Patient"
+	ogl.Println(sql)
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	/* ---[ Attempt to create, insert and read back EMBEDDEDLIST types ]--- */
+
+	sql = "CREATE PROPERTY Patient.tags EMBEDDEDLIST STRING"
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	numval, err := strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	sql = `insert into Patient (name, married, tags) values ("George", "false", ["diabetic", "osteoarthritis"])`
+	ogl.Warn(sql)
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(1, len(docs))
+	Equals(3, len(docs[0].FieldNames()))
+	ogl.Printf("retval: %v\n", retval)
+	ogl.Println("- - - +++++++++++++++++ AAA - - - + +     + + + + +")
+
+	sql = `SELECT from Patient where name = 'George'`
+	ogl.Warn(sql)
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	ogl.Printf("docs: %v\n", docs)
+	Equals(1, len(docs))
+	Equals(3, len(docs[0].FieldNames()))
+	embListTagsField := docs[0].GetField("tags")
+
+	embListTags := embListTagsField.Value.([]interface{})
+	Equals(2, len(embListTags))
+	Equals("diabetic", embListTags[0].(string))
+	Equals("osteoarthritis", embListTags[1].(string))
+
+	ogl.Println("- - - +++++++++++++++++ BBB - - - + +     + + + + +")
+
 	sql = "DROP CLASS Patient"
 	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals("true", retval)
 	Equals(0, len(docs))
+
+	// TRUNCATE after drop should return an OServerException type
 
 	sql = "TRUNCATE CLASS Patient"
 	ogl.Debugln(sql)
@@ -1067,6 +1109,7 @@ func main() {
 	}
 
 	/* ---[ Use Go database/sql API ]--- */
+	ogl.SetLevel(ogl.WARN)
 	conxStr := "admin@admin:localhost/ogonoriTest"
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)

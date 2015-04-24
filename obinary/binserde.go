@@ -519,11 +519,11 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 		val, err = serde.readLink(buf)
 		ogl.Printf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKLIST:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue LINKLIST NOT YET IMPLEMENTED")
+		val, err = serde.readLinkList(buf)
+		ogl.Printf("DEBUG LINKLIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKSET:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue LINKSET NOT YET IMPLEMENTED")
+		val, err = serde.readLinkList(buf)
+		ogl.Printf("DEBUG LINKSET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKMAP:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue LINKMAP NOT YET IMPLEMENTED")
@@ -543,6 +543,24 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	}
 
 	return val, err
+}
+
+func (serde *ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, error) {
+	nrecs, err := varint.ReadVarIntAndDecode32(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	rids := make([]string, int(nrecs))
+	for i := range rids {
+		rid, err := serde.readLink(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		rids[i] = rid
+	}
+
+	return rids, nil
 }
 
 //

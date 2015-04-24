@@ -1037,8 +1037,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	/* ---[ Try LINKs ! ]--- */
 
+	sql = `select from Cat WHERE name = 'Linus' OR name='Keiko' ORDER BY @rid`
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Equals(2, len(docs))
+	linusRID := docs[0].Rid
+	keikoRID := docs[1].Rid
+
 	sql = `CREATE PROPERTY Cat.buddy LINK`
-	ogl.Println(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	numval, err = strconv.ParseInt(retval, 10, 32)
@@ -1047,7 +1053,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 
 	sql = `insert into Cat SET name='Tilde', age=8, caretaker='Earl', buddy=(SELECT FROM Cat WHERE name = 'Linus')`
-	ogl.Debug(sql)
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	ogl.Debugf("retval: >>%v<<\n", retval)
@@ -1055,19 +1061,50 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Tilde", docs[0].GetField("name").Value)
 	Equals(8, int(docs[0].GetField("age").Value.(int32)))
-	Equals("10:0", docs[0].GetField("buddy").Value) // FIXME: this is fragile
+	Equals(linusRID, docs[0].GetField("buddy").Value)
 
-	// sql = `DELETE FROM [?]`
-	// ogl.Warn(sql)
-	// retval, docs, err = obinary.SQLCommand(dbc, sql, docs[0].Rid)
-	// Ok(err)
-	// ogl.Warnf("retval: >>%v<<\n", retval)
-	// ogl.Warnf("docs: >>%v<<\n", docs)
+	tildeRID := docs[0].Rid
 
-	sql = fmt.Sprintf("DELETE from [%s]", docs[0].Rid)
+	/* ---[ Try LINKLIST ]--- */
+
+	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
+	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals("1", retval)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	sql = `insert into Cat SET name='Felix', age=6, caretaker='Ed', buddies=(SELECT FROM Cat WHERE name = 'Linus' OR name='Keiko')`
+	ogl.Debugln(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("", retval)
+	Equals(1, len(docs))
+	Equals("Felix", docs[0].GetField("name").Value)
+	Equals(6, int(docs[0].GetField("age").Value.(int32)))
+	buddies := docs[0].GetField("buddies").Value.([]string)
+	Equals(2, len(buddies))
+	Equals(linusRID, buddies[0])
+	Equals(keikoRID, buddies[1])
+
+	felixRID := docs[0].Rid
+
+	sql = fmt.Sprintf("DELETE from [%s,%s]", felixRID, tildeRID)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("2", retval)
+	Equals(0, len(docs))
+
+	sql = "DROP PROPERTY Cat.buddy"
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+
+	sql = "DROP PROPERTY Cat.buddies"
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
 	Equals(0, len(docs))
 
 	sql = "DROP CLASS Patient"

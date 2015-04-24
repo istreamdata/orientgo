@@ -656,6 +656,14 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	Assert(err != nil, "DropCluster should return error when cluster doesn't exist")
 }
 
+func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
+	// var sql string
+	// sql = `CREATE VERTEX Person SET firstName = 'Bob', lastName = 'Wilson'`
+	// sql = `DELETE VERTEX #24:434` // need to get the @rid of Bob
+	// sql = `DELETE VERTEX Person WHERE lastName = 'Wilson'`
+	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
+}
+
 func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	ogl.Println("\n-------- database-level commands --------\n")
 
@@ -948,12 +956,12 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 		Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
 	}
 
-	sql = "select from Patient order by RID"
-	ogl.Println(sql)
+	sql = "SELECT FROM Patient ORDER BY @rid desc"
+	ogl.Debugln(sql)
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
-	ogl.Println(docs)
-	ogl.Println("- - - - - - - 111 - - - - - - - ")
+	Equals(4, len(docs))
+	Equals("Shirley", docs[0].GetField("name").Value)
 
 	sql = "ALTER PROPERTY Patient.gender NAME sex"
 	ogl.Debugln(sql)
@@ -963,20 +971,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	err = obinary.ReloadSchema(dbc)
 	Ok(err)
-
-	sql = "select from Patient order by RID"
-	ogl.Println(sql)
-	docs, err = obinary.SQLQuery(dbc, sql, "")
-	Ok(err)
-	ogl.Println(docs)
-	ogl.Println("- - - - - - - 222 - - - - - - - ")
-	// Equals(4, len(docs))
-	// Equals(2, len(docs[0].Fields)) // has name and married
-	// Equals("Hank", docs[0].Fields["name"].Value)
-
-	// Equals(3, len(docs[3].Fields)) // has name and married and gender
-	// Equals("Shirley", docs[3].Fields["name"].Value)
-	// Equals("F", docs[3].Fields["gender"].Value)
 
 	sql = "DROP PROPERTY Patient.sex"
 	ogl.Debugln(sql)
@@ -1012,19 +1006,16 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 
 	sql = `insert into Patient (name, married, tags) values ("George", "false", ["diabetic", "osteoarthritis"])`
-	ogl.Warn(sql)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(1, len(docs))
 	Equals(3, len(docs[0].FieldNames()))
-	ogl.Printf("retval: %v\n", retval)
-	ogl.Println("- - - +++++++++++++++++ AAA - - - + +     + + + + +")
+	ogl.Debugf("retval: %v\n", retval)
 
 	sql = `SELECT from Patient where name = 'George'`
-	ogl.Warn(sql)
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
-	ogl.Printf("docs: %v\n", docs)
+	ogl.Debugf("docs: %v\n", docs)
 	Equals(1, len(docs))
 	Equals(3, len(docs[0].FieldNames()))
 	embListTagsField := docs[0].GetField("tags")
@@ -1034,7 +1025,50 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("diabetic", embListTags[0].(string))
 	Equals("osteoarthritis", embListTags[1].(string))
 
-	ogl.Println("- - - +++++++++++++++++ BBB - - - + +     + + + + +")
+	/* ---[ try JSON content insertion notation ]--- */
+
+	sql = `insert into Patient content {"name": "Freddy", "married":false}`
+	ogl.Debugln(sql)
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(1, len(docs))
+	Equals("Freddy", docs[0].GetField("name").Value)
+	Equals(false, docs[0].GetField("married").Value)
+
+	/* ---[ Try LINKs ! ]--- */
+
+	sql = `CREATE PROPERTY Cat.buddy LINK`
+	ogl.Println(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	sql = `insert into Cat SET name='Tilde', age=8, caretaker='Earl', buddy=(SELECT FROM Cat WHERE name = 'Linus')`
+	ogl.Debug(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	ogl.Debugf("retval: >>%v<<\n", retval)
+	ogl.Debugf("docs: >>%v<<\n", docs)
+	Equals(1, len(docs))
+	Equals("Tilde", docs[0].GetField("name").Value)
+	Equals(8, int(docs[0].GetField("age").Value.(int32)))
+	Equals("10:0", docs[0].GetField("buddy").Value) // FIXME: this is fragile
+
+	// sql = `DELETE FROM [?]`
+	// ogl.Warn(sql)
+	// retval, docs, err = obinary.SQLCommand(dbc, sql, docs[0].Rid)
+	// Ok(err)
+	// ogl.Warnf("retval: >>%v<<\n", retval)
+	// ogl.Warnf("docs: >>%v<<\n", docs)
+
+	sql = fmt.Sprintf("DELETE from [%s]", docs[0].Rid)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("1", retval)
+	Equals(0, len(docs))
 
 	sql = "DROP CLASS Patient"
 	ogl.Debugln(sql)
@@ -1101,12 +1135,16 @@ func main() {
 	createOgonoriTestDB(dbc, adminUser, adminPassw, testType != "dataOnly")
 	defer cleanUp(dbc, testType == "full")
 
+	// document database tests
 	ogl.SetLevel(ogl.NORMAL)
 	dbCommandsNativeAPI(dbc, testType != "dataOnly")
 	if testType == "full" {
 		ogl.SetLevel(ogl.WARN)
 		dbClusterCommandsNativeAPI(dbc)
 	}
+
+	// graph database tests
+	graphCommandsNativeAPI(dbc, testType != "dataOnly")
 
 	/* ---[ Use Go database/sql API ]--- */
 	ogl.SetLevel(ogl.WARN)

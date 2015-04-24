@@ -51,13 +51,13 @@ func Println(a ...interface{}) {
 
 func Warn(warnMsg string) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mWARN: %s:%d: "+warnMsg+"\033[39m\n\n",
+	fmt.Printf("\033[31mWARN: %s:%d: "+warnMsg+"\033[39m\n",
 		append([]interface{}{filepath.Base(file), line})...)
 }
 
 func Warnf(format string, a ...interface{}) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mWARN: %s:%d: "+fmt.Sprintf(format, a...)+"\033[39m\n\n",
+	fmt.Printf("\033[31mWARN: %s:%d: "+fmt.Sprintf(format, a...)+"\033[39m\n",
 		append([]interface{}{filepath.Base(file), line})...)
 }
 

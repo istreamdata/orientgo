@@ -515,8 +515,9 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 		val, err = serde.readEmbeddedMap(dbc, buf)
 		// ogl.Debugf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue LINK NOT YET IMPLEMENTED")
+		// a link is two int64's (cluster:record) - we translate it here to a string RID
+		val, err = serde.readLink(buf)
+		ogl.Printf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKLIST:
 		// TODO: impl me
 		panic("ORecordSerializerV0#readDataValue LINKLIST NOT YET IMPLEMENTED")
@@ -542,6 +543,24 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	}
 
 	return val, err
+}
+
+//
+// readLink reads a two int64's - the cluster and record.
+// We translate it here to a string RID (cluster:record) and return it.
+//
+func (serde *ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
+	clusterId, err := varint.ReadVarIntAndDecode64(buf)
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+
+	recordId, err := varint.ReadVarIntAndDecode64(buf)
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+
+	return fmt.Sprintf("%d:%d", clusterId, recordId), nil
 }
 
 //

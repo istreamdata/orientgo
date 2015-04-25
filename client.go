@@ -48,10 +48,11 @@ import (
 //
 
 // EDIT THESE to match your setup
-var (
-	ogonoriDBName string = "ogonoriTest"
-	adminUser            = "root"
-	adminPassw           = "jiffylube"
+const (
+	ogonoriDocDB   = "ogonoriTest"
+	ogonoriGraphDB = "ogonoriGraphTest"
+	adminUser      = "root"
+	adminPassw     = "jiffylube"
 )
 
 func Equals(exp, act interface{}) {
@@ -118,7 +119,7 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
+	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDocDB, constants.Persistent)
 	Ok(err)
 
 	if dbexists {
@@ -126,16 +127,16 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 			return
 		}
 
-		err = obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
+		err = obinary.DropDatabase(dbc, ogonoriDocDB, constants.DocumentDb)
 		Ok(err)
 	}
 
-	// err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDbType, constants.Volatile)
-	err = obinary.CreateDatabase(dbc, ogonoriDBName, constants.DocumentDb, constants.Persistent)
+	// err = obinary.CreateDatabase(dbc, ogonoriDocDB, constants.DocumentDbType, constants.Volatile)
+	err = obinary.CreateDatabase(dbc, ogonoriDocDB, constants.DocumentDb, constants.Persistent)
 	Ok(err)
-	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
+	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDocDB, constants.Persistent)
 	Ok(err)
-	Assert(dbexists, ogonoriDBName+" should now exists after creating it")
+	Assert(dbexists, ogonoriDocDB+" should now exists after creating it")
 
 	seedInitialData(dbc)
 
@@ -146,14 +147,14 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	// 	Fatal(err)
 	// }
 	// fmt.Printf("%v\n", mapDBs)
-	// ogonoriTestPath, ok := mapDBs[ogonoriDBName]
-	// Assert(ok, ogonoriDBName+" not in DB list")
+	// ogonoriTestPath, ok := mapDBs[ogonoriDocDB]
+	// Assert(ok, ogonoriDocDB+" not in DB list")
 	// Assert(strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 }
 
 func seedInitialData(dbc *obinary.DBClient) {
 	fmt.Println("OpenDatabase (seed round)")
-	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 
 	defer obinary.CloseDatabase(dbc)
@@ -203,54 +204,97 @@ func seedInitialData(dbc *obinary.DBClient) {
 	fmt.Printf("docs: %v\n", docs)
 }
 
-func deleteNewRecords(dbc *obinary.DBClient) {
-	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
-	if err != nil {
-		ogl.Warn(err.Error())
-		return
-	}
-	_, _, err = obinary.SQLCommand(dbc, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
+func deleteNewRecordsDocDB(dbc *obinary.DBClient) {
+	_, _, err := obinary.SQLCommand(dbc, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
 	if err != nil {
 		ogl.Warn(err.Error())
 		return
 	}
 }
 
-func deleteNewClusters(dbc *obinary.DBClient) {
+func deleteNewClustersDocDB(dbc *obinary.DBClient) {
 	// doing DROP CLUSTER via SQL will not return an exception - it just
-	// returns "false" as the retval (first return value), so safe to this here
-	// even if these cluster don't exist
+	// returns "false" as the retval (first return value), so safe to do this
+	// even if these clusters don't exist
 	for _, clustName := range []string{"CatUSA", "CatAmerica", "bigapple"} {
 		_, _, err := obinary.SQLCommand(dbc, "DROP CLUSTER "+clustName)
 		Ok(err)
 	}
 }
 
-func cleanUp(dbc *obinary.DBClient, fullTest bool) {
-	if !fullTest {
-		deleteNewRecords(dbc)
-		deleteNewClusters(dbc)
-		err := obinary.CloseDatabase(dbc)
-		if err != nil {
-			ogl.Warn(err.Error())
-			return
-		}
-		return
-	}
-
-	_ = obinary.CloseDatabase(dbc)
-	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
-	Ok(err)
-
-	// err = obinary.DropDatabase(dbc, ogonoriDBName, constants.Persistent)
-	err = obinary.DropDatabase(dbc, ogonoriDBName, constants.DocumentDb)
-	Ok(err)
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDBName, constants.Persistent)
+func deleteNewRecordsGraphDB(dbc *obinary.DBClient) {
+	_, _, err := obinary.SQLCommand(dbc, "DELETE VERTEX Person")
 	if err != nil {
 		ogl.Warn(err.Error())
 		return
 	}
-	Assert(!dbexists, ogonoriDBName+" should not exists after deleting it")
+	_, _, err = obinary.SQLCommand(dbc, "DROP CLASS Person")
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
+}
+
+func cleanUp(dbc *obinary.DBClient, fullTest bool) {
+	cleanUpDocDB(dbc, fullTest)
+	cleanUpGraphDB(dbc, fullTest)
+}
+
+func dropDatabase(dbc *obinary.DBClient, dbname string, dbtype constants.DatabaseType) {
+	_ = obinary.CloseDatabase(dbc)
+	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	Ok(err)
+
+	err = obinary.DropDatabase(dbc, dbname, dbtype)
+	Ok(err)
+	dbexists, err := obinary.DatabaseExists(dbc, dbname, constants.Persistent)
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
+	if dbexists {
+		ogl.Warnf("ERROR: Deletion of database %s failed\n", dbname)
+	}
+}
+
+func cleanUpDocDB(dbc *obinary.DBClient, fullTest bool) {
+	if fullTest {
+		dropDatabase(dbc, ogonoriDocDB, constants.DocumentDb)
+
+	} else {
+		_ = obinary.CloseDatabase(dbc)
+		err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
+		if err != nil {
+			ogl.Warn(err.Error())
+			return
+		}
+		deleteNewRecordsDocDB(dbc)
+		deleteNewClustersDocDB(dbc)
+		err = obinary.CloseDatabase(dbc)
+		if err != nil {
+			ogl.Warn(err.Error())
+		}
+	}
+}
+
+func cleanUpGraphDB(dbc *obinary.DBClient, fullTest bool) {
+	if fullTest {
+		dropDatabase(dbc, ogonoriGraphDB, constants.GraphDb)
+
+	} else {
+		_ = obinary.CloseDatabase(dbc)
+		err := obinary.OpenDatabase(dbc, ogonoriGraphDB, constants.GraphDb, "admin", "admin")
+		if err != nil {
+			ogl.Warn(err.Error())
+			return
+		}
+
+		deleteNewRecordsGraphDB(dbc)
+		err = obinary.CloseDatabase(dbc)
+		if err != nil {
+			ogl.Warn(err.Error())
+		}
+	}
 }
 
 func databaseSqlAPI(conxStr string) {
@@ -594,7 +638,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	ogl.Debugln("\n-------- CLUSTER commands --------\n")
 
-	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -656,12 +700,78 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	Assert(err != nil, "DropCluster should return error when cluster doesn't exist")
 }
 
+func createOgonoriGraphDb(dbc *obinary.DBClient) {
+	ogl.Println("- - - - - - CREATE GRAPHDB - - - - - - -")
+
+	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	Ok(err)
+
+	Assert(dbc.GetSessionId() >= int32(0), "sessionid")
+	Assert(dbc.GetCurrDB() == nil, "currDB should be nil")
+
+	dbexists, err := obinary.DatabaseExists(dbc, ogonoriGraphDB, constants.Persistent)
+	Ok(err)
+	if dbexists {
+		dropDatabase(dbc, ogonoriGraphDB, constants.GraphDb)
+	}
+
+	err = obinary.CreateDatabase(dbc, ogonoriGraphDB, constants.GraphDb, constants.Persistent)
+	Ok(err)
+	dbexists, err = obinary.DatabaseExists(dbc, ogonoriGraphDB, constants.Persistent)
+	Ok(err)
+	Assert(dbexists, ogonoriGraphDB+" should now exists after creating it")
+}
+
 func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
-	// var sql string
-	// sql = `CREATE VERTEX Person SET firstName = 'Bob', lastName = 'Wilson'`
+	var (
+		sql    string
+		retval string
+		docs   []*oschema.ODocument
+		err    error
+	)
+
+	if fullTest {
+		createOgonoriGraphDb(dbc)
+	}
+
+	ogl.Println("- - - - - - GRAPH COMMANDS - - - - - - -")
+
+	err = obinary.OpenDatabase(dbc, ogonoriGraphDB, constants.GraphDb, "admin", "admin")
+	Ok(err)
+	defer obinary.CloseDatabase(dbc)
+
+	sql = `CREATE Class Person extends V`
+	retval, docs, err = obinary.SQLCommand(dbc, sql, "")
+	Ok(err)
+	numval, err := strconv.Atoi(retval)
+	Ok(err)
+	Assert(numval > 0, "numval > 0 failed")
+	Equals(0, len(docs))
+
+	sql = `CREATE VERTEX Person SET firstName = 'Bob', lastName = 'Wilson'`
+	_, docs, err = obinary.SQLCommand(dbc, sql, "")
+	Ok(err)
+	Equals(1, len(docs))
+	Equals(2, len(docs[0].FieldNames()))
+	Equals("Wilson", docs[0].GetField("lastName").Value)
+
+	sql = `DELETE VERTEX Person WHERE lastName = 'Wilson'`
+	retval, docs, err = obinary.SQLCommand(dbc, sql, "")
+	Ok(err)
+	Equals("1", retval)
+	Equals(0, len(docs))
+
+	sql = `INSERT INTO Person (firstName, lastName, SSN) VALUES ('Abbie', 'Wilson', '555-55-5555'), ('Zeke', 'Rossi', '444-44-4444')`
+	_, docs, err = obinary.SQLCommand(dbc, sql, "")
+	Ok(err)
+	Equals(2, len(docs))
+	Equals(3, len(docs[0].FieldNames()))
+	Equals("Wilson", docs[0].GetField("lastName").Value)
+
 	// sql = `DELETE VERTEX #24:434` // need to get the @rid of Bob
 	// sql = `DELETE VERTEX Person WHERE lastName = 'Wilson'`
 	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
+
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
@@ -670,8 +780,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	var sql string
 	var retval string
 
-	ogl.Println("OpenDatabase")
-	err := obinary.OpenDatabase(dbc, ogonoriDBName, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -740,14 +849,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	ogl.Printf("begin = %v; end = %v\n", begin, end)
 
-	ogl.Println("\n\n=+++++++++ START: SQL COMMAND ++++++++++++===")
-
 	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
 	nrows, docs, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	ogl.Printf("nrows: %v\n", nrows)
-	ogl.Printf("docs: %v\n", docs)
-	ogl.Println("+++++++++ END: SQL COMMAND ++++++++++++===")
 
 	/* ---[ query after inserting record(s) ]--- */
 
@@ -816,14 +920,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// 	Fatal(err)
 	// }
 
-	ogl.Println("\n\n=+++++++++ START: SQL COMMAND w/ PARAMS ++++++++++++===")
-
 	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
-	ogl.Println(sql, "=> June", "8", "Cleaver")
 	nrows, docs, err = obinary.SQLCommand(dbc, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
 	Ok(err)
-	ogl.Printf("nrows: %v\n", nrows)
-	ogl.Printf("docs: %v\n", docs)
 
 	sql = "select name, age from Cat where caretaker = ?"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan, "Cleaver")
@@ -849,9 +948,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
 	ogl.Println(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
-	Ok(err)
-	ogl.Printf("retval: %v\n", retval)
-	ogl.Printf("docs: %v\n", docs)
 	ogl.Println("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
 	ogl.Println("+++++++++ START: Basic DDL ++++++++++++===")
@@ -1100,7 +1196,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 	Equals(0, len(docs))
 
-	sql = `INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": #10:0, 30: #10:1}`
+	sql = fmt.Sprintf(`INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": #%s, 30: #%s}`,
+		linusRID, keikoRID)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(1, len(docs))
@@ -1215,14 +1312,16 @@ func main() {
 		dbClusterCommandsNativeAPI(dbc)
 	}
 
-	// graph database tests
-	graphCommandsNativeAPI(dbc, testType != "dataOnly")
-
-	/* ---[ Use Go database/sql API ]--- */
+	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)
 	conxStr := "admin@admin:localhost/ogonoriTest"
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)
+
+	/* ---[ Graph DB ]--- */
+	// graph database tests
+	ogl.SetLevel(ogl.NORMAL)
+	graphCommandsNativeAPI(dbc, testType != "dataOnly")
 
 	//
 	// experimenting with JSON functionality

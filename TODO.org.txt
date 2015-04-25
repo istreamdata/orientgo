@@ -9,12 +9,13 @@
 ** I suspect any that pull links will fail, since I don't yet know how to support links
 * TODO Run the go static analysis tool that checks for places not checking error return values
 * TODO Write SerDe Serializer
+* QUESTION Build a RID datatype ??
 * TODO Advanced queries to try:
-** INSERT INTO Diver SET name = 'Bill', buddy = (SELECT FROM Diver WHERE name = 'Max')
-** INSERT INTO Husband SET name = 'Wayne', wife = (INSERT into Diver name = 'Jill')
-** SELECT FROM [#10:3, #10:4, #10:5]
+** DONE INSERT INTO Diver SET name = 'Bill', buddy = (SELECT FROM Diver WHERE name = 'Max')
+** DONE INSERT INTO Husband SET name = 'Wayne', wife = (INSERT into Diver name = 'Jill')
+** DONE SELECT FROM [#10:3, #10:4, #10:5]
 ** DONE SELECT FROM Profile ORDER BY @rid DESC
-** SELECT FROM Profile 
+** TODO SELECT FROM Profile 
    LET $city = address.city
    WHERE $city.name like '%Saint%' and 
         ($city.country.name = 'Italy' or $city.country.name = 'France')

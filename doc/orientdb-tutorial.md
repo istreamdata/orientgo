@@ -32,6 +32,12 @@
     load record #11:0  (or whatever the rid is)
     
 
+### database while connected to the server (not the database)
+
+    drop database <database-url> <user> <password> <storage-type>
+    drop database remote:localhost/ogonoriGraphTest root jiffylube persistent
+
+
 ----
 
 ## Indexes

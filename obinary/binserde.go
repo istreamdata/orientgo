@@ -517,21 +517,21 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	case oschema.LINK:
 		// a link is two int64's (cluster:record) - we translate it here to a string RID
 		val, err = serde.readLink(buf)
-		ogl.Printf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKLIST:
 		val, err = serde.readLinkList(buf)
-		ogl.Printf("DEBUG LINKLIST: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG LINKLIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKSET:
 		val, err = serde.readLinkList(buf)
-		ogl.Printf("DEBUG LINKSET: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG LINKSET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKMAP:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue LINKMAP NOT YET IMPLEMENTED")
+		val, err = serde.readLinkMap(buf)
+		ogl.Debugf("DEBUG LINKMap: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.BYTE:
 		val, err = rw.ReadByte(buf)
 		ogl.Debugf("DEBUG BYTE: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.CUSTOM:
-		// TODO: impl me
+		// TODO: impl me -> how? when is this used?
 		panic("ORecordSerializerV0#readDataValue CUSTOM NOT YET IMPLEMENTED")
 	case oschema.DECIMAL:
 		// TODO: impl me -> Java client uses BigDecimal for this
@@ -543,6 +543,42 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	}
 
 	return val, err
+}
+
+func (serde *ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]string, error) {
+	nentries, err := varint.ReadVarIntAndDecode32(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	linkMap := make(map[string]string)
+
+	for i := 0; i < int(nentries); i++ {
+		/* ---[ read map key ]--- */
+		datatype, err := rw.ReadByte(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		if datatype != byte(7) {
+			// FIXME: even though all keys are currently strings, it would be easy to allow other types
+			//        using serde.readDataValue(dbc, buf, serde)
+			return nil, fmt.Errorf("readLinkMap: datatype for key is NOT string but type: %v", datatype)
+		}
+
+		mapkey, err := varint.ReadString(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		/* ---[ read map value (always a RID) ]--- */
+		mapval, err := serde.readLink(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		linkMap[mapkey] = mapval
+	}
+
+	return linkMap, nil
 }
 
 func (serde *ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, error) {

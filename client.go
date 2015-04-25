@@ -1091,10 +1091,30 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	felixRID := docs[0].Rid
 
-	sql = fmt.Sprintf("DELETE from [%s,%s]", felixRID, tildeRID)
+	/* ---[ Try LINKMAP ]--- */
+	sql = `CREATE PROPERTY Cat.notes LINKMAP`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals("2", retval)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	sql = `INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": #10:0, 30: #10:1}`
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(1, len(docs))
+	Equals(4, len(docs[0].FieldNames()))
+	Equals("Anna", docs[0].GetField("caretaker").Value)
+	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]string)["bff"])
+	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]string)["30"])
+
+	charlieRID := docs[0].Rid
+
+	sql = fmt.Sprintf("DELETE from [%s,%s,%s]", felixRID, tildeRID, charlieRID)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("3", retval)
 	Equals(0, len(docs))
 
 	sql = "DROP PROPERTY Cat.buddy"
@@ -1103,6 +1123,21 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 
 	sql = "DROP PROPERTY Cat.buddies"
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+
+	// this also removes the notes from all data entries, but not from the schema
+	sql = "UPDATE Cat REMOVE notes"
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
+
+	// remove notes property from the schema
+	sql = "DROP PROPERTY Cat.notes"
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(0, len(docs))

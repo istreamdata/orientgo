@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -223,12 +225,8 @@ func deleteNewClustersDocDB(dbc *obinary.DBClient) {
 }
 
 func deleteNewRecordsGraphDB(dbc *obinary.DBClient) {
-	_, _, err := obinary.SQLCommand(dbc, "DELETE VERTEX Person")
-	if err != nil {
-		ogl.Warn(err.Error())
-		return
-	}
-	_, _, err = obinary.SQLCommand(dbc, "DROP CLASS Person")
+	_, _, _ = obinary.SQLCommand(dbc, "DELETE VERTEX Person")
+	_, _, err := obinary.SQLCommand(dbc, "DROP CLASS Person")
 	if err != nil {
 		ogl.Warn(err.Error())
 		return
@@ -1208,23 +1206,65 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	charlieRID := docs[0].Rid
 
-	sql = fmt.Sprintf("DELETE from [%s,%s,%s]", felixRID, tildeRID, charlieRID)
+	/* ---[ Try DATETIME ]--- */
+	sql = `Create PROPERTY Cat.dt DATETIME`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals("3", retval)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 	Equals(0, len(docs))
 
-	sql = "DROP PROPERTY Cat.buddy"
+	sql = `Create PROPERTY Cat.birthday DATE`
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	// OrientDB DATETIME is precise to the second
+	sql = `INSERT into Cat SET name = 'Bruce', dt = '2014-11-25 09:14:54'`
+	ogl.Debugln(sql)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals(0, len(docs))
+	Equals(1, len(docs))
+	Equals("Bruce", docs[0].GetField("name").Value)
 
-	sql = "DROP PROPERTY Cat.buddies"
+	dt := docs[0].GetField("dt").Value.(time.Time)
+	zone, zoneOffset := dt.Zone()
+	zoneLocation := time.FixedZone(zone, zoneOffset)
+	expectedTm, err := time.ParseInLocation("2006-01-02 03:04:05", "2014-11-25 09:14:54", zoneLocation)
+	Ok(err)
+	Equals(expectedTm.String(), dt.String())
+
+	bruceRID := docs[0].Rid
+
+	sql = `INSERT into Cat SET name = 'Tiger', birthday = '2014-11-25'`
+	ogl.Debugln(sql)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	Equals(1, len(docs))
+	Equals("Tiger", docs[0].GetField("name").Value)
+
+	birthdayTm := docs[0].GetField("birthday").Value.(time.Time)
+	zone, zoneOffset = birthdayTm.Zone()
+	zoneLocation = time.FixedZone(zone, zoneOffset)
+	expectedTm, err = time.ParseInLocation("2006-01-02", "2014-11-25", zoneLocation)
+	Ok(err)
+	Equals(expectedTm.String(), birthdayTm.String())
+
+	tigerRID := docs[0].Rid
+
+	/* ---[ Clean up above expts ]--- */
+
+	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s]", felixRID, tildeRID, charlieRID, bruceRID, tigerRID)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("5", retval)
 	Equals(0, len(docs))
 
-	// this also removes the notes from all data entries, but not from the schema
+	// this removes the notes from all data entries, but not from the schema
 	sql = "UPDATE Cat REMOVE notes"
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -1233,11 +1273,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
 
-	// remove notes property from the schema
-	sql = "DROP PROPERTY Cat.notes"
-	_, docs, err = obinary.SQLCommand(dbc, sql)
-	Ok(err)
-	Equals(0, len(docs))
+	for _, propName := range []string{"buddy", "buddies", "notes", "dt", "birthday"} {
+		sql = "DROP PROPERTY Cat." + propName
+		_, docs, err = obinary.SQLCommand(dbc, sql)
+		if err != nil {
+			Fatal(fmt.Errorf("Error while dropping %s: %v", propName, err.Error()))
+		}
+		Equals(0, len(docs))
+	}
 
 	sql = "DROP CLASS Patient"
 	ogl.Debugln(sql)
@@ -1247,7 +1290,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 
 	// TRUNCATE after drop should return an OServerException type
-
 	sql = "TRUNCATE CLASS Patient"
 	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -1295,6 +1337,7 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			ogl.Warn(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
+			ogl.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
 			cleanUp(dbc, testType == "full")
 			os.Exit(1)
 		}

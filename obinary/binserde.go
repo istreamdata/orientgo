@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/binserde/varint"
@@ -51,34 +52,47 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 	refreshGlobalPropertiesIfRequired(dbc, header)
 
 	for i, prop := range header.properties {
+		ogl.Debugf("  *+ DEBUG 800: prop: %v\n", prop)
 		var ofield *oschema.OField
 		if len(prop.name) == 0 {
+			ogl.Debugln("  *+ DEBUG 801")
 			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			ogl.Debugln("  *+ DEBUG 802")
 			if !ok {
+				ogl.Debugln("  *+ DEBUG 803")
 				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
 			}
+			ogl.Debugf("  *+ DEBUG 804: globalProp: %v\n", globalProp)
 			ofield = &oschema.OField{
 				Id:   prop.id,
 				Name: globalProp.Name,
 				Typ:  globalProp.Type,
 			}
+			ogl.Debugf("  *+ DEBUG 805: ofield: %v\n", ofield)
 
 		} else {
+			ogl.Debugln("  *+ DEBUG 806: " + string(prop.name))
 			ofield = &oschema.OField{
 				Id:   int32(-1),
 				Name: string(prop.name),
 				Typ:  prop.typ,
 			}
+			ogl.Debugln("  *+ DEBUG 807")
 		}
+		ogl.Debugln("  *+ DEBUG 808")
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
+			ogl.Debugln("  *+ DEBUG 809")
 			val, err := serde.readDataValue(dbc, buf, ofield.Typ)
 			if err != nil {
+				ogl.Debugln("  *+ DEBUG 810")
 				return err
 			}
 			ofield.Value = val
+			ogl.Debugln("  *+ DEBUG 811")
 		}
 
+		ogl.Debugln("  *+ DEBUG 812")
 		doc.AddField(ofield.Name, ofield)
 	}
 	doc.SetDirty(false)
@@ -489,11 +503,13 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 		val, err = rw.ReadDouble(buf)
 		ogl.Debugf("DEBUG DOUBLE: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.DATETIME:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue DATETIME NOT YET IMPLEMENTED")
+		// OrientDB DATETIME is precise to the second
+		val, err = serde.readDateTime(buf)
+		ogl.Debugf("DEBUG DATEIME: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.DATE:
-		// TODO: impl me
-		panic("ORecordSerializerV0#readDataValue DATE NOT YET IMPLEMENTED")
+		// OrientDB DATE is precise to the day
+		val, err = serde.readDate(buf)
+		ogl.Debugf("DEBUG DATE: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.STRING:
 		val, err = varint.ReadString(buf)
 		ogl.Debugf("DEBUG STR: +readDataVal val: %v\n", val) // DEBUG
@@ -543,6 +559,38 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	}
 
 	return val, err
+}
+
+// TODO: since Serializer has no state any more, make the value type impl ORecordSerializer, not the pointer type
+func (serde *ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, error) {
+	dtAsLong, err := varint.ReadVarIntAndDecode64(buf)
+	if err != nil {
+		return time.Unix(0, 0), oerror.NewTrace(err)
+	}
+	dtSecs := dtAsLong / 1000
+	dtMillis := dtAsLong % 1000
+	return time.Unix(dtSecs, dtMillis), nil
+}
+
+func (serde *ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) {
+	seconds, err := varint.ReadVarIntAndDecode64(buf)
+	if err != nil {
+		return time.Unix(0, 0), oerror.NewTrace(err)
+	}
+
+	// from the OrientDB schemaless serialization spec on DATE:
+	//   The date is converted to second unix epoch,moved at midnight UTC+0,
+	//   divided by 86400(seconds in a day) and stored as the type LONG
+
+	dateAsLong := seconds * int64(86400)    // multiple the 86,400 seconds back
+	utctm := time.Unix(dateAsLong, 0).UTC() // OrientDB returns it as a UTC date, so start with that
+	loctm := utctm.Local()                  // convert to local time
+	_, offsetInSecs := loctm.Zone()         // the compute the time zone difference
+	offsetInNanos := offsetInSecs * 1000 * 1000 * 1000
+	durOffset := time.Duration(offsetInNanos)
+	adjustedLocTm := loctm.Add(-durOffset) // and finally adjust the time back to local time
+
+	return adjustedLocTm, nil
 }
 
 func (serde *ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]string, error) {

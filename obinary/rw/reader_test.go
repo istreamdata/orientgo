@@ -333,13 +333,13 @@ func TestReadErrorResponseWithSingleException(t *testing.T) {
 	err = WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
 	ok(t, err)
 
-	exceptions, err := ReadErrorResponse(buf)
+	var serverExc oerror.OServerException
+	serverExc, err = ReadErrorResponse(buf)
 	ok(t, err)
-	equals(t, 1, len(exceptions))
+	equals(t, 1, len(serverExc.Classes))
 
-	var serverExc oerror.OServerException = exceptions[0]
-	equals(t, "org.foo.BlargException", serverExc.Class)
-	equals(t, "wibble wibble!!", serverExc.Message)
+	equals(t, "org.foo.BlargException", serverExc.Classes[0])
+	equals(t, "wibble wibble!!", serverExc.Messages[0])
 }
 
 func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
@@ -368,12 +368,11 @@ func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
 	err = WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
 	ok(t, err)
 
-	exceptions, err := ReadErrorResponse(buf)
+	serverExc, err := ReadErrorResponse(buf)
 	ok(t, err)
-	equals(t, 3, len(exceptions))
 
-	equals(t, "org.foo.BlargException", exceptions[0].Class)
-	equals(t, "Not enough juice", exceptions[1].Message)
-	equals(t, "org.foo.WobbleException", exceptions[2].Class)
-	equals(t, "Orbital decay", exceptions[2].Message)
+	equals(t, "org.foo.BlargException", serverExc.Classes[0])
+	equals(t, "Not enough juice", serverExc.Messages[1])
+	equals(t, "org.foo.WobbleException", serverExc.Classes[2])
+	equals(t, "Orbital decay", serverExc.Messages[2])
 }

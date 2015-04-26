@@ -32,7 +32,7 @@ type ORecordSerializerV0 struct{}
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the bytes.Buffer being passed
 //
-func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -52,47 +52,34 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 	refreshGlobalPropertiesIfRequired(dbc, header)
 
 	for i, prop := range header.properties {
-		ogl.Debugf("  *+ DEBUG 800: prop: %v\n", prop)
 		var ofield *oschema.OField
 		if len(prop.name) == 0 {
-			ogl.Debugln("  *+ DEBUG 801")
 			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
-			ogl.Debugln("  *+ DEBUG 802")
 			if !ok {
-				ogl.Debugln("  *+ DEBUG 803")
 				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
 			}
-			ogl.Debugf("  *+ DEBUG 804: globalProp: %v\n", globalProp)
 			ofield = &oschema.OField{
 				Id:   prop.id,
 				Name: globalProp.Name,
 				Typ:  globalProp.Type,
 			}
-			ogl.Debugf("  *+ DEBUG 805: ofield: %v\n", ofield)
 
 		} else {
-			ogl.Debugln("  *+ DEBUG 806: " + string(prop.name))
 			ofield = &oschema.OField{
 				Id:   int32(-1),
 				Name: string(prop.name),
 				Typ:  prop.typ,
 			}
-			ogl.Debugln("  *+ DEBUG 807")
 		}
-		ogl.Debugln("  *+ DEBUG 808")
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
-			ogl.Debugln("  *+ DEBUG 809")
 			val, err := serde.readDataValue(dbc, buf, ofield.Typ)
 			if err != nil {
-				ogl.Debugln("  *+ DEBUG 810")
 				return err
 			}
 			ofield.Value = val
-			ogl.Debugln("  *+ DEBUG 811")
 		}
 
-		ogl.Debugln("  *+ DEBUG 812")
 		doc.AddField(ofield.Name, ofield)
 	}
 	doc.SetDirty(false)
@@ -104,12 +91,12 @@ func (serde *ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocum
 // TODO: need to study what exactly this method is supposed to do and not do
 //       -> check the Java driver version
 //
-func (serde *ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error {
+func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error {
 	// TODO: impl me
 	return nil
 }
 
-func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
 	// need to create a new buffer for the serialized record for ptr value calculations,
 	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
 	// that are NOT part of the serialized record
@@ -151,7 +138,7 @@ func (serde *ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.B
 	return nil
 }
 
-func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
+func (serde ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
 	nfields := len(doc.FieldNames())
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 	ptrVal := make([]int, 0, nfields) // data ptr value to write into buf
@@ -245,7 +232,7 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 	return nil
 }
 
-// func (serde *ORecordSerializerV0) writeHeader(doc *oschema.ODocument, buf *bytes.Buffer) (ptrPos []int, err error) {
+// func (serde ORecordSerializerV0) writeHeader(doc *oschema.ODocument, buf *bytes.Buffer) (ptrPos []int, err error) {
 // 	ptrPos := make([]int, 0, len(m)) // position in buf where data ptr int needs to be written
 
 // 	if doc.Classname == "" {
@@ -282,7 +269,7 @@ func (serde *ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *
 // 	return ptrPos, nil
 // }
 
-func (serde *ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
+func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
 	return nil
 }
 
@@ -398,7 +385,7 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 // writeDataValue is part of the Serialize functionality
 // TODO: change name to writeSingleValue ?
 //
-func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (ptrPos, ptrVal []int, err error) {
+func (serde ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interface{}, datatype byte) (ptrPos, ptrVal []int, err error) {
 	switch datatype {
 	case oschema.STRING:
 		err = varint.WriteString(buf, value.(string))
@@ -477,7 +464,7 @@ func (serde *ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interf
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -561,8 +548,15 @@ func (serde *ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer
 	return val, err
 }
 
-// TODO: since Serializer has no state any more, make the value type impl ORecordSerializer, not the pointer type
-func (serde *ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, error) {
+//
+// readDateTime reads an OrientDB DATETIME from the stream and converts it to
+// a golang time.Time struct. DATETIME is precise to the second.
+// The time zone of the time.Time returned should be the Local timezone.
+//
+// OrientDB server converts a DATETIME type is to millisecond unix epoch and
+// stores it as the type LONG.  It is written as a varint long.
+//
+func (serde ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, error) {
 	dtAsLong, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
@@ -572,15 +566,22 @@ func (serde *ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, er
 	return time.Unix(dtSecs, dtMillis), nil
 }
 
-func (serde *ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) {
+//
+// readDate reads an OrientDB DATE from the stream and converts it to
+// a golang time.Time struct. DATE is precise to the day - hour, minute
+// and second are zeroed out.  The time zone of the time.Time returned
+// should be the Local timezone.
+//
+// OrientDB server returns DATEs as (varint) longs.
+// From the OrientDB schemaless serialization spec on DATE:
+//     The date is converted to second unix epoch,moved at midnight UTC+0,
+//     divided by 86400(seconds in a day) and stored as the type LONG
+//
+func (serde ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) {
 	seconds, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
 	}
-
-	// from the OrientDB schemaless serialization spec on DATE:
-	//   The date is converted to second unix epoch,moved at midnight UTC+0,
-	//   divided by 86400(seconds in a day) and stored as the type LONG
 
 	dateAsLong := seconds * int64(86400)    // multiple the 86,400 seconds back
 	utctm := time.Unix(dateAsLong, 0).UTC() // OrientDB returns it as a UTC date, so start with that
@@ -593,7 +594,7 @@ func (serde *ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error)
 	return adjustedLocTm, nil
 }
 
-func (serde *ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]string, error) {
+func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]string, error) {
 	nentries, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -629,7 +630,7 @@ func (serde *ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]str
 	return linkMap, nil
 }
 
-func (serde *ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, error) {
+func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -651,7 +652,7 @@ func (serde *ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, err
 // readLink reads a two int64's - the cluster and record.
 // We translate it here to a string RID (cluster:record) and return it.
 //
-func (serde *ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
+func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
 	clusterId, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return "", oerror.NewTrace(err)
@@ -670,7 +671,7 @@ func (serde *ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: this may not need to be a method -> change to fn ?
-func (serde *ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m oschema.OEmbeddedMap) ([]int, []int, error) {
+func (serde ORecordSerializerV0) writeEmbeddedMap(buf *bytes.Buffer, m oschema.OEmbeddedMap) ([]int, []int, error) {
 	// number of entries in the map
 	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
 	if err != nil {
@@ -809,8 +810,8 @@ func getDataType(val interface{}) byte {
 // readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
-// TODO: change to: func (serde *ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*oschema.OEmbeddedMap, error) {  ??
-func (serde *ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buffer) (map[string]interface{}, error) {
+// TODO: change to: func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*oschema.OEmbeddedMap, error) {  ??
+func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buffer) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -868,7 +869,7 @@ func (serde *ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buff
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde *ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *bytes.Buffer) ([]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *bytes.Buffer) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)

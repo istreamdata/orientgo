@@ -15,6 +15,13 @@ import (
 	"github.com/quux00/ogonori/oschema"
 )
 
+const (
+	// binary protocol sentinel values when reading
+	// single records
+	RecordNull = -2
+	RecordRID  = -3
+)
+
 //
 // OpenDatabase sends the REQUEST_DB_OPEN command to the OrientDb server to
 // open the db in read/write mode.  The database name and type are required, plus
@@ -768,35 +775,38 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			// do nothing - anything need to be done here?
 
 		} else if resultType == 'r' { // single record
+			var doc *oschema.ODocument
 			resultType, err := rw.ReadShort(dbc.conx)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
 			}
 
-			if resultType == int16(-2) { // null record
-				return "", nil, nil
-			}
-			if resultType == int16(-3) {
+			if resultType == RecordNull { // null record
+				// do nothing - return the zero values of the return types
+
+			} else if resultType == RecordRID {
 				rid, err := readRID(dbc)
 				if err != nil {
 					return "", nil, oerror.NewTrace(err)
 				}
+				doc = oschema.NewDocument("")
+				doc.Rid = rid
 				ogl.Warn(fmt.Sprintf("Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
 				// TODO: would now load that record from the DB if the user (Go SQL API) wants it
-			}
-			if resultType != int16(0) {
+
+			} else if resultType != int16(0) {
 				_, file, line, _ := runtime.Caller(0)
 				return "", nil, fmt.Errorf("Unexpected resultType in SQLCommand (file: %s; line %d): %d",
 					file, line+1, resultType)
 			}
 
-			doc, err := readSingleRecord(dbc)
+			doc, err = readSingleRecord(dbc)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
 			}
 
 			ogl.Debugf("r>doc = %v\n", doc) // DEBUG
-			if docs == nil {
+			if doc != nil {
 				docs = make([]*oschema.ODocument, 1)
 				docs[0] = doc
 			}
@@ -1022,6 +1032,8 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 	var docs []*oschema.ODocument
 
 	if resultType == 'n' {
+		// NOTE: OStorageRemote in Java client just sets result to null and moves on
+		// FIXME: panicking here, just so I catch a scenario that returns this value and study it
 		panic("Result type in SQLQuery is 'n' -> what to do? nothing ???")
 
 	} else if resultType == 'r' {
@@ -1038,7 +1050,7 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		return docs, err
+		// return docs, err  // FIXME: cannot return here -> have to check for supplementary docs
 
 	} else {
 		// TODO: I've not yet tested this route of code -> how do so?
@@ -1047,7 +1059,57 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 			"remove this note and test it!!", string(resultType)))
 	}
 
+	// any additional records are "supplementary" - from the fetchPlan
+	// these need to be hydrated into ODocuments and then put into the
+	// Primary Docs
+
+	if dbc.binaryProtocolVersion >= int16(17) { // copied from the OrientDB 2.x Java client
+		status, err := rw.ReadByte(dbc.conx)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		if status != byte(0) {
+			supplRecMap, err := readSupplementaryRecords(dbc)
+			if err != nil {
+				return nil, oerror.NewTrace(err)
+			}
+			addSupplementaryRecsToPrimaryRecs(docs, supplRecMap)
+		}
+	}
+
+	// supplRecMap, err := readSupplementaryRecords(dbc)
+	// if err != nil {
+	// 	return nil, oerror.NewTrace(err)
+	// }
+	// if supplRecMap != nil {
+	// 	addSupplementaryRecsToPrimaryRecs(docs, supplRecMap)
+	// }
+	// return docs, nil
+
 	return docs, nil
+}
+
+//
+// When called the "status byte" should have already been called
+//
+func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, error) {
+	for {
+
+		status, err := rw.ReadByte(dbc.conx)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		if status == byte(0) {
+			break
+		}
+	}
+
+	return nil, nil // FIXME:
+}
+
+func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, supplRecMap map[string]*oschema.ODocument) {
+
 }
 
 //
@@ -1538,16 +1600,18 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 
 		} else {
 			_, file, line, _ := runtime.Caller(0)
+			ogl.Warnf("!! Record type %v is not yet supported\n", recType)
 			return nil, fmt.Errorf("%v: %v: Record type %v is not yet supported", file, line+1, recType)
 		}
 	} // end for loop
 
-	end, err := rw.ReadByte(dbc.conx)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	if end != byte(0) {
-		return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
-	}
+	// MP CHANGED -> key change once I understood supplementary docs from extended fetch plan
+	// end, err := rw.ReadByte(dbc.conx)
+	// if err != nil {
+	// 	return nil, oerror.NewTrace(err)
+	// }
+	// if end != byte(0) {
+	// 	return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+	// }
 	return docs, nil
 }

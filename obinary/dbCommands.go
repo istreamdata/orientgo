@@ -797,6 +797,17 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			} else {
 				docs = append(docs, collectionDocs...)
 			}
+
+			// TEMP PLACEHOLDER OF READING FINAL BYTE
+			end, err := rw.ReadByte(dbc.conx)
+			if err != nil {
+				return "", nil, oerror.NewTrace(err)
+			}
+			if end != byte(0) {
+				return "", nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+			}
+			// END TEMP PLACEHOLDER OF READING FINAL BYTE
+
 			break // TODO: not sure this is right !!
 
 		} else if resultType == 'a' { // serialized type
@@ -804,7 +815,6 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)
 			}
-			ogl.Debugf("serializedRec from 'a' return type: %v\n", serializedRec)
 			// TODO: for now I'm going to assume that this always just returns a string
 			//       need a use case that violates this assumption
 			retval = string(serializedRec)
@@ -1006,18 +1016,16 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 	var docs []*oschema.ODocument
 
 	if resultType == 'n' {
-		panic("Result type in SQLQuery is 'n' -> what to do? nothing ???")
+		// NOTE: OStorageRemote in Java client just sets result to null and moves on
+		ogl.Warn("Result type in SQLQuery is 'n' -> what to do? nothing ???") // DEBUG
 
 	} else if resultType == 'r' {
-		record, err := rw.ReadBytes(dbc.conx)
+		ogl.Warn("NOTE NOTE NOTE: this path has NOT YET BEEN TESTED") // DEBUG
+		doc, err := readSingleRecord(dbc)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		ogl.Debugf("record = %v\n", record) // DEBUG
-		// TODO: I've not yet tested this route of code -> how do so?
-		ogl.Fatal("NOTE NOTE NOTE: testing the resultType == 'r' route of code -- remove this note and test it!!!")
-		// TODO: once a test for this code path is discovered, it should probably call readSingleRecord
-		//       as is done in the SQLCommand function
+		docs = append(docs, doc)
 
 	} else if resultType == 'l' {
 		docs, err = readResultSet(dbc)
@@ -1035,10 +1043,14 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 	// any additional records are "supplementary" - from the fetchPlan these
 	// need to be hydrated into ODocuments and then put into the primary Docs
 	if dbc.binaryProtocolVersion >= int16(17) { // copied from the OrientDB 2.x Java client
-		// FIXME: do real impl
-		ogl.Warn("^^^^^^ WOULD NOW READ FINAL BYTE OR DISCOVER THERE ARE SUPPLEMENTARY RECORDS ^^^^^^")
+		end, err := rw.ReadByte(dbc.conx)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		if end != byte(0) {
+			return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+		}
 	}
-
 	return docs, nil
 }
 
@@ -1387,6 +1399,15 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 
 //
 // DOCUMENT ME
+//     Writing short (2 bytes): 0 [OChannelBinaryServer]   <- 0=full record  (-2=null, -3=RID only)
+//     Writing byte (1 byte): 100 [OChannelBinaryServer]   <- 'd'=document ('f'=flat data, 'b'=raw bytes)
+//     Writing short (2 bytes): 11 [OChannelBinaryServer]  <- cluster-id  (RID part 1)
+//     Writing long (8 bytes): 0 [OChannelBinaryServer]    <- cluster-pos (RID part 2)
+//     Writing int (4 bytes): 1 [OChannelBinaryServer]     <- version
+//
+// ========== NEW DOCUMENTATION BELOW ===============
+// This method no longer reads the final EOT byte !!
+// ==========  END NEW DOCUMENTATION  ===============
 //
 func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	var doc *oschema.ODocument
@@ -1397,6 +1418,7 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 
 	if resultType == RecordNull { // null record
 		// do nothing - return the zero values of the return types
+		return nil, nil
 
 	} else if resultType == RecordRID {
 		rid, err := readRID(dbc)
@@ -1405,8 +1427,9 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 		}
 		doc = oschema.NewDocument("")
 		doc.Rid = rid
-		ogl.Warn(fmt.Sprintf("Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
+		ogl.Warn(fmt.Sprintf("readSingleRecord :: Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
 		// TODO: would now load that record from the DB if the user (Go SQL API) wants it
+		return doc, nil
 
 	} else if resultType != int16(0) {
 		_, file, line, _ := runtime.Caller(0)
@@ -1414,7 +1437,40 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 			file, line+1, resultType)
 	}
 
-	return readSingleDocument(dbc)
+	// if get here then have a full record, which can be in one of three formats:
+	//  - "flat data"
+	//  - "raw bytes"
+	//  - "document"
+
+	recType, err := rw.ReadByte(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	if recType == byte('d') {
+		return readSingleDocument(dbc)
+
+	} else if recType == byte('f') {
+		return readFlatDataRecord(dbc) // ???
+
+	} else if recType == byte('b') {
+		return readRawBytesRecord(dbc) // ???
+
+	} else {
+		_, file, line, _ := runtime.Caller(0)
+		return nil, fmt.Errorf("Unexpected record type. Expected 'd', 'f' or 'b', but was %v (file: %s; line %d)",
+			recType, file, line+1)
+	}
+}
+
+func readFlatDataRecord(dbc *DBClient) (*oschema.ODocument, error) {
+	ogl.Warnf("flat record ('f') record type -> haven't seen that before. What is it?")
+	return nil, errors.New("flat record ('f') record type -> haven't seen that before. What is it?")
+}
+
+func readRawBytesRecord(dbc *DBClient) (*oschema.ODocument, error) {
+	ogl.Warnf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
+	return nil, errors.New("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
 }
 
 //
@@ -1449,22 +1505,21 @@ func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
 	// which could be -2=null, -3=RID or 0=full-record
 
 	// recordType can be 'b'=raw bytes; 'd': document; 'f': flat data
-	recordType, err := rw.ReadByte(dbc.conx)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	if recordType == byte('b') {
-		err = fmt.Errorf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
-		fatal(err)
-		return nil, err
+	// recordType, err := rw.ReadByte(dbc.conx)
+	// if err != nil {
+	// 	return nil, oerror.NewTrace(err)
+	// }
+	// if recordType == byte('b') {
+	// 	err = fmt.Errorf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
+	// 	fatal(err)
+	// 	return nil, err
 
-	} else if recordType == byte('f') {
-		err = fmt.Errorf("flat record ('f') record type -> haven't seen that before. What is it?")
-		fatal(err)
-		return nil, err
-	}
+	// } else if recordType == byte('f') {
+	// 	err = fmt.Errorf("flat record ('f') record type -> haven't seen that before. What is it?")
+	// 	fatal(err)
+	// 	return nil, err
+	// }
 
-	// if get here, recordType == 'd'
 	clusterId, err := rw.ReadShort(dbc.conx)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1587,12 +1642,12 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 		}
 	} // end for loop
 
-	end, err := rw.ReadByte(dbc.conx)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	if end != byte(0) {
-		return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
-	}
+	// end, err := rw.ReadByte(dbc.conx)
+	// if err != nil {
+	// 	return nil, oerror.NewTrace(err)
+	// }
+	// if end != byte(0) {
+	// 	return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+	// }
 	return docs, nil
 }

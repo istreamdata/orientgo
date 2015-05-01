@@ -1,3 +1,5 @@
+* TODO Need to get server output for 'l', 'r' versions from SQLCommand and/or SQLQuery
+** Document these clearly in the docs folder.  Then decide how we can move the reading of the final 0 byte out of readResultSet
 * TODO Write GitHub issue for stale GlobalProperties problem and possible solutions (including parsing of the queries and adding specific "create property" commands in the native API -> how does Java client do it?
 * DONE Queries to try:
 ** DONE CREATE PROPERTY Cat.tags EMBEDDEDLIST STRING

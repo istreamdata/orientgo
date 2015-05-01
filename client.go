@@ -988,6 +988,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	ogl.Debugf("retval: %v\n", retval)
 	ogl.Debugf("docs: %v\n", docs)
 
+	obinary.ReloadSchema(dbc)
 	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
 	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -1348,7 +1349,7 @@ func main() {
 	defer cleanUp(dbc, testType == "full")
 
 	// document database tests
-	ogl.SetLevel(ogl.NORMAL)
+	ogl.SetLevel(ogl.DEBUG)
 	dbCommandsNativeAPI(dbc, testType != "dataOnly")
 	if testType == "full" {
 		ogl.SetLevel(ogl.WARN)

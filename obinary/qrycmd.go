@@ -142,7 +142,13 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 			return nil, oerror.NewTrace(err)
 		}
 		if end != byte(0) {
-			return nil, fmt.Errorf("Final Byte read from collection result set was not 0, but was: %v", end)
+			mapRIDToDoc, err := readSupplementaryRecords(dbc)
+			if err != nil {
+				return nil, oerror.NewTrace(err)
+			}
+
+			ogl.Printf("mapRIDToDoc: %v\n", mapRIDToDoc)
+			addSupplementaryRecsToPrimaryRecs(docs, mapRIDToDoc)
 		}
 	}
 	return docs, nil
@@ -335,9 +341,14 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 
 //
 // When called the "status byte" should have already been called
+// Returns map where keys are RIDs (string) and values are ODocument objs
 //
 func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, error) {
+	mapRIDToDoc := make(map[string]*oschema.ODocument)
 	for {
+		doc, err := readSingleRecord(dbc)
+		mapRIDToDoc[doc.Rid] = doc
+
 		status, err := rw.ReadByte(dbc.conx)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
@@ -347,11 +358,42 @@ func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, err
 		}
 	}
 
-	return nil, nil // FIXME:
+	return mapRIDToDoc, nil
 }
 
-func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, supplRecMap map[string]*oschema.ODocument) {
+//
+// supplRecMap maps RIDs (string) to ODocument objs
+//
+func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs map[string]*oschema.ODocument) {
+	// // to resolve all link references, need to construct a new list with all docs
+	// // and add the primary docs to the mRIDsToDocs map
+	// allDocs := docs
+	// for _, doc := range mRIDsToDocs {
+	// 	allDocs = append(allDocs, doc)
+	// }
 
+	// for _, doc := range docs {
+	// 	mRIDsToDocs[doc.Rid] = doc
+	// }
+
+	// // now we can fill in all the references (if present in mRIDsToDocs)
+	// for _, doc := range allDocs {
+	// 	for _, field := range doc.Fields {
+	// 		// TODO: also need to check for/handle LINKLIST, LINKSET and LINKMAP
+	// 		if field.Typ == oschema.LINK {
+	// 			lnk := field.Value.(*oschema.OLink)
+	// 			if lnk.Record == nil {
+	// 				if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
+	// 					lnk.Record = linkedDoc
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	// ogl.Warnf("mRIDsToDocs at end: %v\n", mRIDsToDocs)
+	// ogl.Warnf("docs at end: %v\n", docs)
+	// ogl.Warnf("allDocs at end: %v\n", allDocs)
 }
 
 // TODO: what datatypes can the params be? => right now allowing only string

@@ -663,6 +663,7 @@ func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
 		return "", oerror.NewTrace(err)
 	}
 
+	// return oschema.OLink{ RID: fmt.Sprintf("%d:%d", clusterId, recordId) }, nil
 	return fmt.Sprintf("%d:%d", clusterId, recordId), nil
 }
 

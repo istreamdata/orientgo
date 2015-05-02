@@ -1257,6 +1257,16 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	tigerRID := docs[0].Rid
 
+	/* ---[ queries with extended fetchPlan ]--- */
+	ogl.SetLevel(ogl.NORMAL)
+	Pause("ABOUT TO FEtCH PLAN")
+	sql = `select * from Cat where buddy is not null`
+	fetchPlan = "*:-1"
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
+	ogl.Printf("docs from extended fetchPlan: %v\n", docs)
+	ogl.SetLevel(ogl.WARN)
+	Pause("END FEtCH PLAN Query")
+
 	/* ---[ Clean up above expts ]--- */
 
 	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s]", felixRID, tildeRID, charlieRID, bruceRID, tigerRID)
@@ -1320,7 +1330,7 @@ func main() {
 	}()
 
 	/* ---[ set ogl log level ]--- */
-	ogl.SetLevel(ogl.NORMAL)
+	ogl.SetLevel(ogl.WARN)
 
 	testType := "dataOnly"
 
@@ -1349,7 +1359,7 @@ func main() {
 	defer cleanUp(dbc, testType == "full")
 
 	// document database tests
-	ogl.SetLevel(ogl.DEBUG)
+	ogl.SetLevel(ogl.WARN)
 	dbCommandsNativeAPI(dbc, testType != "dataOnly")
 	if testType == "full" {
 		ogl.SetLevel(ogl.WARN)
@@ -1364,7 +1374,7 @@ func main() {
 
 	/* ---[ Graph DB ]--- */
 	// graph database tests
-	ogl.SetLevel(ogl.NORMAL)
+	ogl.SetLevel(ogl.WARN)
 	graphCommandsNativeAPI(dbc, testType != "dataOnly")
 
 	//

@@ -147,7 +147,6 @@ func SQLQuery(dbc *DBClient, sql string, fetchPlan string, params ...string) ([]
 				return nil, oerror.NewTrace(err)
 			}
 
-			ogl.Printf("mapRIDToDoc: %v\n", mapRIDToDoc)
 			addSupplementaryRecsToPrimaryRecs(docs, mapRIDToDoc)
 		}
 	}
@@ -387,7 +386,6 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 	// now we can fill in all the references (if present in mRIDsToDocs)
 	for _, doc := range allDocs {
 		for _, field := range doc.Fields {
-			// TODO: also need to check for/handle LINKLIST, LINKSET and LINKMAP
 			if field.Typ == oschema.LINK {
 				lnk := field.Value.(*oschema.OLink)
 				if lnk.Record == nil {

@@ -960,14 +960,42 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 		Equals("true", retval)
 	}
 
+	// ------
+
 	sql = "CREATE CLASS Patient"
 	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+
+	defer func() {
+		sql = "DROP CLASS Patient"
+		_, _, err = obinary.SQLCommand(dbc, sql)
+		if err != nil {
+			ogl.Warnf("WARN: clean up error: %v\n", err)
+			return
+		}
+
+		// TRUNCATE after drop should return an OServerException type
+		sql = "TRUNCATE CLASS Patient"
+		retval, docs, err = obinary.SQLCommand(dbc, sql)
+		Assert(err != nil, "Error from TRUNCATE should not be null")
+		ogl.Println(oerror.GetFullTrace(err))
+
+		err = oerror.ExtractCause(err)
+		switch err.(type) {
+		case oerror.OServerException:
+			ogl.Debugln("type == oerror.OServerException")
+		default:
+			Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
+		}
+	}()
+
 	Equals(0, len(docs))
 	ncls, err := strconv.ParseInt(retval, 10, 64)
 	Ok(err)
 	Assert(ncls > 10, "classnum should be greater than 10 but was: "+retval)
+
+	// ------
 
 	sql = "Create property Patient.name string"
 	ogl.Debugln(sql)
@@ -1097,6 +1125,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = "CREATE PROPERTY Patient.tags EMBEDDEDLIST STRING"
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+
 	numval, err := strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1141,9 +1170,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	keikoRID := docs[1].Rid
 
 	sql = `CREATE PROPERTY Cat.buddy LINK`
-	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "buddy")
+
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1165,9 +1195,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	/* ---[ Try LINKLIST ]--- */
 
 	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
-	ogl.Debugln(sql)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "buddies")
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1193,6 +1223,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = `CREATE PROPERTY Cat.notes LINKMAP`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "notes")
+
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1251,10 +1283,11 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	/* ---[ Try LINKSET ]--- */
 
-	sql = `CREATE PROPERTY Cat.buddySet LINKSET `
-	ogl.Debugln(sql)
+	sql = `CREATE PROPERTY Cat.buddySet LINKSET`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "buddySet")
+
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1440,12 +1473,11 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Germaine", felixBuddiesList[0].Record.GetField("buddy").Value.(*oschema.OLink).Record.GetField("name").Value)
 
 	// ------
+
 	sql = `select * from Cat where buddies is not null ORDER BY name`
 	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
 	Ok(err)
 	Equals(2, len(docs))
-	ogl.Println("##################### ##################### ##########")
-	ogl.Println(docs)
 	felixDoc = docs[0]
 	Equals("Felix", felixDoc.GetField("name").Value)
 	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
@@ -1462,20 +1494,110 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	linusDocViaFelix := felixBuddy0.Record
 	linusBuddyLink := linusDocViaFelix.GetField("buddy").Value.(*oschema.OLink)
 	Equals("Germaine", linusBuddyLink.Record.GetField("name").Value)
+
 	// ------
 
-	// TODO: Need to create two records that reference only each other (a.buddy = b and b.buddy = a)
-	//       do:  SELECT FROM Cat where name = "a" OR name = "b" with *:-1 fetchPlan
-	//       and see if the LINK fields are filled in (I bet not)
+	// Create two records that reference only each other (a.buddy = b and b.buddy = a)
+	//  do:  SELECT FROM Cat where name = "a" OR name = "b" with *:-1 fetchPlan
+	//  and make sure if the LINK fields are filled in
+	//  with the *:-1 fetchPlan, OrientDB server will return all the link docs in the
+	//  "supplementary section" even if they are already in the primary docs section
 
-	// TODO: Need to do SELECT FROM Cat where buddy is not null ORDER BY name
-	//       with a fetchPlan of *:1 or maybe only buddy:1 or buddies:1, etc.
+	sql = `INSERT INTO Cat SET name='Tom', age=3`
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(1, len(docs))
+	tomRID := docs[0].Rid
+	Assert(tomRID != "", "RID should be filled in")
 
-	/* ---[ Try DATETIME ]--- */ // TODO: move this after the fetchPlan section
+	sql = `INSERT INTO Cat SET name='Nick', age=4, buddy=?`
+	_, docs, err = obinary.SQLCommand(dbc, sql, "#"+tomRID)
+	Ok(err)
+	Equals(1, len(docs))
+	nickRID := docs[0].Rid
+
+	sql = `UPDATE Cat SET buddy=? WHERE name='Tom' and age=3`
+	_, _, err = obinary.SQLCommand(dbc, sql, "#"+nickRID)
+	Ok(err)
+
+	obinary.ReloadSchema(dbc)
+
+	// in this case the buddy links should be filled in with full Documents
+	sql = `SELECT FROM Cat WHERE name=? OR name=? ORDER BY name desc`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Tom", "Nick")
+	Ok(err)
+	Equals(2, len(docs))
+	tomDoc := docs[0]
+	nickDoc := docs[1]
+	Equals("Tom", tomDoc.GetField("name").Value)
+	Equals("Nick", nickDoc.GetField("name").Value)
+
+	tomsBuddy := tomDoc.GetField("buddy").Value.(*oschema.OLink)
+	nicksBuddy := nickDoc.GetField("buddy").Value.(*oschema.OLink)
+	Equals("Nick", tomsBuddy.Record.GetField("name").Value)
+	Equals("Tom", nicksBuddy.Record.GetField("name").Value)
+
+	// in this case the buddy links should NOT be filled in with full Documents
+	sql = `SELECT FROM Cat WHERE name=? OR name=? ORDER BY name desc`
+	docs, err = obinary.SQLQuery(dbc, sql, "", "Tom", "Nick")
+	Ok(err)
+	Equals(2, len(docs))
+	tomDoc = docs[0]
+	nickDoc = docs[1]
+	Equals("Tom", tomDoc.GetField("name").Value)
+	Equals("Nick", nickDoc.GetField("name").Value)
+
+	tomsBuddy = tomDoc.GetField("buddy").Value.(*oschema.OLink)
+	nicksBuddy = nickDoc.GetField("buddy").Value.(*oschema.OLink)
+	Assert(tomsBuddy.RID != "", "RID should be filled in")
+	Assert(nicksBuddy.RID != "", "RID should be filled in")
+	Assert(tomsBuddy.Record == nil, "Record should NOT be filled in")
+	Assert(nicksBuddy.Record == nil, "Record should NOT be filled in")
+
+	// ------
+
+	// ----+-----+------+--------+----+---------+-----+-------+---------------------+--------
+	// #   |@RID |@CLASS|name    |age |caretaker|buddy|buddies|notes                |buddySet
+	// ----+-----+------+--------+----+---------+-----+-------+---------------------+--------
+	// 0   |#10:0|Cat   |Linus   |15  |Michael  |#10:7|null   |null                 |null
+	// 1   |#10:1|Cat   |Keiko   |10  |Anna     |null |null   |null                 |null
+	// 2   |#10:4|Cat   |Tilde   |8   |Earl     |#10:0|null   |null                 |null
+	// 3   |#10:5|Cat   |Felix   |6   |Ed       |null |[2]    |null                 |null
+	// 4   |#10:6|Cat   |Charlie |5   |Anna     |null |null   |{bff:#10:0, 30:#10:1}|null
+	// 5   |#10:7|Cat   |Germaine|2   |Minnie   |null |[2]    |{bff:#10:1, 30:#10:0}|[2]
+	// 6   |#10:8|Cat   |Tom     |3   |null     |#10:9|null   |null                 |null
+	// 7   |#10:9|Cat   |Nick    |4   |null     |#10:8|null   |null                 |null
+	// ----+-----+------+--------+----+---------+-----+-------+---------------------+--------
+
+	//
+	// Use a fetchPlan that only gets some of the LINKS, not all
+	//
+	sql = `SELECT from Cat where name = ?`
+	docs, err = obinary.SQLQuery(dbc, sql, "buddy:0 buddies:1 buddySet:0 notes:0", "Felix")
+	// docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Felix")
+	Ok(err)
+	Equals(1, len(docs))
+	Equals("Felix", docs[0].GetField("name").Value)
+	buddies = docs[0].GetField("buddies").Value.([]*oschema.OLink)
+	sort.Sort(ByRID(buddies))
+	Equals(2, len(buddies))
+	linusDoc := buddies[0].Record
+	Assert(linusDoc != nil, "first level should be filled in")
+	linusBuddy = linusDoc.GetField("buddy").Value.(*oschema.OLink)
+	Assert(linusBuddy.RID != "", "RID should be filled in")
+	Assert(linusBuddy.Record == nil, "Record of second level should NOT be filled in")
+
+	keikoDoc := buddies[1].Record
+	Assert(keikoDoc != nil, "first level should be filled in")
+
+	// ------
+
+	/* ---[ Try DATETIME ]--- */
 
 	sql = `Create PROPERTY Cat.dt DATETIME`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "dt")
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1484,6 +1606,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = `Create PROPERTY Cat.birthday DATE`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+	defer removeProperty(dbc, "Cat", "birthday")
 	numval, err = strconv.ParseInt(retval, 10, 32)
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1524,37 +1647,13 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	/* ---[ Clean up above expts ]--- */
 
-	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s,%s]", felixRID, tildeRID, charlieRID, bruceRID, tigerRID, germaineRID)
+	ridsToDelete := []interface{}{felixRID, tildeRID, charlieRID, bruceRID, tigerRID, germaineRID, tomRID, nickRID}
+	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s,%s,%s,%s]", ridsToDelete...)
+
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals("6", retval)
+	Equals(strconv.Itoa(len(ridsToDelete)), retval)
 	Equals(0, len(docs))
-
-	// this removes the notes from all data entries, but not from the schema
-	sql = "UPDATE Cat REMOVE notes"
-	retval, docs, err = obinary.SQLCommand(dbc, sql)
-	Ok(err)
-	Equals(0, len(docs))
-	numval, err = strconv.ParseInt(retval, 10, 32)
-	Ok(err)
-	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
-
-	sql = "UPDATE Cat REMOVE buddy"
-	retval, docs, err = obinary.SQLCommand(dbc, sql)
-	Ok(err)
-	Equals(0, len(docs))
-	numval, err = strconv.ParseInt(retval, 10, 32)
-	Ok(err)
-	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
-
-	for _, propName := range []string{"buddy", "buddies", "buddySet", "notes", "dt", "birthday"} {
-		sql = "DROP PROPERTY Cat." + propName
-		_, docs, err = obinary.SQLCommand(dbc, sql)
-		if err != nil {
-			Fatal(fmt.Errorf("Error while dropping %s: %v", propName, err.Error()))
-		}
-		Equals(0, len(docs))
-	}
 
 	obinary.ReloadSchema(dbc)
 
@@ -1564,20 +1663,20 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Equals("true", retval)
 	Equals(0, len(docs))
+}
 
-	// TRUNCATE after drop should return an OServerException type
-	sql = "TRUNCATE CLASS Patient"
-	ogl.Debugln(sql)
-	retval, docs, err = obinary.SQLCommand(dbc, sql)
-	Assert(err != nil, "Error from TRUNCATE should not be null")
-	ogl.Println(oerror.GetFullTrace(err))
+// ------
 
-	err = oerror.ExtractCause(err)
-	switch err.(type) {
-	case oerror.OServerException:
-		ogl.Debugln("type == oerror.OServerException")
-	default:
-		Fatal(fmt.Errorf("TRUNCATE error cause should have been a oerror.OServerException but was: %T: %v", err, err))
+func removeProperty(dbc *obinary.DBClient, class, property string) {
+	sql := fmt.Sprintf("UPDATE %s REMOVE %s", class, property)
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	if err != nil {
+		ogl.Warnf("WARN: clean up error: %v\n", err)
+	}
+	sql = fmt.Sprintf("DROP PROPERTY %s.%s", class, property)
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	if err != nil {
+		ogl.Warnf("WARN: clean up error: %v\n", err)
 	}
 }
 

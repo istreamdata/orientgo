@@ -594,13 +594,16 @@ func (serde ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) 
 	return adjustedLocTm, nil
 }
 
-func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]string, error) {
+//
+// Returns map of string keys to *oschema.OLink
+//
+func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]*oschema.OLink, error) {
 	nentries, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	linkMap := make(map[string]string)
+	linkMap := make(map[string]*oschema.OLink)
 
 	for i := 0; i < int(nentries); i++ {
 		/* ---[ read map key ]--- */
@@ -630,41 +633,41 @@ func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]stri
 	return linkMap, nil
 }
 
-func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]string, error) {
+func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLink, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	rids := make([]string, int(nrecs))
-	for i := range rids {
-		rid, err := serde.readLink(buf)
+	links := make([]*oschema.OLink, int(nrecs))
+	for i := range links {
+		lnk, err := serde.readLink(buf)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		rids[i] = rid
+		links[i] = lnk
 	}
 
-	return rids, nil
+	return links, nil
 }
 
 //
 // readLink reads a two int64's - the cluster and record.
 // We translate it here to a string RID (cluster:record) and return it.
 //
-func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (string, error) {
+func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (*oschema.OLink, error) {
 	clusterId, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
-		return "", oerror.NewTrace(err)
+		return nil, oerror.NewTrace(err)
 	}
 
 	recordId, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
-		return "", oerror.NewTrace(err)
+		return nil, oerror.NewTrace(err)
 	}
 
-	// return oschema.OLink{ RID: fmt.Sprintf("%d:%d", clusterId, recordId) }, nil
-	return fmt.Sprintf("%d:%d", clusterId, recordId), nil
+	return &oschema.OLink{RID: fmt.Sprintf("%d:%d", clusterId, recordId)}, nil
+	// return fmt.Sprintf("%d:%d", clusterId, recordId), nil
 }
 
 //
@@ -960,8 +963,6 @@ func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
 // stream where it left off.
 //
 func refreshGlobalProperties(dbc *DBClient) error {
-	ogl.Println("+++++++ refreshGlobalProperties *****")
-	defer ogl.Println("+++++++ END refreshGlobalProperties ***********")
 	dbctmp, err := NewDBClient(ClientOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)

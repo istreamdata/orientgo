@@ -211,3 +211,13 @@ func (doc *ODocument) String() string {
 	buf.WriteString("]\n")
 	return buf.String()
 }
+
+//
+// StringNoFields is a String() method that elides the fields.
+// This is useful when the fields include links and there are
+// circular links.
+//
+func (doc *ODocument) StringNoFields() string {
+	return fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; fields: [...]]",
+		doc.Classname, doc.Rid, doc.Version)
+}

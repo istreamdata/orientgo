@@ -362,39 +362,63 @@ func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, err
 }
 
 //
-// supplRecMap maps RIDs (string) to ODocument objs
+// When a fetchPlan returns additional docs, it means that links can be resolved to point
+// the actual Document records, not just their RIDs.  This function resolves all link
+// references that it can, updating the ODocument records referenced by the docs param
+// and the Document records they link to.
+//
+// Params:
+//  docs - the "primary" ODocuments returned from a query
+//  mRIDsToDocs - a map of RID to ODocument for the "supplementary" records retrieved
+//    with an extended fetch plan
 //
 func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs map[string]*oschema.ODocument) {
-	// // to resolve all link references, need to construct a new list with all docs
-	// // and add the primary docs to the mRIDsToDocs map
-	// allDocs := docs
-	// for _, doc := range mRIDsToDocs {
-	// 	allDocs = append(allDocs, doc)
-	// }
+	// to resolve all link references, need to construct a new list with all docs
+	// and add the primary docs to the mRIDsToDocs map
+	allDocs := docs
+	for _, doc := range mRIDsToDocs {
+		allDocs = append(allDocs, doc)
+	}
 
-	// for _, doc := range docs {
-	// 	mRIDsToDocs[doc.Rid] = doc
-	// }
+	for _, doc := range docs {
+		mRIDsToDocs[doc.Rid] = doc
+	}
 
-	// // now we can fill in all the references (if present in mRIDsToDocs)
-	// for _, doc := range allDocs {
-	// 	for _, field := range doc.Fields {
-	// 		// TODO: also need to check for/handle LINKLIST, LINKSET and LINKMAP
-	// 		if field.Typ == oschema.LINK {
-	// 			lnk := field.Value.(*oschema.OLink)
-	// 			if lnk.Record == nil {
-	// 				if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
-	// 					lnk.Record = linkedDoc
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// ogl.Warnf("mRIDsToDocs at end: %v\n", mRIDsToDocs)
-	// ogl.Warnf("docs at end: %v\n", docs)
-	// ogl.Warnf("allDocs at end: %v\n", allDocs)
+	// now we can fill in all the references (if present in mRIDsToDocs)
+	for _, doc := range allDocs {
+		for _, field := range doc.Fields {
+			// TODO: also need to check for/handle LINKLIST, LINKSET and LINKMAP
+			if field.Typ == oschema.LINK {
+				lnk := field.Value.(*oschema.OLink)
+				if lnk.Record == nil {
+					if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok { // TODO: this snippet is repeated in all three cases -> DRY UP?
+						lnk.Record = linkedDoc
+					}
+				}
+			} else if field.Typ == oschema.LINKLIST || field.Typ == oschema.LINKSET {
+				lnklist := field.Value.([]*oschema.OLink)
+				for _, lnk := range lnklist {
+					if lnk.Record == nil {
+						if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
+							lnk.Record = linkedDoc
+						}
+					}
+				}
+			} else if field.Typ == oschema.LINKMAP {
+				lnkmap := field.Value.(map[string]*oschema.OLink)
+				for _, lnk := range lnkmap {
+					if lnk.Record == nil {
+						if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
+							lnk.Record = linkedDoc
+						}
+					}
+				}
+			}
+		}
+	}
 }
+
+// func updateLinkRecord()
 
 // TODO: what datatypes can the params be? => right now allowing only string
 func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {

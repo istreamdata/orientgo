@@ -142,3 +142,56 @@ with fetchPlan: "cat:0"
 
 
 
+
+
+
+
+
+
+================
+
+
+
+2015-05-02 20:26:58:368 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Read 74 bytes: q5SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name����*:-1 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 978 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 108 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 2 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 10 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing long (8 bytes): 6 [OChannelBinaryServer]
+2015-05-02 20:26:58:369 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing bytes (4+54=58 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 26, 41, 0, 0, 0, 34, 43, 0, 0, 0, 35, 57, 0, 0, 0, 40, 0, 14, 67, 104, 97, 114, 108, 105, 101, 10, 8, 65, 110, 110, 97, 4, 7, 6, 98, 102, 102, 20, 0, 7, 4, 51, 48, 20, 2] [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 10 [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing long (8 bytes): 7 [OChannelBinaryServer]
+2015-05-02 20:26:58:370 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing bytes (4+77=81 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 36, 41, 0, 0, 0, 45, 43, 0, 0, 0, 46, 55, 0, 0, 0, 53, 59, 0, 0, 0, 58, 57, 0, 0, 0, 63, 0, 16, 71, 101, 114, 109, 97, 105, 110, 101, 4, 12, 77, 105, 110, 110, 105, 101, 4, 20, 0, 20, 2, 4, 20, 0, 20, 10, 4, 7, 6, 98, 102, 102, 20, 2, 7, 4, 51, 48, 20, 0] [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 2 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 10 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing long (8 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing bytes (4+36=40 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 21, 41, 0, 0, 0, 27, 43, 0, 0, 0, 28, 0, 10, 76, 105, 110, 117, 115, 30, 14, 77, 105, 99, 104, 97, 101, 108] [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 2 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:371 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 10 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing long (8 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing bytes (4+33=37 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 21, 41, 0, 0, 0, 27, 43, 0, 0, 0, 28, 0, 10, 75, 101, 105, 107, 111, 20, 8, 65, 110, 110, 97] [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 2 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 100 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing short (2 bytes): 10 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing long (8 bytes): 5 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing int (4 bytes): 1 [OChannelBinaryServer]
+2015-05-02 20:26:58:372 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing bytes (4+41=45 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 26, 41, 0, 0, 0, 32, 43, 0, 0, 0, 33, 55, 0, 0, 0, 36, 0, 10, 70, 101, 108, 105, 120, 12, 4, 69, 100, 4, 20, 0, 20, 2] [OChannelBinaryServer]
+2015-05-02 20:26:58:378 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Writing byte (1 byte): 0 [OChannelBinaryServer]
+2015-05-02 20:26:58:378 INFO  {db=ogonoriTest} /127.0.0.1:49928 - Flush [OChannelBinaryServer]
+
+
+

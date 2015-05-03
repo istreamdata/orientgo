@@ -9,6 +9,15 @@ This project is in early stages and not usable yet.
 
 The primary focus is to build an implementation of the Network Binary Protocol for OrientDB version 2, eventually supporting both Document and Graph DBs
 
+*[Update: 03-May-2015]*:
+
+I've added support for OrientDB LINKs and fetch plans.  LINK, LINKLIST, LINKSET and LINKMAP are all supported and fetch plans that pull extended or "supplementary" links in are hydrated into Documents from the query.
+
+The OrientDB Java driver puts "supplementary documents" into a shared LRU cache. For now, I have chosen not to go this route.  Instead, I resolve all the references in the query before the documents/records are returned from the `SQLQuery` command.  For the cases I've tested so far, this seems to work fine.  I've tested circular links and it works fine.  Where it will be problematic is when a query returns a large dataset - resolving all of them could be slow or incomplete if paging (limits) are used.  I may decide to add in a LRU cache later.  I plan on looking at https://github.com/coocood/freecache for clever ideas on ways to do this.
+
+
+
+
 *[Update: 18-Apr-2015]*:
 
 I had to take a few weeks off to work on something else, but now I'm back.  The most recent changes include:

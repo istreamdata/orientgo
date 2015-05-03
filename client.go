@@ -51,10 +51,11 @@ import (
 
 // EDIT THESE to match your setup
 const (
-	ogonoriDocDB   = "ogonoriTest"
-	ogonoriGraphDB = "ogonoriGraphTest"
-	adminUser      = "root"
-	adminPassw     = "jiffylube"
+	OgonoriDocDB            = "ogonoriTest"
+	ogonoriGraphDB          = "ogonoriGraphTest"
+	adminUser               = "root"
+	adminPassw              = "jiffylube"
+	FetchPlanFollowAllLinks = "*:-1"
 )
 
 func Equals(exp, act interface{}) {
@@ -121,7 +122,7 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriDocDB, constants.Persistent)
+	dbexists, err := obinary.DatabaseExists(dbc, OgonoriDocDB, constants.Persistent)
 	Ok(err)
 
 	if dbexists {
@@ -129,16 +130,16 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 			return
 		}
 
-		err = obinary.DropDatabase(dbc, ogonoriDocDB, constants.DocumentDb)
+		err = obinary.DropDatabase(dbc, OgonoriDocDB, constants.DocumentDb)
 		Ok(err)
 	}
 
-	// err = obinary.CreateDatabase(dbc, ogonoriDocDB, constants.DocumentDbType, constants.Volatile)
-	err = obinary.CreateDatabase(dbc, ogonoriDocDB, constants.DocumentDb, constants.Persistent)
+	// err = obinary.CreateDatabase(dbc, OgonoriDocDB, constants.DocumentDbType, constants.Volatile)
+	err = obinary.CreateDatabase(dbc, OgonoriDocDB, constants.DocumentDb, constants.Persistent)
 	Ok(err)
-	dbexists, err = obinary.DatabaseExists(dbc, ogonoriDocDB, constants.Persistent)
+	dbexists, err = obinary.DatabaseExists(dbc, OgonoriDocDB, constants.Persistent)
 	Ok(err)
-	Assert(dbexists, ogonoriDocDB+" should now exists after creating it")
+	Assert(dbexists, OgonoriDocDB+" should now exists after creating it")
 
 	seedInitialData(dbc)
 
@@ -149,14 +150,14 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	// 	Fatal(err)
 	// }
 	// fmt.Printf("%v\n", mapDBs)
-	// ogonoriTestPath, ok := mapDBs[ogonoriDocDB]
-	// Assert(ok, ogonoriDocDB+" not in DB list")
+	// ogonoriTestPath, ok := mapDBs[OgonoriDocDB]
+	// Assert(ok, OgonoriDocDB+" not in DB list")
 	// Assert(strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 }
 
 func seedInitialData(dbc *obinary.DBClient) {
 	fmt.Println("OpenDatabase (seed round)")
-	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 
 	defer obinary.CloseDatabase(dbc)
@@ -257,11 +258,11 @@ func dropDatabase(dbc *obinary.DBClient, dbname string, dbtype constants.Databas
 
 func cleanUpDocDB(dbc *obinary.DBClient, fullTest bool) {
 	if fullTest {
-		dropDatabase(dbc, ogonoriDocDB, constants.DocumentDb)
+		dropDatabase(dbc, OgonoriDocDB, constants.DocumentDb)
 
 	} else {
 		_ = obinary.CloseDatabase(dbc)
-		err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
+		err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDb, "admin", "admin")
 		if err != nil {
 			ogl.Warn(err.Error())
 			return
@@ -636,7 +637,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	ogl.Debugln("\n-------- CLUSTER commands --------\n")
 
-	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -778,7 +779,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	var sql string
 	var retval string
 
-	err := obinary.OpenDatabase(dbc, ogonoriDocDB, constants.DocumentDb, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -1156,7 +1157,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Tilde", docs[0].GetField("name").Value)
 	Equals(8, int(docs[0].GetField("age").Value.(int32)))
-	Equals(linusRID, docs[0].GetField("buddy").Value)
+	Equals(linusRID, docs[0].GetField("buddy").Value.(*oschema.OLink).RID)
 
 	tildeRID := docs[0].Rid
 
@@ -1179,10 +1180,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Felix", docs[0].GetField("name").Value)
 	Equals(6, int(docs[0].GetField("age").Value.(int32)))
-	buddies := docs[0].GetField("buddies").Value.([]string)
+	buddies := docs[0].GetField("buddies").Value.([]*oschema.OLink)
 	Equals(2, len(buddies))
-	Equals(linusRID, buddies[0])
-	Equals(keikoRID, buddies[1])
+	Equals(linusRID, buddies[0].RID)
+	Equals(keikoRID, buddies[1].RID)
 
 	felixRID := docs[0].Rid
 
@@ -1202,12 +1203,177 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals(4, len(docs[0].FieldNames()))
 	Equals("Anna", docs[0].GetField("caretaker").Value)
-	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]string)["bff"])
-	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]string)["30"])
+	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["bff"].RID)
+	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["30"].RID)
 
 	charlieRID := docs[0].Rid
 
-	/* ---[ Try DATETIME ]--- */
+	// query with a fetchPlan that does NOT follow all the links
+	ogl.SetLevel(ogl.NORMAL)
+	fetchPlan = ""
+	sql = `SELECT FROM Cat WHERE notes IS NOT NULL`
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
+	Ok(err)
+	Equals(1, len(docs))
+	doc := docs[0]
+	Equals("Charlie", doc.GetField("name").Value)
+	notesField := doc.GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(notesField))
+
+	bffNote := notesField["bff"]
+	Assert(bffNote.RID != "", "RID should be filled in")
+	Assert(bffNote.Record == nil, "RID should be nil")
+
+	thirtyNote := notesField["30"]
+	Assert(thirtyNote.RID != "", "RID should be filled in")
+	Assert(thirtyNote.Record == nil, "RID should be nil")
+
+	// query with a fetchPlan that does follow all the links
+
+	fetchPlan = "*:-1"
+	sql = `SELECT FROM Cat WHERE notes IS NOT NULL`
+	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
+	Ok(err)
+	doc = docs[0]
+	Equals("Charlie", doc.GetField("name").Value)
+	notesField = doc.GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(notesField))
+
+	bffNote = notesField["bff"]
+	Assert(bffNote.RID != "", "RID should be filled in")
+	Equals("Linus", bffNote.Record.GetField("name").Value)
+
+	thirtyNote = notesField["30"]
+	Assert(thirtyNote.RID != "", "RID should be filled in")
+	Equals("Keiko", thirtyNote.Record.GetField("name").Value)
+
+	/* ---[ Try LINKSET ]--- */
+
+	sql = `CREATE PROPERTY Cat.buddySet LINKSET `
+	ogl.Debugln(sql)
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
+	Equals(0, len(docs))
+
+	obinary.ReloadSchema(dbc) // good thing to do after modifying the schema
+
+	// insert record with all the LINK types
+	sql = `insert into Cat SET name='Germaine', age=2, caretaker='Minnie', ` +
+		`buddies=(SELECT FROM Cat WHERE name = 'Linus' OR name='Keiko'), ` +
+		`buddySet=(SELECT FROM Cat WHERE name = 'Linus' OR name='Felix'), ` + // TODO: change these to be Felix or other with links as well
+		fmt.Sprintf(`notes = {"bff": #%s, 30: #%s}`, keikoRID, linusRID)
+
+	// status of Cat at this point in time
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+	//     #   |@RID |@CLASS|name    |age |caretaker|buddy|buddies        |notes                |buddySet
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+	//     0   |#10:0|Cat   |Linus   |15  |Michael  |null |null           |null                 |null
+	//     1   |#10:1|Cat   |Keiko   |10  |Anna     |null |null           |null                 |null
+	//     2   |#10:4|Cat   |Tilde   |8   |Earl     |#10:0|null           |null                 |null
+	//     3   |#10:5|Cat   |Felix   |6   |Ed       |null |[#10:0, #10:1] |null                 |null
+	//     4   |#10:6|Cat   |Charlie |5   |Anna     |null |null           |{bff:#10:0, 30:#10:1}|null
+	//     5   |#10:7|Cat   |Germaine|2   |Minnie   |null |[#10:0, #10:1] |{bff:#10:1, 30:#10:0}|[#10:0, #10:5]
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+	//     Germaine references
+	//     Felix references => Linus and Keiko as "buddies" (LINKLIST)
+
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("", retval)
+	Equals(1, len(docs))
+	Equals("Germaine", docs[0].GetField("name").Value)
+	Equals(2, int(docs[0].GetField("age").Value.(int32)))
+
+	germaineRID := docs[0].Rid
+
+	buddyList := docs[0].GetField("buddies").Value.([]*oschema.OLink)
+	Equals(2, len(buddies))
+	Equals(linusRID, buddyList[0].RID)
+	Equals(keikoRID, buddyList[1].RID)
+
+	buddySet := docs[0].GetField("buddySet").Value.([]*oschema.OLink)
+	Equals(2, len(buddySet))
+	Equals(linusRID, buddySet[0].RID)
+	Equals(felixRID, buddySet[1].RID)
+
+	notesMap := docs[0].GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(buddies))
+	Equals(keikoRID, notesMap["bff"].RID)
+	Equals(linusRID, notesMap["30"].RID)
+
+	// now query with fetchPlan that retrieves all links
+	sql = `SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	Ok(err)
+	Equals(2, len(docs))
+	Equals("Charlie", docs[0].GetField("name").Value)
+	Equals("Germaine", docs[1].GetField("name").Value)
+	Equals("Minnie", docs[1].GetField("caretaker").Value)
+
+	charlieNotesField := docs[0].GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(charlieNotesField))
+
+	bffNote = charlieNotesField["bff"]
+	Equals("Linus", bffNote.Record.GetField("name").Value)
+
+	thirtyNote = charlieNotesField["30"]
+	Equals("Keiko", thirtyNote.Record.GetField("name").Value)
+
+	// test Germaine's notes (LINKMAP)
+	germaineNotesField := docs[1].GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(germaineNotesField))
+
+	bffNote = germaineNotesField["bff"]
+	Equals("Keiko", bffNote.Record.GetField("name").Value)
+
+	thirtyNote = germaineNotesField["30"]
+	Equals("Linus", thirtyNote.Record.GetField("name").Value)
+
+	// test Germaine's buddySet (LINKSET)
+	// TODO: need to sort this set => there's another one in client.go that needs this as well
+	germaineBuddySet := docs[1].GetField("buddySet").Value.([]*oschema.OLink)
+	Equals("Linus", germaineBuddySet[0].Record.GetField("name").Value)
+	Equals("Felix", germaineBuddySet[1].Record.GetField("name").Value)
+	Assert(germaineBuddySet[1].RID != "", "RID should be filled in")
+
+	// Felix Document has references, so those should also be filled in
+	felixDoc := germaineBuddySet[1].Record
+	felixBuddiesList := felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+	// TODO: needs sorted
+	Equals(2, len(felixBuddiesList))
+	Assert(felixBuddiesList[0].Record != nil, "Felix links should be filled in")
+	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
+
+	// test Germaine's buddies (LINKLIST)
+	germaineBuddyList := docs[1].GetField("buddies").Value.([]*oschema.OLink)
+	Equals("Linus", germaineBuddyList[0].Record.GetField("name").Value)
+	Equals("Keiko", germaineBuddyList[1].Record.GetField("name").Value)
+	Assert(germaineBuddyList[0].RID != "", "RID should be filled in")
+
+	// now make a circular reference -> give Linus to Germaine as buddy
+	sql = `UPDATE Cat SET buddy = #` + germaineRID + ` where name = 'Linus'`
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals("1", retval)
+	Equals(0, len(docs))
+
+	// status of Cat at this point in time
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+	//     #   |@RID |@CLASS|name    |age |caretaker|buddy|buddies        |notes                |buddySet
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+	//     0   |#10:0|Cat   |Linus   |15  |Michael  |#10:7|null           |null                 |null
+	//     1   |#10:1|Cat   |Keiko   |10  |Anna     |null |null           |null                 |null
+	//     2   |#10:4|Cat   |Tilde   |8   |Earl     |#10:0|null           |null                 |null
+	//     3   |#10:5|Cat   |Felix   |6   |Ed       |null |[#10:0, #10:1] |null                 |null
+	//     4   |#10:6|Cat   |Charlie |5   |Anna     |null |null           |{bff:#10:0, 30:#10:1}|null
+	//     5   |#10:7|Cat   |Germaine|2   |Minnie   |null |[#10:0, #10:1] |{bff:#10:1, 30:#10:0}|[#10:0, #10:5]
+	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
+
+	/* ---[ Try DATETIME ]--- */ // TODO: move this after the fetchPlan section
+
 	sql = `Create PROPERTY Cat.dt DATETIME`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -1257,22 +1423,105 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	tigerRID := docs[0].Rid
 
-	/* ---[ queries with extended fetchPlan ]--- */
-	ogl.SetLevel(ogl.NORMAL)
-	Pause("ABOUT TO FEtCH PLAN")
-	sql = `select * from Cat where buddy is not null`
+	/* ---[ queries with extended fetchPlan (simple case) ]--- */
+	sql = `select * from Cat where name = 'Tilde'`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	Ok(err)
+	Equals(1, len(docs))
+	doc = docs[0]
+	Equals("Tilde", doc.GetField("name").Value)
+	tildeBuddyField := doc.GetField("buddy").Value.(*oschema.OLink)
+	Equals(linusRID, tildeBuddyField.RID)
+	Equals("Linus", tildeBuddyField.Record.GetField("name").Value)
+
+	// now pull in both records with non-null buddy links
+	//     Tilde and Linus are the primary docs
+	//     Tilde.buddy -> Linus
+	//     Linus.buddy -> Felix
+	//     Felix.buddies -> Linus and Keiko
+	//     so Tilde, Linus, Felix and Keiko should all be pulled in, but only
+	//     Tilde and Linus returned directly from the query
+	sql = `SELECT FROM Cat where buddy is not null ORDER BY name`
 	fetchPlan = "*:-1"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
-	ogl.Printf("docs from extended fetchPlan: %v\n", docs)
-	ogl.SetLevel(ogl.WARN)
-	Pause("END FEtCH PLAN Query")
+	Ok(err)
+	Equals(2, len(docs))
+	Equals("Linus", docs[0].GetField("name").Value)
+	Equals("Tilde", docs[1].GetField("name").Value)
+
+	linusBuddy := docs[0].GetField("buddy").Value.(*oschema.OLink)
+	Assert(linusBuddy.Record != nil, "Record should be filled in")
+	Equals("Germaine", linusBuddy.Record.GetField("name").Value)
+
+	tildeBuddy := docs[1].GetField("buddy").Value.(*oschema.OLink)
+	Assert(tildeBuddy.Record != nil, "Record should be filled in")
+	Equals("Linus", tildeBuddy.Record.GetField("name").Value)
+
+	// now check that Felix buddies were pulled in too
+	felixDoc = linusBuddy.Record
+	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink) // TODO: need to sort this list
+	Equals(2, len(felixBuddiesList))
+	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
+	Equals("Keiko", felixBuddiesList[1].Record.GetField("name").Value)
+
+	// Linus.buddy links to Felix
+	// Felix.buddies links Linux and Keiko
+	sql = `SELECT FROM Cat WHERE name = 'Linus' OR name = 'Felix' ORDER BY name DESC`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	Ok(err)
+	Equals(2, len(docs))
+	linusBuddy = docs[0].GetField("buddy").Value.(*oschema.OLink)
+	Assert(linusBuddy.Record != nil, "Record should be filled in")
+	Equals("Germaine", linusBuddy.Record.GetField("name").Value)
+
+	Assert(docs[1].GetField("buddy") == nil, "Felix should have no 'buddy'")
+	felixBuddiesList = docs[1].GetField("buddies").Value.([]*oschema.OLink)
+	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
+	Equals("Keiko", felixBuddiesList[1].Record.GetField("name").Value)
+	Equals("Anna", felixBuddiesList[1].Record.GetField("caretaker").Value)
+
+	// check that Felix's reference to Linus has Linus' link filled in
+	Equals("Germaine", felixBuddiesList[0].Record.GetField("buddy").Value.(*oschema.OLink).Record.GetField("name").Value)
+
+	//////////////////// IN PROGRESS ------------------------
+	sql = `select * from Cat where buddies is not null ORDER BY name`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	Ok(err)
+	Equals(2, len(docs))
+	ogl.Println("##################### ##################### ##########")
+	ogl.Println(docs)
+	Pause(">> JUST: " + sql)
+	felixDoc = docs[0]
+	Equals("Felix", felixDoc.GetField("name").Value)
+	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+	Equals(2, len(felixBuddiesList))
+	felixBuddy0 := felixBuddiesList[0]
+	Assert(felixBuddy0.RID != "", "RID should be filled in")
+	Equals("Linus", felixBuddy0.Record.GetField("name").Value)
+	felixBuddy1 := felixBuddiesList[1]
+	Assert(felixBuddy1.RID != "", "RID should be filled in")
+	Equals("Keiko", felixBuddy1.Record.GetField("name").Value)
+
+	// now test that the LINK docs had their LINKs filled in
+	linusDocViaFelix := felixBuddy0.Record
+	linusBuddyLink := linusDocViaFelix.GetField("buddy").Value.(*oschema.OLink)
+	Equals("Germaine", linusBuddyLink.Record.GetField("name").Value)
+
+	//////////////////// END IN PROGRESS ------------------------
+
+	// TODO: Need to create two records that reference only each other (a.buddy = b and b.buddy = a)
+	//       do:  SELECT FROM Cat where name = "a" OR name = "b" with *:-1 fetchPlan
+	//       and see if the LINK fields are filled in (I bet not)
+
+	// TODO: Need to do SELECT FROM Cat where buddy is not null ORDER BY name
+	//       with a fetchPlan of *:1 or maybe only buddy:1 or buddies:1, etc.
 
 	/* ---[ Clean up above expts ]--- */
 
-	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s]", felixRID, tildeRID, charlieRID, bruceRID, tigerRID)
+	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s,%s]", felixRID, tildeRID, charlieRID, bruceRID, tigerRID, germaineRID)
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	Equals("5", retval)
+	Equals("6", retval)
 	Equals(0, len(docs))
 
 	// this removes the notes from all data entries, but not from the schema
@@ -1284,7 +1533,15 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
 
-	for _, propName := range []string{"buddy", "buddies", "notes", "dt", "birthday"} {
+	sql = "UPDATE Cat REMOVE buddy"
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(0, len(docs))
+	numval, err = strconv.ParseInt(retval, 10, 32)
+	Ok(err)
+	Assert(int(numval) >= 0, "retval from PROPERTY removal should be a positive number")
+
+	for _, propName := range []string{"buddy", "buddies", "buddySet", "notes", "dt", "birthday"} {
 		sql = "DROP PROPERTY Cat." + propName
 		_, docs, err = obinary.SQLCommand(dbc, sql)
 		if err != nil {
@@ -1292,6 +1549,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 		}
 		Equals(0, len(docs))
 	}
+
+	obinary.ReloadSchema(dbc)
 
 	sql = "DROP CLASS Patient"
 	ogl.Debugln(sql)

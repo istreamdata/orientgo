@@ -252,5 +252,5 @@ func ReadErrorResponse(rdr io.Reader) (oerror.OServerException, error) {
 		return oerror.OServerException{}, err
 	}
 
-	return oerror.OServerException{classes, messages}, nil
+	return oerror.OServerException{Classes: classes, Messages: messages}, nil
 }

@@ -361,10 +361,11 @@ func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, err
 }
 
 //
-// When a fetchPlan returns additional docs, it means that links can be resolved to point
-// the actual Document records, not just their RIDs.  This function resolves all link
-// references that it can, updating the ODocument records referenced by the docs param
-// and the Document records they link to.
+// When a fetchPlan returns additional (supplementary) records, it means that
+// links can be resolved to point to the actual Document records, not just
+// their RIDs.  This function resolves all link references that it can,
+// updating the ODocument records referenced by the docs param and the Document
+// records they link to.
 //
 // Params:
 //  docs - the "primary" ODocuments returned from a query
@@ -388,35 +389,30 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 		for _, field := range doc.Fields {
 			if field.Typ == oschema.LINK {
 				lnk := field.Value.(*oschema.OLink)
-				if lnk.Record == nil {
-					if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok { // TODO: this snippet is repeated in all three cases -> DRY UP?
-						lnk.Record = linkedDoc
-					}
-				}
+				assignLinkRecord(lnk, mRIDsToDocs)
+
 			} else if field.Typ == oschema.LINKLIST || field.Typ == oschema.LINKSET {
 				lnklist := field.Value.([]*oschema.OLink)
 				for _, lnk := range lnklist {
-					if lnk.Record == nil {
-						if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
-							lnk.Record = linkedDoc
-						}
-					}
+					assignLinkRecord(lnk, mRIDsToDocs)
 				}
 			} else if field.Typ == oschema.LINKMAP {
 				lnkmap := field.Value.(map[string]*oschema.OLink)
 				for _, lnk := range lnkmap {
-					if lnk.Record == nil {
-						if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok {
-							lnk.Record = linkedDoc
-						}
-					}
+					assignLinkRecord(lnk, mRIDsToDocs)
 				}
 			}
 		}
 	}
 }
 
-// func updateLinkRecord()
+func assignLinkRecord(lnk *oschema.OLink, mRIDsToDocs map[string]*oschema.ODocument) {
+	if lnk.Record == nil {
+		if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok { // TODO: this snippet is repeated in all three cases -> DRY UP?
+			lnk.Record = linkedDoc
+		}
+	}
+}
 
 // TODO: what datatypes can the params be? => right now allowing only string
 func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
@@ -506,16 +502,25 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 }
 
 //
-// DOCUMENT ME
+// readSingleRecord should be called to read a single record from the DBClient connection
+// stream (from a db query/command).  In particular, this function should be called
+// after the resultType has been read from the stream and resultType == 'r' (byte 114).
+// When this is called the 'r' byte shown below should have already been read.  This
+// function will then read everything else shown here - including the serialized record,
+// but *NOT* including the byte after the serialized record (which is 0 to indicate
+// End of Transmission).
+//
+//     Writing byte (1 byte): 114 [OChannelBinaryServer]   <- 'r' (type=single-record)
 //     Writing short (2 bytes): 0 [OChannelBinaryServer]   <- 0=full record  (-2=null, -3=RID only)
 //     Writing byte (1 byte): 100 [OChannelBinaryServer]   <- 'd'=document ('f'=flat data, 'b'=raw bytes)
 //     Writing short (2 bytes): 11 [OChannelBinaryServer]  <- cluster-id  (RID part 1)
 //     Writing long (8 bytes): 0 [OChannelBinaryServer]    <- cluster-pos (RID part 2)
 //     Writing int (4 bytes): 1 [OChannelBinaryServer]     <- version
+//     Writing bytes (4+26=30 bytes): [0, 14, 80, 97, 116, ... , 110, 107, 1] <- serialized record
 //
-// ========== NEW DOCUMENTATION BELOW ===============
-// This method no longer reads the final EOT byte !!
-// ==========  END NEW DOCUMENTATION  ===============
+// A new single ODocument pointer is returned.
+//
+// TODO: this method needs to determine how to handle 'f' (flat data) and 'b' (raw bytes)
 //
 func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	var doc *oschema.ODocument
@@ -571,63 +576,36 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	}
 }
 
+//
+// TODO: need example from server to know how to handle this
+//
 func readFlatDataRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	ogl.Warnf("flat record ('f') record type -> haven't seen that before. What is it?")
 	return nil, errors.New("flat record ('f') record type -> haven't seen that before. What is it?")
 }
 
+//
+// TODO: need example from server to know how to handle this
+//
 func readRawBytesRecord(dbc *DBClient) (*oschema.ODocument, error) {
 	ogl.Warnf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
 	return nil, errors.New("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
 }
 
 //
-// readSingleDocument should be called when a single record (as opposed to a collection of
-// records) is returned from a db query/command (REQUEST_COMMAND only ???).
-// That is when the server sends back:
-//     1) Writing byte (1 byte): 0 [OChannelBinaryServer]   -> SUCCESS
-//     2) Writing int (4 bytes): 192 [OChannelBinaryServer] -> session-id
-//     3) Writing byte (1 byte): 114 [OChannelBinaryServer] -> 'r'  (single record)
-//     4) Writing short (2 bytes): 0 [OChannelBinaryServer] -> full record (not null, not RID only)
-// Line 3 can be 'l' or possibly other things. For 'l' call readResultSet.
-// Line 4 can be 0=full-record, -2=null, -3=RID only.  For -3, call readRID.  For 0, call this fn.
+// readSingleDocument is called by readSingleRecord when it has determined that the server
+// has sent a docuemnt ('d'), not flat data ('f') or raw bytes ('b').
+// It should be called *after* the single byte below on the first line has been already
+// read and determined to be 'd'.  The rest the stream (NOT including the EOT byte) will
+// be read.  The serialized document will be turned into an oschema.ODocument.
 //
-// TODO: it is not a given that this method should always return an ODocument
-// The rest of the server response (following after above) is:
-//     5) Writing byte (1 byte): 100 [OChannelBinaryServer] -> 'd' (ODocument record)
-//     6) Writing short (2 bytes): 12 [OChannelBinaryServer] -> cluster-id
-//     7) Writing long (8 bytes): 7 [OChannelBinaryServer]  -> cluster-position
-//     8) Writing int (4 bytes): 3 [OChannelBinaryServer]   -> record-version
-// Line 5 can be:
-//     record-type is
-//     'b': raw bytes
-//     'f': flat data
-//     'd': document
-// So it might make sense for readSingleDocument to take value interface{} param of type
-// []byte, ??? (for flat data - not sure what that is), or *oschema.ODocument.  Or maybe
-// ODocument with OField can handle all those.
+//     Writing byte (1 byte): 100 [OChannelBinaryServer]   <- 'd'=document ('f'=flat data, 'b'=raw bytes)
+//     Writing short (2 bytes): 11 [OChannelBinaryServer]  <- cluster-id  (RID part 1)
+//     Writing long (8 bytes): 0 [OChannelBinaryServer]    <- cluster-pos (RID part 2)
+//     Writing int (4 bytes): 1 [OChannelBinaryServer]     <- version
+//     Writing bytes (4+26=30 bytes): [0, 14, 80, 97, 116, ... , 110, 107, 1] <- serialized record
 //
 func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
-	// this picks up reading the dbc.conx at:
-	// 4) Writing short (2 bytes): 0 [OChannelBinaryServer] -> full record (not null, not RID only)
-	// which could be -2=null, -3=RID or 0=full-record
-
-	// recordType can be 'b'=raw bytes; 'd': document; 'f': flat data
-	// recordType, err := rw.ReadByte(dbc.conx)
-	// if err != nil {
-	// 	return nil, oerror.NewTrace(err)
-	// }
-	// if recordType == byte('b') {
-	// 	err = fmt.Errorf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
-	// 	fatal(err)
-	// 	return nil, err
-
-	// } else if recordType == byte('f') {
-	// 	err = fmt.Errorf("flat record ('f') record type -> haven't seen that before. What is it?")
-	// 	fatal(err)
-	// 	return nil, err
-	// }
-
 	clusterId, err := rw.ReadShort(dbc.conx)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -648,7 +626,7 @@ func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
 		return nil, oerror.NewTrace(err)
 	}
 	rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
-	doc, err := createDocument(rid, recVersion, recBytes, dbc)
+	doc, err := createDocumentFromBytes(rid, recVersion, recBytes, dbc)
 	ogl.Debugf("::single record doc:::::: %v\n", doc)
 	return doc, err
 }
@@ -664,7 +642,7 @@ func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
 // Line 3 can be 'l' or possibly other things. For 'l' call readResultSet.
 // Line 4 can be 0=full-record, -2=null, -3=RID only.  For -3, call readRID.  For 0, call this readSingleDocument.
 //
-// TODO: this is likely the wrong return val
+// TODO: this is likely the wrong return val => Need to create RID data structure
 func readRID(dbc *DBClient) (string, error) {
 	// svr response: (-3:short)(cluster-id:short)(cluster-position:long)
 	// TODO: impl me -> in the future this may need to call loadRecord for the RID and return the ODocument
@@ -738,7 +716,7 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 			if err != nil {
 				return nil, oerror.NewTrace(err)
 			}
-			doc, err = createDocument(rid, recVersion, recBytes, dbc)
+			doc, err = createDocumentFromBytes(rid, recVersion, recBytes, dbc)
 			if err != nil {
 				return nil, oerror.NewTrace(err)
 			}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/quux00/ogonori/obinary"
@@ -64,16 +63,16 @@ func doExec(dbc *obinary.DBClient, cmd string, args []driver.Value) (driver.Resu
 		return ogonoriResult{nrows, -1}, err
 	}
 
-	lastDoc := docs[len(docs)-1]
-	sepIdx := strings.Index(lastDoc.Rid, ":")
-	if sepIdx < 0 {
-		return ogonoriResult{len64(docs), -1}, fmt.Errorf("RID of returned doc not of expected format: %v", lastDoc.Rid)
-	}
-	lastId, err := strconv.ParseInt(lastDoc.Rid[sepIdx+1:], 10, 64)
-	if err != nil {
-		return ogonoriResult{len64(docs), -1}, fmt.Errorf("Couldn't parse ID from doc RID: %v: %v", lastDoc.Rid, err)
-	}
-	return ogonoriResult{len64(docs), lastId}, err
+	lastdoc := docs[len(docs)-1]
+	// sepIdx := strings.Index(lastDoc.RID, ":")
+	// if sepIdx < 0 {
+	// 	return ogonoriResult{len64(docs), -1}, fmt.Errorf("RID of returned doc not of expected format: %v", lastDoc.RID)
+	// }
+	// lastId, err := strconv.ParseInt(lastDoc.RID[sepIdx+1:], 10, 64)
+	// if err != nil {
+	// 	return ogonoriResult{len64(docs), -1}, fmt.Errorf("Couldn't parse ID from doc RID: %v: %v", lastDoc.RID, err)
+	// }
+	return ogonoriResult{len64(docs), lastdoc.RID.ClusterPos}, err
 }
 
 func len64(docs []*oschema.ODocument) int64 {

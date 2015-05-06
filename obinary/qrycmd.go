@@ -346,8 +346,7 @@ func readSupplementaryRecords(dbc *DBClient) (map[oschema.ORID]*oschema.ODocumen
 	mapRIDToDoc := make(map[oschema.ORID]*oschema.ODocument)
 	for {
 		doc, err := readSingleRecord(dbc)
-		orid := oschema.NewORIDFromString(doc.Rid) // TODO: convert doc.Rid to ORID type
-		mapRIDToDoc[orid] = doc
+		mapRIDToDoc[doc.RID] = doc
 
 		status, err := rw.ReadByte(dbc.conx)
 		if err != nil {
@@ -382,8 +381,7 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 	}
 
 	for _, doc := range docs {
-		orid := oschema.NewORIDFromString(doc.Rid) // TODO: convert doc.Rid to ORID type
-		mRIDsToDocs[orid] = doc
+		mRIDsToDocs[doc.RID] = doc
 	}
 
 	// now we can fill in all the references (if present in mRIDsToDocs)
@@ -536,13 +534,13 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 		return nil, nil
 
 	} else if resultType == RecordRID {
-		rid, err := readRID(dbc)
+		orid, err := readRID(dbc)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
 		doc = oschema.NewDocument("")
-		doc.Rid = rid.String()
-		ogl.Warn(fmt.Sprintf("readSingleRecord :: Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
+		doc.RID = orid
+		ogl.Warn(fmt.Sprintf("readSingleRecord :: Code path not seen before!!: SQLCommand resulted in RID: %s\n", orid))
 		// TODO: would now load that record from the DB if the user (Go SQL API) wants it
 		return doc, nil
 

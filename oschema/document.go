@@ -14,7 +14,7 @@ import (
 )
 
 type ODocument struct {
-	Rid        string
+	RID        ORID
 	Version    int32
 	entryOrder []string           // field names in the order they were added to the ODocument
 	Fields     map[string]*OField // key: property-name
@@ -194,8 +194,8 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte
 //
 func (doc *ODocument) String() string {
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; fields: \n",
-		doc.Classname, doc.Rid, doc.Version))
+	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: %s; Version: %d; fields: \n",
+		doc.Classname, doc.RID, doc.Version))
 	if err != nil {
 		panic(err)
 	}
@@ -218,6 +218,6 @@ func (doc *ODocument) String() string {
 // circular links.
 //
 func (doc *ODocument) StringNoFields() string {
-	return fmt.Sprintf("ODocument[Classname: %s; RID: #%s; Version: %d; fields: [...]]",
-		doc.Classname, doc.Rid, doc.Version)
+	return fmt.Sprintf("ODocument[Classname: %s; RID: %s; Version: %d; fields: [...]]",
+		doc.Classname, doc.RID, doc.Version)
 }

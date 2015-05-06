@@ -13,7 +13,7 @@ import (
 func createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc []byte, dbc *DBClient) (*oschema.ODocument, error) {
 	var doc *oschema.ODocument
 	doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
-	doc.Rid = rid.String()
+	doc.RID = rid
 	doc.Version = recVersion
 
 	// TODO: here need to make a query to look up the schema of the doc if we don't have it already cached

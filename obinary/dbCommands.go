@@ -582,7 +582,7 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 		if rectype == 'd' {
 			// we don't know the classname so set empty value
 			doc := oschema.NewDocument("")
-			doc.Rid = rid
+			doc.RID = orid
 			doc.Version = recversion
 
 			// the first byte specifies record serialization version

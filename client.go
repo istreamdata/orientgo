@@ -791,9 +791,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	docs, err := obinary.SQLQuery(dbc, sql, fetchPlan)
 	Ok(err)
 
-	linusDocRID := docs[0].Rid
+	linusDocRID := docs[0].RID
 
-	Assert(linusDocRID != "", "linusDocRID should not be nil")
+	Assert(linusDocRID.ClusterID != oschema.ClusterIDInvalid, "linusDocRID should not be nil")
 	Assert(docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("Cat", docs[0].Classname)
@@ -816,11 +816,11 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Michael", caretakerField.Value)
 
 	/* ---[ get by RID ]--- */
-	docs, err = obinary.GetRecordByRID(dbc, linusDocRID, "")
+	docs, err = obinary.GetRecordByRID(dbc, linusDocRID.String(), "")
 	Ok(err)
 	Equals(1, len(docs))
 	docByRID := docs[0]
-	Equals(linusDocRID, docByRID.Rid)
+	Equals(linusDocRID, docByRID.RID)
 	Assert(docByRID.Version > 0, fmt.Sprintf("Version is: %d", docByRID.Version))
 	Equals(3, len(docByRID.FieldNames()))
 	Equals("Cat", docByRID.Classname)
@@ -873,7 +873,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Anna", keiko.GetField("caretaker").Value)
 	Equals(byte(oschema.STRING), keiko.GetField("caretaker").Typ)
 	Assert(keiko.Version > int32(0), "Version should be greater than zero")
-	Assert(keiko.Rid != "", "RID should not be empty")
+	Assert(keiko.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
 
 	linus := docs[1]
 	Equals("Linus", linus.GetField("name").Value)
@@ -887,7 +887,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(byte(oschema.STRING), zed.GetField("caretaker").Typ)
 	Equals(byte(oschema.INTEGER), zed.GetField("age").Typ)
 	Assert(zed.Version > int32(0), "Version should be greater than zero")
-	Assert(zed.Rid != "", "RID should not be empty")
+	Assert(zed.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
 
 	sql = "select name, caretaker from Cat order by caretaker"
 	docs, err = obinary.SQLQuery(dbc, sql, fetchPlan)
@@ -910,8 +910,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("name", docs[0].GetField("name").Name)
 
 	/* ---[ delete newly added record(s) ]--- */
-	ogl.Println("Deleting (sync) record #" + zed.Rid)
-	err = obinary.DeleteRecordByRID(dbc, zed.Rid, zed.Version)
+	ogl.Println("Deleting (sync) record #" + zed.RID.String())
+	err = obinary.DeleteRecordByRID(dbc, zed.RID.String(), zed.Version)
 	Ok(err)
 
 	// ogl.Println("Deleting (Async) record #11:4")
@@ -1166,8 +1166,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = `select from Cat WHERE name = 'Linus' OR name='Keiko' ORDER BY @rid`
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Equals(2, len(docs))
-	linusRID := docs[0].Rid
-	keikoRID := docs[1].Rid
+	linusRID := docs[0].RID
+	keikoRID := docs[1].RID
 
 	sql = `CREATE PROPERTY Cat.buddy LINK`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -1188,9 +1188,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Tilde", docs[0].GetField("name").Value)
 	Equals(8, int(docs[0].GetField("age").Value.(int32)))
-	Equals(linusRID, docs[0].GetField("buddy").Value.(*oschema.OLink).RID.String())
+	Equals(linusRID, docs[0].GetField("buddy").Value.(*oschema.OLink).RID)
 
-	tildeRID := docs[0].Rid
+	tildeRID := docs[0].RID
 
 	/* ---[ Try LINKLIST ]--- */
 
@@ -1214,10 +1214,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	buddies := docs[0].GetField("buddies").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddies))
 	Equals(2, len(buddies))
-	Equals(linusRID, buddies[0].RID.String())
-	Equals(keikoRID, buddies[1].RID.String())
+	Equals(linusRID, buddies[0].RID)
+	Equals(keikoRID, buddies[1].RID)
 
-	felixRID := docs[0].Rid
+	felixRID := docs[0].RID
 
 	/* ---[ Try LINKMAP ]--- */
 	sql = `CREATE PROPERTY Cat.notes LINKMAP`
@@ -1237,10 +1237,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals(4, len(docs[0].FieldNames()))
 	Equals("Anna", docs[0].GetField("caretaker").Value)
-	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["bff"].RID.String())
-	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["30"].RID.String())
+	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["bff"].RID)
+	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["30"].RID)
 
-	charlieRID := docs[0].Rid
+	charlieRID := docs[0].RID
 
 	// query with a fetchPlan that does NOT follow all the links
 	ogl.SetLevel(ogl.NORMAL)
@@ -1322,24 +1322,24 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Germaine", docs[0].GetField("name").Value)
 	Equals(2, int(docs[0].GetField("age").Value.(int32)))
 
-	germaineRID := docs[0].Rid
+	germaineRID := docs[0].RID
 
 	buddyList := docs[0].GetField("buddies").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddyList))
 	Equals(2, len(buddies))
-	Equals(linusRID, buddyList[0].RID.String())
-	Equals(keikoRID, buddyList[1].RID.String())
+	Equals(linusRID, buddyList[0].RID)
+	Equals(keikoRID, buddyList[1].RID)
 
 	buddySet := docs[0].GetField("buddySet").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddySet))
 	Equals(2, len(buddySet))
-	Equals(linusRID, buddySet[0].RID.String())
-	Equals(felixRID, buddySet[1].RID.String())
+	Equals(linusRID, buddySet[0].RID)
+	Equals(felixRID, buddySet[1].RID)
 
 	notesMap := docs[0].GetField("notes").Value.(map[string]*oschema.OLink)
 	Equals(2, len(buddies))
-	Equals(keikoRID, notesMap["bff"].RID.String())
-	Equals(linusRID, notesMap["30"].RID.String())
+	Equals(keikoRID, notesMap["bff"].RID)
+	Equals(linusRID, notesMap["30"].RID)
 
 	// now query with fetchPlan that retrieves all links
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name`
@@ -1392,7 +1392,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(germaineBuddyList[0].RID.ClusterID != -1, "RID should be filled in")
 
 	// now make a circular reference -> give Linus to Germaine as buddy
-	sql = `UPDATE Cat SET buddy = ` + germaineRID + ` where name = 'Linus'`
+	sql = `UPDATE Cat SET buddy = ` + germaineRID.String() + ` where name = 'Linus'`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals("1", retval)
@@ -1418,7 +1418,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	doc = docs[0]
 	Equals("Tilde", doc.GetField("name").Value)
 	tildeBuddyField := doc.GetField("buddy").Value.(*oschema.OLink)
-	Equals(linusRID, tildeBuddyField.RID.String())
+	Equals(linusRID, tildeBuddyField.RID)
 	Equals("Linus", tildeBuddyField.Record.GetField("name").Value)
 
 	// now pull in both records with non-null buddy links
@@ -1507,17 +1507,17 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(1, len(docs))
-	tomRID := docs[0].Rid
-	Assert(tomRID != "", "RID should be filled in")
+	tomRID := docs[0].RID
+	Assert(tomRID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
 
 	sql = `INSERT INTO Cat SET name='Nick', age=4, buddy=?`
-	_, docs, err = obinary.SQLCommand(dbc, sql, "#"+tomRID)
+	_, docs, err = obinary.SQLCommand(dbc, sql, tomRID.String())
 	Ok(err)
 	Equals(1, len(docs))
-	nickRID := docs[0].Rid
+	nickRID := docs[0].RID
 
 	sql = `UPDATE Cat SET buddy=? WHERE name='Tom' and age=3`
-	_, _, err = obinary.SQLCommand(dbc, sql, "#"+nickRID)
+	_, _, err = obinary.SQLCommand(dbc, sql, nickRID.String())
 	Ok(err)
 
 	obinary.ReloadSchema(dbc)
@@ -1627,7 +1627,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Equals(expectedTm.String(), dt.String())
 
-	bruceRID := docs[0].Rid
+	bruceRID := docs[0].RID
 
 	sql = `INSERT into Cat SET name = 'Tiger', birthday = '2014-11-25'`
 	ogl.Debugln(sql)
@@ -1643,7 +1643,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Equals(expectedTm.String(), birthdayTm.String())
 
-	tigerRID := docs[0].Rid
+	tigerRID := docs[0].RID
 
 	/* ---[ Clean up above expts ]--- */
 

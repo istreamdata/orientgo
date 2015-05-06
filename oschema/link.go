@@ -8,7 +8,7 @@ import "fmt"
 //
 
 type OLink struct {
-	RID    string
+	RID    ORID
 	Record *ODocument
 }
 

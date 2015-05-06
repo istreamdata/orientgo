@@ -430,25 +430,20 @@ func DeleteRecordByRID(dbc *DBClient, rid string, recVersion int32) error {
 
 func deleteByRID(dbc *DBClient, rid string, recVersion int32, async bool) error {
 	dbc.buf.Reset()
-	var (
-		clusterId  int16
-		clusterPos int64
-		err        error
-	)
-	rid = strings.TrimPrefix(rid, "#")
-	clusterId, clusterPos, err = parseRid(rid)
 
-	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_DELETE)
+	orid := oschema.NewORIDFromString(rid)
+
+	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_DELETE)
 	if err != nil {
 		return err
 	}
 
-	err = rw.WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, orid.ClusterID)
 	if err != nil {
 		return err
 	}
 
-	err = rw.WriteLong(dbc.buf, clusterPos)
+	err = rw.WriteLong(dbc.buf, orid.ClusterPos)
 	if err != nil {
 		return err
 	}
@@ -506,25 +501,20 @@ func deleteByRID(dbc *DBClient, rid string, recVersion int32, async bool) error 
 // TODO: may also want to expose options: ignoreCache, loadTombstones bool
 func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
-	var (
-		clusterId  int16
-		clusterPos int64
-		err        error
-	)
-	rid = strings.TrimPrefix(rid, "#")
-	clusterId, clusterPos, err = parseRid(rid)
 
-	err = writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
+	orid := oschema.NewORIDFromString(rid)
+
+	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	err = rw.WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, orid.ClusterID)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	err = rw.WriteLong(dbc.buf, clusterPos)
+	err = rw.WriteLong(dbc.buf, orid.ClusterPos)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
@@ -615,11 +605,11 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 }
 
 //
-// parseRid splits an OrientDB RID into its components parts - clusterId
+// parseRid splits an OrientDB RID into its components parts - clusterID
 // and clusterPos, returning the integer value of each. Note that the rid
 // passed in must NOT have a leading '#'.
 //
-func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
+func parseRid(rid string) (clusterID int16, clusterPos int64, err error) {
 	parts := strings.Split(rid, ":")
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("RID %s is not of form x:y", rid)
@@ -628,10 +618,10 @@ func parseRid(rid string) (clusterId int16, clusterPos int64, err error) {
 	if err != nil {
 		return 0, 0, oerror.NewTrace(err)
 	}
-	clusterId = int16(id64)
+	clusterID = int16(id64)
 
 	clusterPos, err = strconv.ParseInt(parts[1], 10, 64)
-	return clusterId, clusterPos, err
+	return clusterID, clusterPos, err
 }
 
 //
@@ -648,12 +638,12 @@ func ReloadSchema(dbc *DBClient) error {
 func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, err error) {
 	dbc.buf.Reset()
 
-	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
-	if clusterId < 0 {
+	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
-		//       2) provide a GetClusterRangeById(dbc, clusterId)
+		//       2) provide a GetClusterRangeById(dbc, clusterID)
 		return begin, end,
 			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
 	}
@@ -663,7 +653,7 @@ func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, e
 		return begin, end, oerror.NewTrace(err)
 	}
 
-	err = rw.WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, clusterID)
 	if err != nil {
 		return begin, end, oerror.NewTrace(err)
 	}
@@ -694,9 +684,9 @@ func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, e
 // AddCluster adds a cluster to the current database. It is a
 // database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
-// The clusterId is returned if the command is successful.
+// The clusterID is returned if the command is successful.
 //
-func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) {
+func AddCluster(dbc *DBClient, clusterName string) (clusterID int16, err error) {
 	dbc.buf.Reset()
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_ADD)
@@ -729,13 +719,13 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) 
 		return int16(0), oerror.NewTrace(err)
 	}
 
-	clusterId, err = rw.ReadShort(dbc.conx)
+	clusterID, err = rw.ReadShort(dbc.conx)
 	if err != nil {
-		return clusterId, oerror.NewTrace(err)
+		return clusterID, oerror.NewTrace(err)
 	}
 
-	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterId})
-	return clusterId, err
+	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterID})
+	return clusterID, err
 }
 
 //
@@ -747,12 +737,12 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterId int16, err error) 
 func DropCluster(dbc *DBClient, clusterName string) error {
 	dbc.buf.Reset()
 
-	clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
-	if clusterId < 0 {
+	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
-		//       2) provide a DropClusterById(dbc, clusterId)
+		//       2) provide a DropClusterById(dbc, clusterID)
 		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
 	}
 
@@ -761,7 +751,7 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 		return oerror.NewTrace(err)
 	}
 
-	err = rw.WriteShort(dbc.buf, clusterId)
+	err = rw.WriteShort(dbc.buf, clusterID)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -813,19 +803,19 @@ func GetClusterCount(dbc *DBClient, clusterNames ...string) (count int64, err er
 func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string) (count int64, err error) {
 	dbc.buf.Reset()
 
-	clusterIds := make([]int16, len(clusterNames))
+	clusterIDs := make([]int16, len(clusterNames))
 	for i, name := range clusterNames {
-		clusterId := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(name))
-		if clusterId < 0 {
+		clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(name))
+		if clusterID < 0 {
 			// TODO: This is problematic - someone else may add the cluster not through this
 			//       driver session and then this would fail - so options:
 			//       1) do a lookup of all clusters on the DB
-			//       2) provide a GetClusterCountById(dbc, clusterId)
+			//       2) provide a GetClusterCountById(dbc, clusterID)
 			return int64(0),
 				fmt.Errorf("No cluster with name %s is known in database %s\n",
 					name, dbc.currDb.Name)
 		}
-		clusterIds[i] = clusterId
+		clusterIDs[i] = clusterID
 	}
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_COUNT)
@@ -833,13 +823,13 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 		return int64(0), oerror.NewTrace(err)
 	}
 
-	// specify number of clusterIds being sent and then write the clusterIds
-	err = rw.WriteShort(dbc.buf, int16(len(clusterIds)))
+	// specify number of clusterIDs being sent and then write the clusterIDs
+	err = rw.WriteShort(dbc.buf, int16(len(clusterIDs)))
 	if err != nil {
 		return int64(0), oerror.NewTrace(err)
 	}
 
-	for _, cid := range clusterIds {
+	for _, cid := range clusterIDs {
 		err = rw.WriteShort(dbc.buf, cid)
 		if err != nil {
 			return int64(0), oerror.NewTrace(err)

@@ -342,11 +342,12 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 // When called the "status byte" should have already been called
 // Returns map where keys are RIDs (string) and values are ODocument objs
 //
-func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, error) {
-	mapRIDToDoc := make(map[string]*oschema.ODocument)
+func readSupplementaryRecords(dbc *DBClient) (map[oschema.ORID]*oschema.ODocument, error) {
+	mapRIDToDoc := make(map[oschema.ORID]*oschema.ODocument)
 	for {
 		doc, err := readSingleRecord(dbc)
-		mapRIDToDoc[doc.Rid] = doc
+		orid := oschema.NewORIDFromString(doc.Rid) // TODO: convert doc.Rid to ORID type
+		mapRIDToDoc[orid] = doc
 
 		status, err := rw.ReadByte(dbc.conx)
 		if err != nil {
@@ -372,7 +373,7 @@ func readSupplementaryRecords(dbc *DBClient) (map[string]*oschema.ODocument, err
 //  mRIDsToDocs - a map of RID to ODocument for the "supplementary" records retrieved
 //    with an extended fetch plan
 //
-func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs map[string]*oschema.ODocument) {
+func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs map[oschema.ORID]*oschema.ODocument) {
 	// to resolve all link references, need to construct a new list with all docs
 	// and add the primary docs to the mRIDsToDocs map
 	allDocs := docs
@@ -381,7 +382,8 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 	}
 
 	for _, doc := range docs {
-		mRIDsToDocs[doc.Rid] = doc
+		orid := oschema.NewORIDFromString(doc.Rid) // TODO: convert doc.Rid to ORID type
+		mRIDsToDocs[orid] = doc
 	}
 
 	// now we can fill in all the references (if present in mRIDsToDocs)
@@ -406,7 +408,7 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 	}
 }
 
-func assignLinkRecord(lnk *oschema.OLink, mRIDsToDocs map[string]*oschema.ODocument) {
+func assignLinkRecord(lnk *oschema.OLink, mRIDsToDocs map[oschema.ORID]*oschema.ODocument) {
 	if lnk.Record == nil {
 		if linkedDoc, ok := mRIDsToDocs[lnk.RID]; ok { // TODO: this snippet is repeated in all three cases -> DRY UP?
 			lnk.Record = linkedDoc
@@ -539,7 +541,7 @@ func readSingleRecord(dbc *DBClient) (*oschema.ODocument, error) {
 			return nil, oerror.NewTrace(err)
 		}
 		doc = oschema.NewDocument("")
-		doc.Rid = rid
+		doc.Rid = rid.String()
 		ogl.Warn(fmt.Sprintf("readSingleRecord :: Code path not seen before!!: SQLCommand resulted in RID: %v\n", rid))
 		// TODO: would now load that record from the DB if the user (Go SQL API) wants it
 		return doc, nil
@@ -625,7 +627,7 @@ func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
-	rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
+	rid := oschema.ORID{ClusterID: clusterId, ClusterPos: clusterPos}
 	doc, err := createDocumentFromBytes(rid, recVersion, recBytes, dbc)
 	ogl.Debugf("::single record doc:::::: %v\n", doc)
 	return doc, err
@@ -642,20 +644,19 @@ func readSingleDocument(dbc *DBClient) (*oschema.ODocument, error) {
 // Line 3 can be 'l' or possibly other things. For 'l' call readResultSet.
 // Line 4 can be 0=full-record, -2=null, -3=RID only.  For -3, call readRID.  For 0, call this readSingleDocument.
 //
-// TODO: this is likely the wrong return val => Need to create RID data structure
-func readRID(dbc *DBClient) (string, error) {
+func readRID(dbc *DBClient) (oschema.ORID, error) {
 	// svr response: (-3:short)(cluster-id:short)(cluster-position:long)
 	// TODO: impl me -> in the future this may need to call loadRecord for the RID and return the ODocument
-	clusterId, err := rw.ReadShort(dbc.conx)
+	clusterID, err := rw.ReadShort(dbc.conx)
 	if err != nil {
-		return "", oerror.NewTrace(err)
+		return oschema.NewORID(), oerror.NewTrace(err)
 	}
 	clusterPos, err := rw.ReadLong(dbc.conx)
 	if err != nil {
-		return "", oerror.NewTrace(err)
+		return oschema.NewORID(), oerror.NewTrace(err)
 	}
 
-	return fmt.Sprintf("%d:%d", clusterId, clusterPos), nil
+	return oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}, nil
 }
 
 //
@@ -711,7 +712,7 @@ func readResultSet(dbc *DBClient) ([]*oschema.ODocument, error) {
 		}
 		if recType == byte('d') { // Document
 			var doc *oschema.ODocument
-			rid := fmt.Sprintf("%d:%d", clusterId, clusterPos)
+			rid := oschema.ORID{ClusterID: clusterId, ClusterPos: clusterPos}
 			recBytes, err := rw.ReadBytes(dbc.conx)
 			if err != nil {
 				return nil, oerror.NewTrace(err)

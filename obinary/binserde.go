@@ -661,12 +661,12 @@ func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (*oschema.OLink, er
 		return nil, oerror.NewTrace(err)
 	}
 
-	recordId, err := varint.ReadVarIntAndDecode64(buf)
+	clusterPos, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	return &oschema.OLink{RID: fmt.Sprintf("%d:%d", clusterId, recordId)}, nil
+	return &oschema.OLink{RID: oschema.ORID{int16(clusterId), clusterPos}}, nil
 	// return fmt.Sprintf("%d:%d", clusterId, recordId), nil
 }
 

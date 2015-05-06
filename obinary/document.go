@@ -10,10 +10,10 @@ import (
 // TODO: in the Java version there is a "fill" method on ODocument (ORecord)
 //       to create a record from these entries => maybe move this there?
 //
-func createDocumentFromBytes(rid string, recVersion int32, serializedDoc []byte, dbc *DBClient) (*oschema.ODocument, error) {
+func createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc []byte, dbc *DBClient) (*oschema.ODocument, error) {
 	var doc *oschema.ODocument
 	doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
-	doc.Rid = rid
+	doc.Rid = rid.String()
 	doc.Version = recVersion
 
 	// TODO: here need to make a query to look up the schema of the doc if we don't have it already cached

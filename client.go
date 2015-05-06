@@ -1188,7 +1188,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Tilde", docs[0].GetField("name").Value)
 	Equals(8, int(docs[0].GetField("age").Value.(int32)))
-	Equals(linusRID, docs[0].GetField("buddy").Value.(*oschema.OLink).RID)
+	Equals(linusRID, docs[0].GetField("buddy").Value.(*oschema.OLink).RID.String())
 
 	tildeRID := docs[0].Rid
 
@@ -1214,8 +1214,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	buddies := docs[0].GetField("buddies").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddies))
 	Equals(2, len(buddies))
-	Equals(linusRID, buddies[0].RID)
-	Equals(keikoRID, buddies[1].RID)
+	Equals(linusRID, buddies[0].RID.String())
+	Equals(keikoRID, buddies[1].RID.String())
 
 	felixRID := docs[0].Rid
 
@@ -1230,15 +1230,15 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 	Equals(0, len(docs))
 
-	sql = fmt.Sprintf(`INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": #%s, 30: #%s}`,
+	sql = fmt.Sprintf(`INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": %s, 30: %s}`,
 		linusRID, keikoRID)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals(1, len(docs))
 	Equals(4, len(docs[0].FieldNames()))
 	Equals("Anna", docs[0].GetField("caretaker").Value)
-	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["bff"].RID)
-	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["30"].RID)
+	Equals(linusRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["bff"].RID.String())
+	Equals(keikoRID, docs[0].GetField("notes").Value.(map[string]*oschema.OLink)["30"].RID.String())
 
 	charlieRID := docs[0].Rid
 
@@ -1255,11 +1255,11 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(2, len(notesField))
 
 	bffNote := notesField["bff"]
-	Assert(bffNote.RID != "", "RID should be filled in")
+	Assert(bffNote.RID.ClusterID != -1, "RID should be filled in")
 	Assert(bffNote.Record == nil, "RID should be nil")
 
 	thirtyNote := notesField["30"]
-	Assert(thirtyNote.RID != "", "RID should be filled in")
+	Assert(thirtyNote.RID.ClusterID != -1, "RID should be filled in")
 	Assert(thirtyNote.Record == nil, "RID should be nil")
 
 	// query with a fetchPlan that does follow all the links
@@ -1274,11 +1274,11 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(2, len(notesField))
 
 	bffNote = notesField["bff"]
-	Assert(bffNote.RID != "", "RID should be filled in")
+	Assert(bffNote.RID.ClusterID != -1, "RID should be filled in")
 	Equals("Linus", bffNote.Record.GetField("name").Value)
 
 	thirtyNote = notesField["30"]
-	Assert(thirtyNote.RID != "", "RID should be filled in")
+	Assert(thirtyNote.RID.ClusterID != -1, "RID should be filled in")
 	Equals("Keiko", thirtyNote.Record.GetField("name").Value)
 
 	/* ---[ Try LINKSET ]--- */
@@ -1299,7 +1299,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sql = `insert into Cat SET name='Germaine', age=2, caretaker='Minnie', ` +
 		`buddies=(SELECT FROM Cat WHERE name = 'Linus' OR name='Keiko'), ` +
 		`buddySet=(SELECT FROM Cat WHERE name = 'Linus' OR name='Felix'), ` +
-		fmt.Sprintf(`notes = {"bff": #%s, 30: #%s}`, keikoRID, linusRID)
+		fmt.Sprintf(`notes = {"bff": %s, 30: %s}`, keikoRID, linusRID)
 
 	// status of Cat at this point in time
 	//     ----+-----+------+--------+----+---------+-----+---------------+---------------------+--------
@@ -1327,19 +1327,19 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	buddyList := docs[0].GetField("buddies").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddyList))
 	Equals(2, len(buddies))
-	Equals(linusRID, buddyList[0].RID)
-	Equals(keikoRID, buddyList[1].RID)
+	Equals(linusRID, buddyList[0].RID.String())
+	Equals(keikoRID, buddyList[1].RID.String())
 
 	buddySet := docs[0].GetField("buddySet").Value.([]*oschema.OLink)
 	sort.Sort(ByRID(buddySet))
 	Equals(2, len(buddySet))
-	Equals(linusRID, buddySet[0].RID)
-	Equals(felixRID, buddySet[1].RID)
+	Equals(linusRID, buddySet[0].RID.String())
+	Equals(felixRID, buddySet[1].RID.String())
 
 	notesMap := docs[0].GetField("notes").Value.(map[string]*oschema.OLink)
 	Equals(2, len(buddies))
-	Equals(keikoRID, notesMap["bff"].RID)
-	Equals(linusRID, notesMap["30"].RID)
+	Equals(keikoRID, notesMap["bff"].RID.String())
+	Equals(linusRID, notesMap["30"].RID.String())
 
 	// now query with fetchPlan that retrieves all links
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name`
@@ -1374,7 +1374,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sort.Sort(ByRID(germaineBuddySet))
 	Equals("Linus", germaineBuddySet[0].Record.GetField("name").Value)
 	Equals("Felix", germaineBuddySet[1].Record.GetField("name").Value)
-	Assert(germaineBuddySet[1].RID != "", "RID should be filled in")
+	Assert(germaineBuddySet[1].RID.ClusterID != -1, "RID should be filled in")
 
 	// Felix Document has references, so those should also be filled in
 	felixDoc := germaineBuddySet[1].Record
@@ -1389,10 +1389,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sort.Sort(ByRID(germaineBuddyList))
 	Equals("Linus", germaineBuddyList[0].Record.GetField("name").Value)
 	Equals("Keiko", germaineBuddyList[1].Record.GetField("name").Value)
-	Assert(germaineBuddyList[0].RID != "", "RID should be filled in")
+	Assert(germaineBuddyList[0].RID.ClusterID != -1, "RID should be filled in")
 
 	// now make a circular reference -> give Linus to Germaine as buddy
-	sql = `UPDATE Cat SET buddy = #` + germaineRID + ` where name = 'Linus'`
+	sql = `UPDATE Cat SET buddy = ` + germaineRID + ` where name = 'Linus'`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 	Equals("1", retval)
@@ -1418,7 +1418,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	doc = docs[0]
 	Equals("Tilde", doc.GetField("name").Value)
 	tildeBuddyField := doc.GetField("buddy").Value.(*oschema.OLink)
-	Equals(linusRID, tildeBuddyField.RID)
+	Equals(linusRID, tildeBuddyField.RID.String())
 	Equals("Linus", tildeBuddyField.Record.GetField("name").Value)
 
 	// now pull in both records with non-null buddy links
@@ -1484,10 +1484,10 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	sort.Sort(ByRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	felixBuddy0 := felixBuddiesList[0]
-	Assert(felixBuddy0.RID != "", "RID should be filled in")
+	Assert(felixBuddy0.RID.ClusterID != -1, "RID should be filled in")
 	Equals("Linus", felixBuddy0.Record.GetField("name").Value)
 	felixBuddy1 := felixBuddiesList[1]
-	Assert(felixBuddy1.RID != "", "RID should be filled in")
+	Assert(felixBuddy1.RID.ClusterID != -1, "RID should be filled in")
 	Equals("Keiko", felixBuddy1.Record.GetField("name").Value)
 
 	// now test that the LINK docs had their LINKs filled in
@@ -1549,8 +1549,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	tomsBuddy = tomDoc.GetField("buddy").Value.(*oschema.OLink)
 	nicksBuddy = nickDoc.GetField("buddy").Value.(*oschema.OLink)
-	Assert(tomsBuddy.RID != "", "RID should be filled in")
-	Assert(nicksBuddy.RID != "", "RID should be filled in")
+	Assert(tomsBuddy.RID.ClusterID != -1, "RID should be filled in")
+	Assert(nicksBuddy.RID.ClusterID != -1, "RID should be filled in")
 	Assert(tomsBuddy.Record == nil, "Record should NOT be filled in")
 	Assert(nicksBuddy.Record == nil, "Record should NOT be filled in")
 
@@ -1584,7 +1584,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	linusDoc := buddies[0].Record
 	Assert(linusDoc != nil, "first level should be filled in")
 	linusBuddy = linusDoc.GetField("buddy").Value.(*oschema.OLink)
-	Assert(linusBuddy.RID != "", "RID should be filled in")
+	Assert(linusBuddy.RID.ClusterID != -1, "RID should be filled in")
 	Assert(linusBuddy.Record == nil, "Record of second level should NOT be filled in")
 
 	keikoDoc := buddies[1].Record
@@ -1694,7 +1694,7 @@ func (slnk ByRID) Swap(i, j int) {
 }
 
 func (slnk ByRID) Less(i, j int) bool {
-	return slnk[i].RID < slnk[j].RID
+	return slnk[i].RID.String() < slnk[j].RID.String()
 }
 
 // ------

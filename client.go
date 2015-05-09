@@ -233,6 +233,11 @@ func deleteNewRecordsGraphDB(dbc *obinary.DBClient) {
 		ogl.Warn(err.Error())
 		return
 	}
+	_, _, err = obinary.SQLCommand(dbc, "DROP CLASS Friend")
+	if err != nil {
+		ogl.Warn(err.Error())
+		return
+	}
 }
 
 func cleanUp(dbc *obinary.DBClient, fullTest bool) {
@@ -767,11 +772,248 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(2, len(docs))
 	Equals(3, len(docs[0].FieldNames()))
 	Equals("Wilson", docs[0].GetField("lastName").Value)
+	abbieRID := docs[0].RID
+	zekeRID := docs[1].RID
+
+	sql = `CREATE CLASS Friend extends E`
+	_, _, err = obinary.SQLCommand(dbc, sql, "")
+	Ok(err)
+
+	// sql = `CREATE EDGE Friend FROM ? to ?`
+	// _, docs, err = obinary.SQLCommand(dbc, sql, abbieRID.String(), zekeRID.String())
+	sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, abbieRID.String(), zekeRID.String())
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	obinary.ReloadSchema(dbc)
+
+	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(2, len(docs))
+	abbieVtx := docs[0]
+	zekeVtx := docs[1]
+	Equals("Wilson", abbieVtx.GetField("lastName").Value)
+	Equals("Rossi", zekeVtx.GetField("lastName").Value)
+	friendLinkBag := abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	Equals(1, len(friendLinkBag))
+	Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
+	Assert(friendLinkBag[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
+
+	sql = `TRAVERSE * from ` + abbieRID.String()
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(3, len(docs))
+	// AbbieVertex -out-> FriendEdge -in-> ZekeVertex, in that order
+	abbieVtx = docs[0]
+	friendEdge := docs[1]
+	zekeVtx = docs[2]
+	Equals("Person", abbieVtx.Classname)
+	Equals("Friend", friendEdge.Classname)
+	Equals("Person", zekeVtx.Classname)
+	Equals("555-55-5555", abbieVtx.GetField("SSN").Value)
+	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	Equals(1, len(linkBagInAbbieVtx))
+	Assert(linkBagInAbbieVtx[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
+	Equals(linkBagInAbbieVtx[0].RID, friendEdge.RID)
+	Equals(2, len(friendEdge.FieldNames()))
+	outEdgeLink := friendEdge.GetField("out").Value.(*oschema.OLink)
+	Equals(abbieVtx.RID, outEdgeLink.RID)
+	inEdgeLink := friendEdge.GetField("in").Value.(*oschema.OLink)
+	Equals(zekeVtx.RID, inEdgeLink.RID)
+	linkBagInZekeVtx := zekeVtx.GetField("in_Friend").Value.([]*oschema.OLink)
+	Equals(1, len(linkBagInZekeVtx))
+	Equals(friendEdge.RID, linkBagInZekeVtx[0].RID)
+
+	sql = `SELECT from Person where any() traverse(0,2) (firstName = ?)`
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Abbie")
+	Ok(err)
+	Equals(2, len(docs))
+	abbieVtx = docs[0]
+	zekeVtx = docs[1]
+	Equals("Wilson", abbieVtx.GetField("lastName").Value)
+	Equals("Rossi", zekeVtx.GetField("lastName").Value)
+	friendLinkBag = abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	Equals(1, len(friendLinkBag))
+	Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
+	// the link in abbie is an EDGE (of Friend class)
+	Equals("Friend", friendLinkBag[0].Record.Classname)
+	outEdgeLink = friendLinkBag[0].Record.GetField("out").Value.(*oschema.OLink)
+	Equals(abbieVtx.RID, outEdgeLink.RID)
+	inEdgeLink = friendLinkBag[0].Record.GetField("in").Value.(*oschema.OLink)
+	Equals(zekeVtx.RID, inEdgeLink.RID)
+
+	// now add more entries and Friend edges
+	// Abbie --Friend--> Zeke
+	// Zeke  --Friend--> Jim
+	// Jim   --Friend--> Zeke
+	// Jim   --Friend--> Abbie
+	// Zeke  --Friend--> Paul
+
+	abbieRID = abbieVtx.RID
+	zekeRID = zekeVtx.RID
+
+	sql = `INSERT INTO Person (firstName, lastName, SSN) VALUES ('Jim', 'Sorrento', '222-22-2222'), ('Paul', 'Pepper', '333-33-3333')`
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	Equals(2, len(docs))
+	jimRID := docs[0].RID
+	paulRID := docs[1].RID
+
+	sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, zekeRID.String(), jimRID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, jimRID.String(), zekeRID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, jimRID.String(), abbieRID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, zekeRID.String(), paulRID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	// ----+-----+------+---------+--------+-----------+----------+---------
+	// #   |@RID |@CLASS|firstName|lastName|SSN        |out_Friend|in_Friend
+	// ----+-----+------+---------+--------+-----------+----------+---------
+	// 0   |#11:1|Person|Abbie    |Wilson  |555-55-5555|[size=1]  |[size=1]
+	// 1   |#11:2|Person|Zeke     |Rossi   |444-44-4444|[size=2]  |[size=2]
+	// 2   |#11:3|Person|Jim      |Sorrento|222-22-2222|[size=2]  |[size=1]
+	// 3   |#11:4|Person|Paul     |Pepper  |333-33-3333|null      |[size=1]
+	// ----+-----+------+---------+--------+-----------+----------+---------
+
+	// [ODocument[Classname: Person; RID: #11:1; Version: 4; fields:
+	//   OField[id: -1; name: firstName; datatype: 7; value: Abbie]
+	//   OField[id: -1; name: lastName; datatype: 7; value: Wilson]
+	//   OField[id: -1; name: SSN; datatype: 7; value: 555-55-5555]
+	//   OField[id: -1; name: out_Friend; datatype: 22; value: [<OLink RID: #12:0, Record: <nil>>]]
+	//   OField[id: -1; name: in_Friend; datatype: 22; value: [<OLink RID: #12:3, Record: <nil>>]]]
+	//  ODocument[Classname: Person; RID: #11:3; Version: 4; fields:
+	//   OField[id: -1; name: out_Friend; datatype: 22; value: [<OLink RID: #12:2, Record: <nil>> <OLink RID: #12:3, Record: <nil>>]]
+	//   OField[id: -1; name: lastName; datatype: 7; value: Sorrento]
+	//   OField[id: -1; name: SSN; datatype: 7; value: 222-22-2222]
+	//   OField[id: -1; name: in_Friend; datatype: 22; value: [<OLink RID: #12:1, Record: <nil>>]]
+	//   OField[id: -1; name: firstName; datatype: 7; value: Jim]]
+	//  ODocument[Classname: Person; RID: #11:4; Version: 2; fields:
+	//   OField[id: -1; name: firstName; datatype: 7; value: Paul]
+	//   OField[id: -1; name: lastName; datatype: 7; value: Pepper]
+	//   OField[id: -1; name: SSN; datatype: 7; value: 333-33-3333]
+	//   OField[id: -1; name: in_Friend; datatype: 22; value: [<OLink RID: #12:4, Record: <nil>>]]]
+	//  ODocument[Classname: Person; RID: #11:2; Version: 5; fields:
+	//   OField[id: -1; name: out_Friend; datatype: 22; value: [<OLink RID: #12:1, Record: <nil>> <OLink RID: #12:4, Record: <nil>>]]
+	//   OField[id: -1; name: in_Friend; datatype: 22; value: [<OLink RID: #12:0, Record: <nil>> <OLink RID: #12:2, Record: <nil>>]]
+	//   OField[id: -1; name: firstName; datatype: 7; value: Zeke]
+	//   OField[id: -1; name: lastName; datatype: 7; value: Rossi]
+	//   OField[id: -1; name: SSN; datatype: 7; value: 444-44-4444]]
+
+	sql = `SELECT from Person where any() traverse(0,5) (firstName = 'Jim') ORDER BY firstName`
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(4, len(docs))
+	Equals("Abbie", docs[0].GetField("firstName").Value)
+	Equals("Jim", docs[1].GetField("firstName").Value)
+	Equals("Paul", docs[2].GetField("firstName").Value)
+	Equals("Zeke", docs[3].GetField("firstName").Value)
+
+	// Abbie should have one out_Friend and one in_Friend
+	Equals(1, len(docs[0].GetField("in_Friend").Value.([]*oschema.OLink)))
+	Equals(1, len(docs[0].GetField("out_Friend").Value.([]*oschema.OLink)))
+
+	// Jim has two out_Friend and one in_Friend links
+	Equals(1, len(docs[1].GetField("in_Friend").Value.([]*oschema.OLink)))
+	Equals(2, len(docs[1].GetField("out_Friend").Value.([]*oschema.OLink)))
+
+	// Paul has one in_Friend and zero out_Friend links
+	Equals(1, len(docs[2].GetField("in_Friend").Value.([]*oschema.OLink)))
+	Assert(docs[2].GetField("out_Friend") == nil, "Paul should have no out_Field edges")
+
+	// Zeke has two in_Friend and two out_Friend edges
+	Equals(2, len(docs[3].GetField("in_Friend").Value.([]*oschema.OLink)))
+	Equals(2, len(docs[3].GetField("out_Friend").Value.([]*oschema.OLink)))
+
+	// Paul's in_Friend should be Zeke's outFriend link to Paul
+	// the links are edges not vertexes, so have to check for a match on edge RIDs
+	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.([]*oschema.OLink)[0]
+
+	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.([]*oschema.OLink)
+	sort.Sort(ByRID(zekesOutFriendEdges))
+	// I know that zeke -> paul edge was the last one created, so it will be the second
+	// in Zeke's LinkBag list
+	Equals(paulsInFriendEdge.RID, zekesOutFriendEdges[1].RID)
+
+	// ------
+
+	// should return two links Abbie -> Zeke and Jim -> Abbie
+	sql = `SELECT both('Friend') from ` + abbieRID.String()
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(1, len(docs))
+	abbieBothLinks := docs[0].GetField("both").Value.([]*oschema.OLink)
+	Equals(2, len(abbieBothLinks))
+	sort.Sort(ByRID(abbieBothLinks))
+	Equals(zekeRID, abbieBothLinks[0].RID)
+	Equals(jimRID, abbieBothLinks[1].RID)
+
+	sql = fmt.Sprintf(`SELECT dijkstra(%s, %s, 'weight') `, abbieRID.String(), paulRID.String())
+	docs, err = obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	// return value is a single Document with single field called 'dijkstra' with three links
+	// from abbie to paul, namely: abbie -> zeke -> paul
+	Equals(1, len(docs))
+	pathLinks := docs[0].GetField("dijkstra").Value.([]*oschema.OLink)
+	Equals(3, len(pathLinks))
+	Equals(abbieRID, pathLinks[0].RID)
+	Equals(zekeRID, pathLinks[1].RID)
+	Equals(paulRID, pathLinks[2].RID)
 
 	// sql = `DELETE VERTEX #24:434` // need to get the @rid of Bob
 	// sql = `DELETE VERTEX Person WHERE lastName = 'Wilson'`
 	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
 
+	addLinksToAttemptToGetFriendLinkBagToFlipToExternalTreeBased(dbc, abbieRID)
+}
+
+func addLinksToAttemptToGetFriendLinkBagToFlipToExternalTreeBased(dbc *obinary.DBClient, abbieRID oschema.ORID) {
+	var (
+		sql string
+		err error
+		// docs []*oschema.ODocument
+	)
+
+	// TODO: change 22 to >80 to have LinkBag auto-converted to Tree-based LinkBag (not yet supported)
+	for i := 0; i < 22; i++ {
+		sql = fmt.Sprintf(`INSERT INTO Person (firstName, lastName) VALUES ('Matt%d', 'Black%d')`, i, i)
+		_, docs, err := obinary.SQLCommand(dbc, sql)
+		Assert(err == nil, fmt.Sprintf("Failure on Person insert #%d: %v", i, err))
+		Equals(1, len(docs))
+
+		sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, abbieRID.String(), docs[0].RID.String())
+		_, _, err = obinary.SQLCommand(dbc, sql)
+		Ok(err)
+	}
+
+	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
+	_, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	Ok(err)
+	// ogl.Warnf("Abbie docs sz: %d\n", len(docs))
+	// Pause("HHH33")
+	// Equals(2, len(docs))
+	// abbieVtx = docs[0]
+	// zekeVtx = docs[1]
+	// Equals("Wilson", abbieVtx.GetField("lastName").Value)
+	// Equals("Rossi", zekeVtx.GetField("lastName").Value)
+	// friendLinkBag = abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	// Equals(1, len(friendLinkBag))
+	// Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
+	// // the link in abbie is an EDGE (of Friend class)
+	// Equals("Friend", friendLinkBag[0].Record.Classname)
+	// outEdgeLink = friendLinkBag[0].Record.GetField("out").Value.(*oschema.OLink)
+	// Equals(abbieVtx.RID, outEdgeLink.RID)
+	// inEdgeLink = friendLinkBag[0].Record.GetField("in").Value.(*oschema.OLink)
+	// Equals(zekeVtx.RID, inEdgeLink.RID)
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
@@ -979,7 +1221,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 		sql = "TRUNCATE CLASS Patient"
 		retval, docs, err = obinary.SQLCommand(dbc, sql)
 		Assert(err != nil, "Error from TRUNCATE should not be null")
-		ogl.Println(oerror.GetFullTrace(err))
+		ogl.Debugln(oerror.GetFullTrace(err))
 
 		err = oerror.ExtractCause(err)
 		switch err.(type) {
@@ -1731,7 +1973,10 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			ogl.Warn(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
+			lvl := ogl.GetLevel()
+			ogl.SetLevel(ogl.NORMAL)
 			ogl.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
+			ogl.SetLevel(lvl)
 			cleanUp(dbc, testType == "full")
 			os.Exit(1)
 		}
@@ -1751,9 +1996,9 @@ func main() {
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/ogonoriTest"
-	databaseSqlAPI(conxStr)
-	databaseSqlPreparedStmtAPI(conxStr)
+	// conxStr := "admin@admin:localhost/ogonoriTest"
+	// databaseSqlAPI(conxStr)
+	// databaseSqlPreparedStmtAPI(conxStr)
 
 	/* ---[ Graph DB ]--- */
 	// graph database tests

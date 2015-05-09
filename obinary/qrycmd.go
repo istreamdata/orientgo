@@ -387,16 +387,18 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 	// now we can fill in all the references (if present in mRIDsToDocs)
 	for _, doc := range allDocs {
 		for _, field := range doc.Fields {
-			if field.Typ == oschema.LINK {
+			switch field.Typ {
+			case oschema.LINK:
 				lnk := field.Value.(*oschema.OLink)
 				assignLinkRecord(lnk, mRIDsToDocs)
 
-			} else if field.Typ == oschema.LINKLIST || field.Typ == oschema.LINKSET {
+			case oschema.LINKLIST, oschema.LINKSET, oschema.LINKBAG:
 				lnklist := field.Value.([]*oschema.OLink)
 				for _, lnk := range lnklist {
 					assignLinkRecord(lnk, mRIDsToDocs)
 				}
-			} else if field.Typ == oschema.LINKMAP {
+
+			case oschema.LINKMAP:
 				lnkmap := field.Value.(map[string]*oschema.OLink)
 				for _, lnk := range lnkmap {
 					assignLinkRecord(lnk, mRIDsToDocs)

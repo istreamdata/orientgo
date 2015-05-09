@@ -75,14 +75,14 @@ with fetchPlan: "cat:0"
 
 2015-04-27 19:52:20:130 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Read 74 bytes: q)select * from Cat where buddy is not null����*:-1 [OChannelBinaryServer]
 2015-04-27 19:52:20:133 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 0 [OChannelBinaryServer]     <- status OK
-2015-04-27 19:52:20:133 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 8 [OChannelBinaryServer]     <- session-id (double check ??)
+2015-04-27 19:52:20:133 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 8 [OChannelBinaryServer]     <- session-id
 2015-04-27 19:52:20:133 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 108 [OChannelBinaryServer]   <- 'l' (Collection of docs)
 2015-04-27 19:52:20:133 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 2 [OChannelBinaryServer]     <- number of documents
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 0 [OChannelBinaryServer]   <- classid (not RID, not null)
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 100 [OChannelBinaryServer]   <- type 'd'
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 10 [OChannelBinaryServer]  <- RID
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing long (8 bytes): 13 [OChannelBinaryServer]   <- RID (10:13)
-2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 4 [OChannelBinaryServer]     <- record version
+2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 4 [OChannelBinaryServer]     <- record version              
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing bytes (4+40=44 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 26, 41, 0, 0, 0, 32, 43, 0, 0, 0, 33, 53, 0, 0, 0, 38, 0, 10, 84, 105, 108, 100, 101, 16, 8, 69, 97, 114, 108, 20, 0] [OChannelBinaryServer]
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 0 [OChannelBinaryServer]
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 100 [OChannelBinaryServer]
@@ -90,12 +90,12 @@ with fetchPlan: "cat:0"
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing long (8 bytes): 14 [OChannelBinaryServer]
 2015-04-27 19:52:20:134 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 4 [OChannelBinaryServer]    
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing bytes (4+41=45 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 26, 41, 0, 0, 0, 32, 43, 0, 0, 0, 33, 53, 0, 0, 0, 39, 0, 10, 70, 101, 108, 105, 120, 18, 10, 83, 97, 110, 100, 121, 20, 2] [OChannelBinaryServer]     <- start of supplementary records
-2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 2 [OChannelBinaryServer]    <- document, not EOT (end of transmission)
+2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 2 [OChannelBinaryServer]    <- document, not EOT
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 0 [OChannelBinaryServer]  <- classid (not RID, not null)
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 100 [OChannelBinaryServer]  <- type 'd'      
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 10 [OChannelBinaryServer] <- RID => clusterId           
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing long (8 bytes): 0 [OChannelBinaryServer]   <- RID (10:13) => clusterPos
-2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 2 [OChannelBinaryServer]    <- record version                  
+2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing int (4 bytes): 2 [OChannelBinaryServer]    <- record version                           
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing bytes (4+36=40 bytes): [0, 6, 67, 97, 116, 1, 0, 0, 0, 21, 41, 0, 0, 0, 27, 43, 0, 0, 0, 28, 0, 10, 76, 105, 110, 117, 115, 30, 14, 77, 105, 99, 104, 97, 101, 108] [OChannelBinaryServer]
 2015-04-27 19:52:20:135 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing byte (1 byte): 2 [OChannelBinaryServer]    <- document, not null, RID or EOR (??)
 2015-04-27 19:52:20:136 INFO  {db=ogonoriTest} /127.0.0.1:49420 - Writing short (2 bytes): 0 [OChannelBinaryServer]  <- classid (not RID, not null)     
@@ -245,3 +245,63 @@ with fetchPlan: "cat:0"
 2015-05-03 11:46:01:952 INFO  {db=ogonoriTest} /127.0.0.1:55174 - Writing byte (1 byte): 0 [OChannelBinaryServer]
 2015-05-03 11:46:01:952 INFO  {db=ogonoriTest} /127.0.0.1:55174 - Flush [OChannelBinaryServer]
 
+
+
+
+
+
+
+##### fetchPlan with Graph query using LinkBag
+
+Read byte: 41 [OChannelBinaryServer]
+Reading int (4 bytes)... [OChannelBinaryServer]
+Read int: 2918 [OChannelBinaryServer]
+Reading byte (1 byte)... [OChannelBinaryServer]
+Read byte: 115 [OChannelBinaryServer]
+Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+Read chunk lenght: 115 [OChannelBinaryServer]
+Reading 115 bytes... [OChannelBinaryServer]
+Read 115 bytes: q<SELECT from Person where any() traverse(0,2) (firstName = ?)����*:-1
+   params
+         0
+
+Writing byte (1 byte): 0 [OChannelBinaryServer]     <- status OK                   
+Writing int (4 bytes): 2918 [OChannelBinaryServer]  <- session-id                  
+Writing byte (1 byte): 108 [OChannelBinaryServer]   <- 'l' (Collection of docs)    
+Writing int (4 bytes): 2 [OChannelBinaryServer]     <- number of documents         
+Writing short (2 bytes): 0 [OChannelBinaryServer]   <- classid (not RID, not null) 
+Writing byte (1 byte): 100 [OChannelBinaryServer]   <- type 'd'                    
+Writing short (2 bytes): 11 [OChannelBinaryServer]  <- RID                         
+Writing long (8 bytes): 1 [OChannelBinaryServer]    <- RID (10:13)                 
+Writing int (4 bytes): 3 [OChannelBinaryServer]     <- record version              
+Writing bytes (4+103=107 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 18, 102, 105, 114, 115, 116, 78, 97, 109, 101, 0, 0, 0, 63, 7, 16, 108, 97, 115, 116, 78, 97, 109, 101, 0, 0, 0, 69, 7, 6, 83, 83, 78, 0, 0, 0, 76, 7, 20, 111, 117, 116, 95, 70, 114, 105, 101, 110, 100, 0, 0, 0, 88, 22, 0, 10, 65, 98, 98, 105, 101, 12, 87, 105, 108, 115, 111, 110, 22, 53, 53, 53, 45, 53, 53, 45, 53, 53, 53, 53, 1, 0, 0, 0, 1, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0] [OChannelBinaryServer]
+Writing short (2 bytes): 0 [OChannelBinaryServer]   <- classid (not RID, not null) 
+Writing byte (1 byte): 100 [OChannelBinaryServer]   <- type 'd'                    
+Writing short (2 bytes): 11 [OChannelBinaryServer]  <- RID                         
+Writing long (8 bytes): 2 [OChannelBinaryServer]    <- RID (10:13)                 
+Writing int (4 bytes): 2 [OChannelBinaryServer]     <- record version              
+Writing bytes (4+100=104 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 18, 102, 105, 114, 115, 116, 78, 97, 109, 101, 0, 0, 0, 62, 7, 16, 108, 97, 115, 116, 78, 97, 109, 101, 0, 0, 0, 67, 7, 6, 83, 83, 78, 0, 0, 0, 73, 7, 18, 105, 110, 95, 70, 114, 105, 101, 110, 100, 0, 0, 0, 85, 22, 0, 8, 90, 101, 107, 101, 10, 82, 111, 115, 115, 105, 22, 52, 52, 52, 45, 52, 52, 45, 52, 52, 52, 52, 1, 0, 0, 0, 1, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0] [OChannelBinaryServer]
+Writing byte (1 byte): 2 [OChannelBinaryServer]     <- document, not EOT           
+Writing short (2 bytes): 0 [OChannelBinaryServer]   <- classid (not RID, not null) 
+Writing byte (1 byte): 100 [OChannelBinaryServer]   <- type 'd'                    
+Writing short (2 bytes): 12 [OChannelBinaryServer]  <- RID => clusterId             <== THIS IS AN EDGE (Friend class) 
+Writing long (8 bytes): 0 [OChannelBinaryServer]    <- RID (10:13) => clusterPos   
+Writing int (4 bytes): 3 [OChannelBinaryServer]     <- record version              
+Writing bytes (4+30=34 bytes): [0, 12, 70, 114, 105, 101, 110, 100, 6, 111, 117, 116, 0, 0, 0, 26, 13, 4, 105, 110, 0, 0, 0, 28, 13, 0, 22, 2, 22, 4] [OChannelBinaryServer]
+Writing byte (1 byte): 2 [OChannelBinaryServer]     <- document, not EOT           
+Writing short (2 bytes): 0 [OChannelBinaryServer]   <- classid (not RID, not null) 
+Writing byte (1 byte): 100 [OChannelBinaryServer]   <- type 'd'                    
+Writing short (2 bytes): 11 [OChannelBinaryServer]  <- RID => clusterId            
+Writing long (8 bytes): 1 [OChannelBinaryServer]    <- RID (10:13) => clusterPos   
+Writing int (4 bytes): 3 [OChannelBinaryServer]     <- record version              
+Writing bytes (4+103=107 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 18, 102, 105, 114, 115, 116, 78, 97, 109, 101, 0, 0, 0, 63, 7, 16, 108, 97, 115, 116, 78, 97, 109, 101, 0, 0, 0, 69, 7, 6, 83, 83, 78, 0, 0, 0, 76, 7, 20, 111, 117, 116, 95, 70, 114, 105, 101, 110, 100, 0, 0, 0, 88, 22, 0, 10, 65, 98, 98, 105, 101, 12, 87, 105, 108, 115, 111, 110, 22, 53, 53, 53, 45, 53, 53, 45, 53, 53, 53, 53, 1, 0, 0, 0, 1, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0] [OChannelBinaryServer]
+Writing byte (1 byte): 2 [OChannelBinaryServer]    <- document, not EOT           
+Writing short (2 bytes): 0 [OChannelBinaryServer]  <- classid (not RID, not null) 
+Writing byte (1 byte): 100 [OChannelBinaryServer]  <- type 'd'                    
+Writing short (2 bytes): 11 [OChannelBinaryServer] <- RID => clusterId            
+Writing long (8 bytes): 2 [OChannelBinaryServer]   <- RID (10:13) => clusterPos   
+Writing int (4 bytes): 2 [OChannelBinaryServer]    <- record version              
+Writing bytes (4+100=104 bytes): [0, 12, 80, 101, 114, 115, 111, 110, 18, 102, 105, 114, 115, 116, 78, 97, 109, 101, 0, 0, 0, 62, 7, 16, 108, 97, 115, 116, 78, 97, 109, 101, 0, 0, 0, 67, 7, 6, 83, 83, 78, 0, 0, 0, 73, 7, 18, 105, 110, 95, 70, 114, 105, 101, 110, 100, 0, 0, 0, 85, 22, 0, 8, 90, 101, 107, 101, 10, 82, 111, 115, 115, 105, 22, 52, 52, 52, 45, 52, 52, 45, 52, 52, 52, 52, 1, 0, 0, 0, 1, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0] [OChannelBinaryServer]
+Writing byte (1 byte): 0 [OChannelBinaryServer]
+Flush [OChannelBinaryServer]
+/127.0.0.1:41646 - Reading byte (1 byte)... [OChannelBinaryServer]

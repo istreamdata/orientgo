@@ -18,7 +18,7 @@ func (lnk *OLink) String() string {
 		// fields are not shown to avoid infinite loops when there are circular links
 		recStr = lnk.Record.StringNoFields()
 	}
-	return fmt.Sprintf("[OLink RID: %s, Record: %s]", lnk.RID, recStr)
+	return fmt.Sprintf("<OLink RID: %s, Record: %s>", lnk.RID, recStr)
 }
 
 // // ------

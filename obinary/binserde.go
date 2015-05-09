@@ -521,12 +521,9 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer,
 		// a link is two int64's (cluster:record) - we translate it here to a string RID
 		val, err = serde.readLink(buf)
 		ogl.Debugf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
-	case oschema.LINKLIST:
+	case oschema.LINKLIST, oschema.LINKSET:
 		val, err = serde.readLinkList(buf)
-		ogl.Debugf("DEBUG LINKLIST: +readDataVal val: %v\n", val) // DEBUG
-	case oschema.LINKSET:
-		val, err = serde.readLinkList(buf)
-		ogl.Debugf("DEBUG LINKSET: +readDataVal val: %v\n", val) // DEBUG
+		ogl.Debugf("DEBUG LINK LIST/SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINKMAP:
 		val, err = serde.readLinkMap(buf)
 		ogl.Debugf("DEBUG LINKMap: +readDataVal val: %v\n", val) // DEBUG
@@ -540,7 +537,8 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer,
 		// TODO: impl me -> Java client uses BigDecimal for this
 		panic("ORecordSerializerV0#readDataValue DECIMAL NOT YET IMPLEMENTED")
 	case oschema.LINKBAG:
-		panic("ORecordSerializerV0#readDataValue LINKBAG NOT YET IMPLEMENTED")
+		val, err = serde.readLinkBag(buf)
+		ogl.Debugf("DEBUG LINKBAG: +readDataVal val: %v\n", val) // DEBUG
 	default:
 		// ANY and TRANSIENT are do nothing ops
 	}
@@ -631,6 +629,71 @@ func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]*osc
 	}
 
 	return linkMap, nil
+}
+
+func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+	bagType, err := rw.ReadByte(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	if bagType == byte(0) {
+		return readTreeBasedLinkBag(buf)
+	}
+	return readEmbeddedLinkBag(buf)
+}
+
+func readEmbeddedLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+	b, err := buf.ReadByte()
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	if b == 1 {
+		uuid, err := readLinkBagUUID(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		ogl.Debugf("read uuid %v - now what?\n", uuid)
+
+	} else {
+		// if b wasn't zero, then there's no UUID and b was the first byte of an int32
+		// specifying the size of the embedded bag collection
+		buf.UnreadByte()
+	}
+
+	bagsz, err := rw.ReadInt(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+	links := make([]*oschema.OLink, bagsz)
+
+	for i := int32(0); i < bagsz; i++ {
+		clusterID, err := rw.ReadShort(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		clusterPos, err := rw.ReadLong(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+
+		orid := oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
+		links[i] = &oschema.OLink{RID: orid}
+	}
+
+	return links, nil
+}
+
+func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
+	// TODO: I don't know what form the UUID is - an int32?  How is it serialized?
+	panic("This LINKBAG has a UUID; support for UUIDs has not yet been added")
+}
+
+func readTreeBasedLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+	panic("TreeBasedLinkBag not yet supported")
+	return nil, nil
 }
 
 func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLink, error) {

@@ -795,7 +795,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	zekeVtx := docs[1]
 	Equals("Wilson", abbieVtx.GetField("lastName").Value)
 	Equals("Rossi", zekeVtx.GetField("lastName").Value)
-	friendLinkBag := abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	friendLinkBag := abbieVtx.GetField("out_Friend").Value.(oschema.OLinkCollection).Links()
 	Equals(1, len(friendLinkBag))
 	Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
 	Assert(friendLinkBag[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
@@ -812,7 +812,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Friend", friendEdge.Classname)
 	Equals("Person", zekeVtx.Classname)
 	Equals("555-55-5555", abbieVtx.GetField("SSN").Value)
-	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.(oschema.OLinkCollection).Links()
 	Equals(1, len(linkBagInAbbieVtx))
 	Assert(linkBagInAbbieVtx[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
 	Equals(linkBagInAbbieVtx[0].RID, friendEdge.RID)
@@ -821,7 +821,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(abbieVtx.RID, outEdgeLink.RID)
 	inEdgeLink := friendEdge.GetField("in").Value.(*oschema.OLink)
 	Equals(zekeVtx.RID, inEdgeLink.RID)
-	linkBagInZekeVtx := zekeVtx.GetField("in_Friend").Value.([]*oschema.OLink)
+	linkBagInZekeVtx := zekeVtx.GetField("in_Friend").Value.(oschema.OLinkCollection).Links()
 	Equals(1, len(linkBagInZekeVtx))
 	Equals(friendEdge.RID, linkBagInZekeVtx[0].RID)
 
@@ -833,7 +833,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	zekeVtx = docs[1]
 	Equals("Wilson", abbieVtx.GetField("lastName").Value)
 	Equals("Rossi", zekeVtx.GetField("lastName").Value)
-	friendLinkBag = abbieVtx.GetField("out_Friend").Value.([]*oschema.OLink)
+	friendLinkBag = abbieVtx.GetField("out_Friend").Value.(oschema.OLinkCollection).Links()
 	Equals(1, len(friendLinkBag))
 	Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
 	// the link in abbie is an EDGE (of Friend class)
@@ -919,26 +919,26 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Zeke", docs[3].GetField("firstName").Value)
 
 	// Abbie should have one out_Friend and one in_Friend
-	Equals(1, len(docs[0].GetField("in_Friend").Value.([]*oschema.OLink)))
-	Equals(1, len(docs[0].GetField("out_Friend").Value.([]*oschema.OLink)))
+	Equals(1, len(docs[0].GetField("in_Friend").Value.(oschema.OLinkCollection).Links()))
+	Equals(1, len(docs[0].GetField("out_Friend").Value.(oschema.OLinkCollection).Links()))
 
 	// Jim has two out_Friend and one in_Friend links
-	Equals(1, len(docs[1].GetField("in_Friend").Value.([]*oschema.OLink)))
-	Equals(2, len(docs[1].GetField("out_Friend").Value.([]*oschema.OLink)))
+	Equals(1, len(docs[1].GetField("in_Friend").Value.(oschema.OLinkCollection).Links()))
+	Equals(2, len(docs[1].GetField("out_Friend").Value.(oschema.OLinkCollection).Links()))
 
 	// Paul has one in_Friend and zero out_Friend links
-	Equals(1, len(docs[2].GetField("in_Friend").Value.([]*oschema.OLink)))
+	Equals(1, len(docs[2].GetField("in_Friend").Value.(oschema.OLinkCollection).Links()))
 	Assert(docs[2].GetField("out_Friend") == nil, "Paul should have no out_Field edges")
 
 	// Zeke has two in_Friend and two out_Friend edges
-	Equals(2, len(docs[3].GetField("in_Friend").Value.([]*oschema.OLink)))
-	Equals(2, len(docs[3].GetField("out_Friend").Value.([]*oschema.OLink)))
+	Equals(2, len(docs[3].GetField("in_Friend").Value.(oschema.OLinkCollection).Links()))
+	Equals(2, len(docs[3].GetField("out_Friend").Value.(oschema.OLinkCollection).Links()))
 
 	// Paul's in_Friend should be Zeke's outFriend link to Paul
 	// the links are edges not vertexes, so have to check for a match on edge RIDs
-	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.([]*oschema.OLink)[0]
+	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.(oschema.OLinkCollection).Links()[0]
 
-	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.([]*oschema.OLink)
+	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(zekesOutFriendEdges))
 	// I know that zeke -> paul edge was the last one created, so it will be the second
 	// in Zeke's LinkBag list
@@ -951,7 +951,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
 	Equals(1, len(docs))
-	abbieBothLinks := docs[0].GetField("both").Value.([]*oschema.OLink)
+	abbieBothLinks := docs[0].GetField("both").Value.(oschema.OLinkCollection).Links()
 	Equals(2, len(abbieBothLinks))
 	sort.Sort(ByRID(abbieBothLinks))
 	Equals(zekeRID, abbieBothLinks[0].RID)
@@ -963,7 +963,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// return value is a single Document with single field called 'dijkstra' with three links
 	// from abbie to paul, namely: abbie -> zeke -> paul
 	Equals(1, len(docs))
-	pathLinks := docs[0].GetField("dijkstra").Value.([]*oschema.OLink)
+	pathLinks := docs[0].GetField("dijkstra").Value.(oschema.OLinkCollection).Links()
 	Equals(3, len(pathLinks))
 	Equals(abbieRID, pathLinks[0].RID)
 	Equals(zekeRID, pathLinks[1].RID)
@@ -983,8 +983,7 @@ func addLinksToAttemptToGetFriendLinkBagToFlipToExternalTreeBased(dbc *obinary.D
 		// docs []*oschema.ODocument
 	)
 
-	// TODO: change 22 to >80 to have LinkBag auto-converted to Tree-based LinkBag (not yet supported)
-	for i := 0; i < 22; i++ {
+	for i := 0; i < 88; i++ {
 		sql = fmt.Sprintf(`INSERT INTO Person (firstName, lastName) VALUES ('Matt%d', 'Black%d')`, i, i)
 		_, docs, err := obinary.SQLCommand(dbc, sql)
 		Assert(err == nil, fmt.Sprintf("Failure on Person insert #%d: %v", i, err))
@@ -995,11 +994,12 @@ func addLinksToAttemptToGetFriendLinkBagToFlipToExternalTreeBased(dbc *obinary.D
 		Ok(err)
 	}
 
+	Pause("HHH33")
+	ogl.SetLevel(ogl.DEBUG)
 	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
-	_, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
+	_, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
 	// ogl.Warnf("Abbie docs sz: %d\n", len(docs))
-	// Pause("HHH33")
 	// Equals(2, len(docs))
 	// abbieVtx = docs[0]
 	// zekeVtx = docs[1]
@@ -1453,7 +1453,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Felix", docs[0].GetField("name").Value)
 	Equals(6, int(docs[0].GetField("age").Value.(int32)))
-	buddies := docs[0].GetField("buddies").Value.([]*oschema.OLink)
+	buddies := docs[0].GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(buddies))
 	Equals(2, len(buddies))
 	Equals(linusRID, buddies[0].RID)
@@ -1566,13 +1566,13 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	germaineRID := docs[0].RID
 
-	buddyList := docs[0].GetField("buddies").Value.([]*oschema.OLink)
+	buddyList := docs[0].GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(buddyList))
 	Equals(2, len(buddies))
 	Equals(linusRID, buddyList[0].RID)
 	Equals(keikoRID, buddyList[1].RID)
 
-	buddySet := docs[0].GetField("buddySet").Value.([]*oschema.OLink)
+	buddySet := docs[0].GetField("buddySet").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(buddySet))
 	Equals(2, len(buddySet))
 	Equals(linusRID, buddySet[0].RID)
@@ -1612,7 +1612,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Linus", thirtyNote.Record.GetField("name").Value)
 
 	// test Germaine's buddySet (LINKSET)
-	germaineBuddySet := docs[1].GetField("buddySet").Value.([]*oschema.OLink)
+	germaineBuddySet := docs[1].GetField("buddySet").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(germaineBuddySet))
 	Equals("Linus", germaineBuddySet[0].Record.GetField("name").Value)
 	Equals("Felix", germaineBuddySet[1].Record.GetField("name").Value)
@@ -1620,14 +1620,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	// Felix Document has references, so those should also be filled in
 	felixDoc := germaineBuddySet[1].Record
-	felixBuddiesList := felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+	felixBuddiesList := felixDoc.GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	Assert(felixBuddiesList[0].Record != nil, "Felix links should be filled in")
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
 
 	// test Germaine's buddies (LINKLIST)
-	germaineBuddyList := docs[1].GetField("buddies").Value.([]*oschema.OLink)
+	germaineBuddyList := docs[1].GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(germaineBuddyList))
 	Equals("Linus", germaineBuddyList[0].Record.GetField("name").Value)
 	Equals("Keiko", germaineBuddyList[1].Record.GetField("name").Value)
@@ -1688,7 +1688,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	// now check that Felix buddies were pulled in too
 	felixDoc = linusBuddy.Record
-	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+	felixBuddiesList = felixDoc.GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
@@ -1705,14 +1705,15 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Germaine", linusBuddy.Record.GetField("name").Value)
 
 	Assert(docs[1].GetField("buddy") == nil, "Felix should have no 'buddy'")
-	felixBuddiesList = docs[1].GetField("buddies").Value.([]*oschema.OLink)
+	felixBuddiesList = docs[1].GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(felixBuddiesList))
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
 	Equals("Keiko", felixBuddiesList[1].Record.GetField("name").Value)
 	Equals("Anna", felixBuddiesList[1].Record.GetField("caretaker").Value)
 
 	// check that Felix's reference to Linus has Linus' link filled in
-	Equals("Germaine", felixBuddiesList[0].Record.GetField("buddy").Value.(*oschema.OLink).Record.GetField("name").Value)
+	Equals("Germaine", felixBuddiesList[0].Record.GetField("buddy").
+		Value.(*oschema.OLink).Record.GetField("name").Value)
 
 	// ------
 
@@ -1722,7 +1723,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(2, len(docs))
 	felixDoc = docs[0]
 	Equals("Felix", felixDoc.GetField("name").Value)
-	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+	felixBuddiesList = felixDoc.GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	felixBuddy0 := felixBuddiesList[0]
@@ -1820,7 +1821,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Ok(err)
 	Equals(1, len(docs))
 	Equals("Felix", docs[0].GetField("name").Value)
-	buddies = docs[0].GetField("buddies").Value.([]*oschema.OLink)
+	buddies = docs[0].GetField("buddies").Value.(oschema.OLinkCollection).Links()
 	sort.Sort(ByRID(buddies))
 	Equals(2, len(buddies))
 	linusDoc := buddies[0].Record

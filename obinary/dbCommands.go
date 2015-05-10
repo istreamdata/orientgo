@@ -781,6 +781,10 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 	return nil
 }
 
+func GetSizeOfRidBag(dbc *DBClient, linkBag *oschema.OLinkBag) int32 {
+	return 100 // FIXME:
+}
+
 //
 // GetClusterCountIncludingDeleted gets the number of records in all
 // the clusters specified *including* deleted records (applicable for

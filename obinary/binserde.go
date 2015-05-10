@@ -631,7 +631,21 @@ func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]*osc
 	return linkMap, nil
 }
 
-func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+// TODO: remove me
+func pause(msg string) {
+	fmt.Print(msg, "[Press Enter to Continue]: ")
+	var s string
+	_, err := fmt.Scan(&s)
+	if err != nil {
+		panic(err)
+	}
+}
+
+//
+// readLinkBag handles both Embedded and remote Tree-based OLinkBags.
+// The LinkBag is returned as a OLinkCollection interface.
+//
+func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
 	bagType, err := rw.ReadByte(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -643,7 +657,7 @@ func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) ([]*oschema.OLin
 	return readEmbeddedLinkBag(buf)
 }
 
-func readEmbeddedLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+func readEmbeddedLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
 	b, err := buf.ReadByte()
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -683,7 +697,7 @@ func readEmbeddedLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
 		links[i] = &oschema.OLink{RID: orid}
 	}
 
-	return links, nil
+	return oschema.NewOLinkBag(links), nil
 }
 
 func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
@@ -691,12 +705,45 @@ func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
 	panic("This LINKBAG has a UUID; support for UUIDs has not yet been added")
 }
 
-func readTreeBasedLinkBag(buf *bytes.Buffer) ([]*oschema.OLink, error) {
-	panic("TreeBasedLinkBag not yet supported")
-	return nil, nil
+//
+// Example data section for tree-based LinkBag
+//
+//                ( --------------------- collectionPointer ----------------------- )  (---size:int--)  (-changes-)
+//                (----- fileId:long ----)  ( ---pageIndex:long--- ) (pageOffset:int)
+//     TREEBASED             30                         0                 2048                -1             0
+//         0,      0, 0, 0, 0, 0, 0, 0, 30,   0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 8, 0,     -1, -1, -1, -1,  0, 0, 0, 0,
+//
+func readTreeBasedLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
+	fileId, err := rw.ReadLong(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	pageIdx, err := rw.ReadLong(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	pageOffset, err := rw.ReadInt(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	// TODO: need to know how to handle the size and changes stuff => advanced feature not needed yet
+	size, err := rw.ReadInt(buf)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	_, err = rw.ReadInt(buf) // changes // TODO: is changes always an int32?
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	return oschema.NewTreeOLinkBag(fileId, pageIdx, pageOffset, size), nil
 }
 
-func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -711,7 +758,7 @@ func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLi
 		links[i] = lnk
 	}
 
-	return links, nil
+	return &oschema.OLinkList{OLinks: links}, nil
 }
 
 //

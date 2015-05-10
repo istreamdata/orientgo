@@ -82,7 +82,7 @@ const (
 	PUSH_DATA             = 3
 
 	// CONSTANTS
-	RECORD_NULL = -2
+	RECORD_NULL = -2 // TODO: these are dups -> I have them elsewhere: choose one and cleanup
 	RECORD_RID  = -3
 
 	// FOR MORE INFO:

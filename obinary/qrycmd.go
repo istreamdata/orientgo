@@ -392,8 +392,14 @@ func addSupplementaryRecsToPrimaryRecs(docs []*oschema.ODocument, mRIDsToDocs ma
 				lnk := field.Value.(*oschema.OLink)
 				assignLinkRecord(lnk, mRIDsToDocs)
 
-			case oschema.LINKLIST, oschema.LINKSET, oschema.LINKBAG:
-				lnklist := field.Value.(oschema.OLinkCollection).Links()
+			case oschema.LINKLIST, oschema.LINKSET:
+				lnklist := field.Value.([]*oschema.OLink)
+				for _, lnk := range lnklist {
+					assignLinkRecord(lnk, mRIDsToDocs)
+				}
+
+			case oschema.LINKBAG:
+				lnklist := field.Value.(*oschema.OLinkBag).Links
 				for _, lnk := range lnklist {
 					assignLinkRecord(lnk, mRIDsToDocs)
 				}

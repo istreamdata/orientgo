@@ -91,6 +91,9 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 // TODO: need to study what exactly this method is supposed to do and not do
 //       -> check the Java driver version
 //
+// IDEA: maybe this could be DeserializeField?  Might be useful for RidBags. Anything else?
+//
+//
 func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error {
 	// TODO: impl me
 	return nil
@@ -460,7 +463,7 @@ func (serde ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interfa
 }
 
 //
-// writeDataValue reads the next data section from `buf` according
+// readDataValue reads the next data section from `buf` according
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
@@ -643,9 +646,8 @@ func pause(msg string) {
 
 //
 // readLinkBag handles both Embedded and remote Tree-based OLinkBags.
-// The LinkBag is returned as a OLinkCollection interface.
 //
-func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
+func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	bagType, err := rw.ReadByte(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -657,7 +659,7 @@ func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (oschema.OLinkCo
 	return readEmbeddedLinkBag(buf)
 }
 
-func readEmbeddedLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
+func readEmbeddedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	b, err := buf.ReadByte()
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -713,7 +715,7 @@ func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
 //     TREEBASED             30                         0                 2048                -1             0
 //         0,      0, 0, 0, 0, 0, 0, 0, 30,   0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 8, 0,     -1, -1, -1, -1,  0, 0, 0, 0,
 //
-func readTreeBasedLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
+func readTreeBasedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	fileId, err := rw.ReadLong(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -743,7 +745,7 @@ func readTreeBasedLinkBag(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
 	return oschema.NewTreeOLinkBag(fileId, pageIdx, pageOffset, size), nil
 }
 
-func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) (oschema.OLinkCollection, error) {
+func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLink, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -758,7 +760,7 @@ func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) (oschema.OLinkC
 		links[i] = lnk
 	}
 
-	return &oschema.OLinkList{OLinks: links}, nil
+	return links, nil
 }
 
 //

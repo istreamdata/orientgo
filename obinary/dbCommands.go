@@ -781,8 +781,120 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 	return nil
 }
 
-func GetSizeOfRidBag(dbc *DBClient, linkBag *oschema.OLinkBag) int32 {
-	return 100 // FIXME:
+//
+// TODO: this might actually just return *oschema.OLink, no?
+//
+func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (interface{}, error) {
+	dbc.buf.Reset()
+
+	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_FIRST_KEY)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	err = writeLinkBagCollectionPointer(dbc.buf, linkBag)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	/* ---[ Read Response ]--- */
+
+	lvl := ogl.GetLevel()
+	ogl.SetLevel(ogl.DEBUG)
+	defer ogl.SetLevel(lvl)
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	firstKeyBytes, err := rw.ReadBytes(dbc.conx)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	// TODO: not sure I like this -> are we only returning a link?
+	doc := oschema.NewEmptyDocument()
+
+	// unfortunately, the linkBag serialized record that is returned does
+	// not have the first byte specifying the serialization type,
+	// so have to change to use the dbc.serializationVersion
+	serde := dbc.currDb.RecordSerDes[dbc.serializationVersion]
+	// then strip off the version byte and send the data to the serde
+	err = serde.Deserialize(dbc, doc, bytes.NewBuffer(firstKeyBytes))
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+
+	// TODO: extract the LINK field and only return that?
+	return doc, nil
+}
+
+func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag) error {
+	// (treePointer:collectionPointer)(changes)
+	// where collectionPtr = (fileId:long)(pageIndex:long)(pageOffset:int)
+	err := rw.WriteLong(buf, linkBag.GetFileID())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = rw.WriteLong(buf, linkBag.GetPageIndex())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	return rw.WriteInt(buf, linkBag.GetPageOffset())
+}
+
+//
+// Large LinkBags (aka RidBags) are stored on the server. To look up their
+// size requires a call to the database.  The size is returned.  Note that the
+// Size field of the linkBag is NOT updated.  That is left for the caller to
+// decide whether to do.
+//
+func GetSizeOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (int, error) {
+	dbc.buf.Reset()
+
+	err := writeCommandAndSessionId(dbc, REQUEST_RIDBAG_GET_SIZE)
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	err = writeLinkBagCollectionPointer(dbc.buf, linkBag)
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	// changes => TODO: right now not supporting any change -> just writing empty changes
+	err = rw.WriteBytes(dbc.buf, []byte{0, 0, 0, 0})
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	/* ---[ Read Response ]--- */
+
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	size, err := rw.ReadInt(dbc.conx)
+	if err != nil {
+		return 0, oerror.NewTrace(err)
+	}
+
+	return int(size), nil
 }
 
 //
@@ -938,14 +1050,19 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 		return oerror.NewTrace(err)
 	}
 
+	ogl.Debugf("++ read status: %v\n", status)
+
 	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 	if sessionId != dbc.sessionId {
+		// FIXME: use of fmt.Errorf is an anti-pattern
 		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
 			sessionId, dbc.sessionId)
 	}
+
+	ogl.Debugf("++ read sessionId: %v\n", sessionId)
 
 	if status == RESPONSE_STATUS_ERROR {
 		serverException, err := rw.ReadErrorResponse(dbc.conx)

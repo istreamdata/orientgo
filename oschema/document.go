@@ -34,6 +34,19 @@ func NewDocument(className string) *ODocument {
 	return &ODocument{
 		Fields:    make(map[string]*OField),
 		Classname: className,
+		RID:       NewORID(),
+		Version:   int32(-1),
+	}
+}
+
+//
+// TODO: have this replace NewDocument and change NewDocument to take RID and Version (???)
+//
+func NewEmptyDocument() *ODocument {
+	return &ODocument{
+		Fields:  make(map[string]*OField),
+		RID:     NewORID(),
+		Version: int32(-1),
 	}
 }
 

@@ -26,15 +26,6 @@ func (lnk *OLink) String() string {
 
 // ------
 
-type OLinkCollection interface {
-	Len() int
-	Links() []*OLink
-	// TODO: may want to have a LinkIterator() method
-	// to stream them out
-}
-
-// ------
-
 //
 // OLinkBag can have a tree-based or an embedded representation.
 //
@@ -50,15 +41,41 @@ type OLinkCollection interface {
 //
 //
 type OLinkBag struct {
-	links             []*OLink
-	size              int32
-	collectionPointer *treeCollectionPointer
+	Links             []*OLink
+	Size              int
+	CollectionPointer *treeCollectionPointer
 }
+
+// // EXPTAL
+// type OLinkBag struct {
+// 	Links             []*OLink
+// 	Size              int
+// 	TreeOLinkBag
+// }
+
+// type TreeOLinkBag struct {
+// 	fileId     int64
+// 	pageIndex  int64
+// 	pageOffset int32
+// }
+// // END EXPTAL
 
 type treeCollectionPointer struct {
 	fileId     int64
 	pageIndex  int64
 	pageOffset int32
+}
+
+func (lb OLinkBag) GetFileID() int64 {
+	return lb.CollectionPointer.fileId
+}
+
+func (lb OLinkBag) GetPageIndex() int64 {
+	return lb.CollectionPointer.pageIndex
+}
+
+func (lb OLinkBag) GetPageOffset() int32 {
+	return lb.CollectionPointer.pageOffset
 }
 
 //
@@ -67,7 +84,7 @@ type treeCollectionPointer struct {
 // with an embedded LinkBag.
 //
 func NewOLinkBag(links []*OLink) *OLinkBag {
-	return &OLinkBag{links: links}
+	return &OLinkBag{Links: links, Size: len(links)}
 }
 
 //
@@ -85,49 +102,7 @@ func NewTreeOLinkBag(fileId int64, pageIdx int64, pageOffset int32, size int32) 
 		pageOffset: pageOffset,
 	}
 
-	return &OLinkBag{collectionPointer: &treeptr, size: size}
-}
-
-func (lb *OLinkBag) Len() int {
-	if lb.links != nil {
-		return len(lb.links)
-	}
-
-	if lb.collectionPointer != nil && lb.size == -1 {
-		// TODO: need to look up size with REQUEST_RIDBAG_GET_SIZE
-		lb.size = 99999 // FIXME:
-	}
-
-	return int(lb.size)
-}
-
-func (lb *OLinkBag) Links() []*OLink {
-	if lb.links != nil {
-		return lb.links
-	}
-
-	if lb.size == -1 {
-		// looks up the Length from the database server
-		lb.Len()
-	}
-
-	return nil // FIXME:
-}
-
-//
-// Used for both LINKLIST and LINKSET OrientDB types
-//
-// TODO: should change to: type OLinkList []*OLink   (or type OLinkList []OLink - not sure which)
-type OLinkList struct {
-	OLinks []*OLink
-}
-
-func (ll *OLinkList) Len() int {
-	return len(ll.OLinks)
-}
-
-func (ll *OLinkList) Links() []*OLink {
-	return ll.OLinks
+	return &OLinkBag{CollectionPointer: &treeptr, Size: int(size)}
 }
 
 // // ------

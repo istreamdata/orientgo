@@ -15,7 +15,6 @@ import (
 	"io"
 
 	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/ogl"
 )
 
 const DEFAULT_RETVAL = 255
@@ -73,11 +72,8 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 
-	ogl.Debugf("rw/ReadBytes: sz = %v\n", sz)
-
 	readbuf := make([]byte, sz)
 	n, err := rdr.Read(readbuf)
-	ogl.Debugf("rw/ReadBytes: n = %v; readbuf: %v\n", n, readbuf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
@@ -94,7 +90,6 @@ func ReadInt(rdr io.Reader) (int32, error) {
 	if err != nil {
 		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
-	ogl.Debugf("rw/ReadInt: readbuf = %v\n", readbuf)
 	if n != intSz {
 		return DEFAULT_RETVAL, oerror.IncorrectNetworkRead{Expected: intSz, Actual: n}
 	}
@@ -106,7 +101,6 @@ func ReadInt(rdr io.Reader) (int32, error) {
 		return DEFAULT_RETVAL, oerror.NewTrace(err)
 	}
 
-	ogl.Debugf("rw/ReadInt: intval = %v\n", intval)
 	return intval, nil
 }
 

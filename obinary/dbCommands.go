@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/quux00/ogonori/constants"
+	"github.com/quux00/ogonori/obinary/binserde"
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
@@ -782,9 +783,38 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 }
 
 //
-// TODO: this might actually just return *oschema.OLink, no?
+// Fetch Entries Major
+// TODO: need to enquire when inclusive should be true/false
 //
-func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (interface{}, error) {
+func GetKeysOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive bool) error {
+	dbc.buf.Reset()
+
+	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = writeLinkBagCollectionPointer(dbc.buf, linkBag)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// send to the OrientDB server
+	_, err = dbc.conx.Write(dbc.buf.Bytes())
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// TODO: missing steps
+
+	return nil
+}
+
+//
+// DOCUMENT ME
+// should this fill in the linkBag rather than returning the link ???
+//
+func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (*oschema.OLink, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_FIRST_KEY)
@@ -818,21 +848,26 @@ func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (inter
 		return nil, oerror.NewTrace(err)
 	}
 
-	// TODO: not sure I like this -> are we only returning a link?
-	doc := oschema.NewEmptyDocument()
+	var (
+		typeByte  byte
+		typeSerde binserde.OBinaryTypeSerializer
+	)
 
-	// unfortunately, the linkBag serialized record that is returned does
-	// not have the first byte specifying the serialization type,
-	// so have to change to use the dbc.serializationVersion
-	serde := dbc.currDb.RecordSerDes[dbc.serializationVersion]
-	// then strip off the version byte and send the data to the serde
-	err = serde.Deserialize(dbc, doc, bytes.NewBuffer(firstKeyBytes))
+	typeByte = firstKeyBytes[0]
+	typeSerde = binserde.TypeSerializers[typeByte]
+	result, err := typeSerde.Deserialize(bytes.NewBuffer(firstKeyBytes[1:]))
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	// TODO: extract the LINK field and only return that?
-	return doc, nil
+	firstLink, ok := result.(*oschema.OLink)
+
+	if !ok {
+		// TODO: fmt.Errorf is an anti-pattern
+		return nil, fmt.Errorf("Typecast error. Expected *oschema.OLink but is %T", result)
+	}
+
+	return firstLink, nil
 }
 
 func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag) error {
@@ -1050,8 +1085,6 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 		return oerror.NewTrace(err)
 	}
 
-	ogl.Debugf("++ read status: %v\n", status)
-
 	sessionId, err := rw.ReadInt(dbc.conx)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -1061,8 +1094,6 @@ func readStatusCodeAndSessionId(dbc *DBClient) error {
 		return fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)",
 			sessionId, dbc.sessionId)
 	}
-
-	ogl.Debugf("++ read sessionId: %v\n", sessionId)
 
 	if status == RESPONSE_STATUS_ERROR {
 		serverException, err := rw.ReadErrorResponse(dbc.conx)

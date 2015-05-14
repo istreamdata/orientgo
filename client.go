@@ -993,17 +993,14 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 		Equals(1, len(docs))
 
 		sql = fmt.Sprintf(`CREATE EDGE Friend FROM %s to %s`, abbieRID.String(), docs[0].RID.String())
-		_, _, err = obinary.SQLCommand(dbc, sql)
+		_, docs, err = obinary.SQLCommand(dbc, sql)
 		Ok(err)
 	}
 
-	Pause("XXX")
 	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
 	// _, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
 	docs, err := obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
-	ogl.Warnf("Abbie docs sz: %d\n", len(docs))
-	// Pause("HHH33")
 	Equals(91, len(docs))
 	// Abbie is the first entry and for in_Friend she has an embedded LinkBag,
 	// buf for out_Fridn she has a tree-based remote LinkBag, not yet filled in
@@ -1017,15 +1014,14 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 	Assert(abbieOutFriendLinkBag.Links == nil, "out_Friends links should not be present")
 	Equals(-1, abbieOutFriendLinkBag.Size)
 
-	Pause("YYY")
-	// firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
-	// Ok(err)
-	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
 	sz, err := obinary.GetSizeOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
 	Ok(err)
-	ogl.Warnf("++ sz from obinary.GetSizeOfRemoteLinkBag: %d\n", sz)
 	Equals(nAbbieOutFriends+1, sz)
-	Pause("ZZZ")
+	// Pause("ZZZ")
+	firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
+	Ok(err)
+	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
+	// Pause("ZZZB")
 
 	// zekeVtx = docs[1]
 	// Equals("Rossi", zekeVtx.GetField("lastName").Value)

@@ -157,14 +157,18 @@ func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, u
 
 	//
 	/* ---[ load #0:0 - config record ]--- */
-	schemaRID, err := loadConfigRecord(dbc)
+	schemaRIDStr, err := loadConfigRecord(dbc)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	clusterID, clusterPos, err := parseRid(schemaRIDStr)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
 	//
 	/* ---[ load #0:1 - schema record ]--- */
-	err = loadSchema(dbc, schemaRID)
+	err = loadSchema(dbc, oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos})
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -320,7 +324,7 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
 //
-func loadSchema(dbc *DBClient, schemaRID string) error {
+func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
 	docs, err := GetRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
 	if err != nil {
 		return err
@@ -500,10 +504,9 @@ func deleteByRID(dbc *DBClient, rid string, recVersion int32, async bool) error 
 // a slice of ODocument
 //
 // TODO: may also want to expose options: ignoreCache, loadTombstones bool
-func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODocument, error) {
+// TODO: need to properly handle fetchPlan
+func GetRecordByRID(dbc *DBClient, orid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
-
-	orid := oschema.NewORIDFromString(rid)
 
 	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
 	if err != nil {
@@ -592,7 +595,7 @@ func GetRecordByRID(dbc *DBClient, rid string, fetchPlan string) ([]*oschema.ODo
 			// then strip off the version byte and send the data to the serde
 			err = serde.Deserialize(dbc, doc, bytes.NewBuffer(databytes[1:]))
 			if err != nil {
-				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)
+				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", orid, err)
 			}
 			docs = append(docs, doc)
 
@@ -615,7 +618,11 @@ func parseRid(rid string) (clusterID int16, clusterPos int64, err error) {
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("RID %s is not of form x:y", rid)
 	}
-	id64, err := strconv.ParseInt(parts[0], 10, 16)
+	idPart := parts[0]
+	if strings.HasPrefix(parts[0], "#") {
+		idPart = idPart[1:]
+	}
+	id64, err := strconv.ParseInt(idPart, 10, 16)
 	if err != nil {
 		return 0, 0, oerror.NewTrace(err)
 	}
@@ -630,7 +637,7 @@ func parseRid(rid string) (clusterID int16, clusterPos int64, err error) {
 // added, deleted or renamed.
 //
 func ReloadSchema(dbc *DBClient) error {
-	return loadSchema(dbc, "#0:1")
+	return loadSchema(dbc, oschema.ORID{ClusterID: 0, ClusterPos: 1})
 }
 
 //
@@ -784,9 +791,13 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 
 //
 // Fetch Entries Major
+// key must be the link retrieved from GetFirstKeyOfRemoteLinkBag
+//  (?? can key also be the last last link returned from GetKeysOfRemoteLinkBag ??)
 // TODO: need to enquire when inclusive should be true/false
+// This fills in the links of the passed in OLinkBag, rather than returning the new links
 //
-func GetKeysOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive bool) error {
+// TODO: should absorb the firstKey stuff above
+func GetEntriesOfRemoteLinkBag(dbc *DBClient, key *oschema.OLink, linkBag *oschema.OLinkBag, inclusive bool) error {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR)
@@ -799,13 +810,86 @@ func GetKeysOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive 
 		return oerror.NewTrace(err)
 	}
 
+	typeByte := byte(9)
+	linkSerde := binserde.TypeSerializers[typeByte] // the OLinkSerializer
+
+	linkBytes, err := linkSerde.Serialize(key)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = rw.WriteBytes(dbc.buf, linkBytes)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = rw.WriteBool(dbc.buf, inclusive)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// copied from Java client OSBTreeBonsaiRemote#fetchEntriesMajor
+	if dbc.binaryProtocolVersion >= 21 {
+		err = rw.WriteInt(dbc.buf, 128)
+	}
+
 	// send to the OrientDB server
 	_, err = dbc.conx.Write(dbc.buf.Bytes())
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
-	// TODO: missing steps
+	/* ---[ Read Response ]--- */
+
+	lvl := ogl.GetLevel()   // DEBUG
+	ogl.SetLevel(ogl.DEBUG) // DEBUG
+	defer ogl.SetLevel(lvl) // DEBUG
+	err = readStatusCodeAndSessionId(dbc)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	linkEntryBytes, err := rw.ReadBytes(dbc.conx)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// all the rest of the response from the server in in this byte slice so
+	// we can reset the dbc.buf and reuse it to deserialize the serialized links
+	dbc.buf.Reset()
+	// ignoring error since doc says this method panics rather than return
+	// non-nil error
+	n, _ := dbc.buf.Write(linkEntryBytes)
+	if n != len(linkEntryBytes) {
+		return fmt.Errorf("Unexpected error when writing bytes to bytes.Buffer")
+	}
+
+	nrecs, err := rw.ReadInt(dbc.buf)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	var result interface{}
+	nr := int(nrecs)
+	// loop over all the serialized links
+	for i := 0; i < nr; i++ {
+		result, err = linkSerde.Deserialize(dbc.buf)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		linkBag.AddLink(result.(*oschema.OLink))
+
+		// FIXME: for some reason the server returns a serialized link
+		//        followed by an integer (so far always a 1 in my expts).
+		//        Not sure what to do with this int, so ignore for now
+		intval, err := rw.ReadInt(dbc.buf)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		if intval != int32(1) {
+			ogl.Warnf("DEBUG: Found a use case where the val pair of a link was not 1: %d\n", intval)
+		}
+	}
 
 	return nil
 }

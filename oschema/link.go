@@ -42,7 +42,7 @@ func (lnk *OLink) String() string {
 //
 type OLinkBag struct {
 	Links             []*OLink
-	Size              int
+	Size              int // this is the size on the remote server => TODO: need to ensure this is properly used
 	CollectionPointer *treeCollectionPointer
 }
 
@@ -66,16 +66,20 @@ type treeCollectionPointer struct {
 	pageOffset int32
 }
 
-func (lb OLinkBag) GetFileID() int64 {
+func (lb *OLinkBag) GetFileID() int64 {
 	return lb.CollectionPointer.fileId
 }
 
-func (lb OLinkBag) GetPageIndex() int64 {
+func (lb *OLinkBag) GetPageIndex() int64 {
 	return lb.CollectionPointer.pageIndex
 }
 
-func (lb OLinkBag) GetPageOffset() int32 {
+func (lb *OLinkBag) GetPageOffset() int32 {
 	return lb.CollectionPointer.pageOffset
+}
+
+func (lb *OLinkBag) AddLink(lnk *OLink) {
+	lb.Links = append(lb.Links, lnk)
 }
 
 //

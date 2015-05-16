@@ -997,6 +997,7 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 		Ok(err)
 	}
 
+	// TODO: try the below query with FetchPlanFollowAllLinks -> are all the LinkBag docs returned ??
 	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
 	// _, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
 	docs, err := obinary.SQLQuery(dbc, sql, "")
@@ -1017,13 +1018,32 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 	sz, err := obinary.GetSizeOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
 	Ok(err)
 	Equals(nAbbieOutFriends+1, sz)
-	// Pause("ZZZ")
 	firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
 	Ok(err)
-	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
-	// Pause("ZZZB")
+	ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
 
-	// zekeVtx = docs[1]
+	// TODO: what happens if you set inclusive to false?
+	inclusive := true
+	err = obinary.GetEntriesOfRemoteLinkBag(dbc, firstKey, abbieOutFriendLinkBag, inclusive)
+	Ok(err)
+	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
+	// Pause("ZZZB")
+	Equals(89, len(abbieOutFriendLinkBag.Links))
+
+	// choose arbitrary Link from the LinkBag and fill in its Record doc
+	link7 := abbieOutFriendLinkBag.Links[7]
+	// Assert(link7.RID != nil, "RID should be filled in")
+	Assert(link7.Record == nil, "Link Record should NOT be filled in yet")
+
+	fetchPlan := ""
+	docs, err = obinary.GetRecordByRID(dbc, link7.RID, fetchPlan)
+	Equals(1, len(docs))
+	ogl.Warnf("++ link7 record: %v\n", docs[0])
+	link7.Record = docs[0]
+	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
+	// Pause("ZZZ")
+
+	// zekevtx = docs[1]
 	// Equals("Rossi", zekeVtx.GetField("lastName").Value)
 
 	// Equals(1, len(friendLinkBag))
@@ -1078,7 +1098,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Michael", caretakerField.Value)
 
 	/* ---[ get by RID ]--- */
-	docs, err = obinary.GetRecordByRID(dbc, linusDocRID.String(), "")
+	docs, err = obinary.GetRecordByRID(dbc, linusDocRID, "")
 	Ok(err)
 	Equals(1, len(docs))
 	docByRID := docs[0]

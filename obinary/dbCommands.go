@@ -790,17 +790,27 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 }
 
 //
-// Fetch Entries Major
-// key must be the link retrieved from GetFirstKeyOfRemoteLinkBag
-//  (?? can key also be the last last link returned from GetKeysOfRemoteLinkBag ??)
-// TODO: need to enquire when inclusive should be true/false
-// This fills in the links of the passed in OLinkBag, rather than returning the new links
+// GetEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
+// (tree-based) rather than embedded.  This function will fill in the links
+// of the passed in OLinkBag, rather than returning the new links. The Links
+// will have RIDs only, not full Records (ODocuments).  If you then want the
+// Records filled in, call the ResolveLinks function.
 //
-// TODO: should absorb the firstKey stuff above
-func GetEntriesOfRemoteLinkBag(dbc *DBClient, key *oschema.OLink, linkBag *oschema.OLinkBag, inclusive bool) error {
+func GetEntriesOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive bool) error {
+	var (
+		firstLink *oschema.OLink
+		linkSerde binserde.OBinaryTypeSerializer
+		err       error
+	)
+
+	firstLink, err = GetFirstKeyOfRemoteLinkBag(dbc, linkBag)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
 	dbc.buf.Reset()
 
-	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR)
+	err = writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -811,9 +821,9 @@ func GetEntriesOfRemoteLinkBag(dbc *DBClient, key *oschema.OLink, linkBag *osche
 	}
 
 	typeByte := byte(9)
-	linkSerde := binserde.TypeSerializers[typeByte] // the OLinkSerializer
+	linkSerde = binserde.TypeSerializers[typeByte] // the OLinkSerializer
 
-	linkBytes, err := linkSerde.Serialize(key)
+	linkBytes, err := linkSerde.Serialize(firstLink)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -841,9 +851,6 @@ func GetEntriesOfRemoteLinkBag(dbc *DBClient, key *oschema.OLink, linkBag *osche
 
 	/* ---[ Read Response ]--- */
 
-	lvl := ogl.GetLevel()   // DEBUG
-	ogl.SetLevel(ogl.DEBUG) // DEBUG
-	defer ogl.SetLevel(lvl) // DEBUG
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
 		return oerror.NewTrace(err)
@@ -895,8 +902,11 @@ func GetEntriesOfRemoteLinkBag(dbc *DBClient, key *oschema.OLink, linkBag *osche
 }
 
 //
-// DOCUMENT ME
-// should this fill in the linkBag rather than returning the link ???
+// GetFirstKeyOfRemoteLinkBag is the entry point for retrieving links from
+// a remote server-side side LinkBag.  In general, this method should not be
+// called by end users. Instead, end users should call GetEntriesOfRemoteLinkBag
+//
+// TODO: make this an unexported func?
 //
 func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (*oschema.OLink, error) {
 	dbc.buf.Reset()
@@ -919,9 +929,6 @@ func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (*osch
 
 	/* ---[ Read Response ]--- */
 
-	lvl := ogl.GetLevel()
-	ogl.SetLevel(ogl.DEBUG)
-	defer ogl.SetLevel(lvl)
 	err = readStatusCodeAndSessionId(dbc)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -968,6 +975,10 @@ func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag)
 	}
 
 	return rw.WriteInt(buf, linkBag.GetPageOffset())
+}
+
+func ResolveLinks(dbc *DBClient, links []*oschema.OLink) error {
+	return nil
 }
 
 //

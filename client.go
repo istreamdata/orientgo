@@ -1018,16 +1018,16 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 	sz, err := obinary.GetSizeOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
 	Ok(err)
 	Equals(nAbbieOutFriends+1, sz)
-	firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
-	Ok(err)
-	ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
+	// firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
+	// Ok(err)
+	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
 
 	// TODO: what happens if you set inclusive to false?
 	inclusive := true
-	err = obinary.GetEntriesOfRemoteLinkBag(dbc, firstKey, abbieOutFriendLinkBag, inclusive)
+	err = obinary.GetEntriesOfRemoteLinkBag(dbc, abbieOutFriendLinkBag, inclusive)
 	Ok(err)
-	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
-	// Pause("ZZZB")
+	ogl.Warnf("++ GetEntriesOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
+	Pause("ZZZB")
 	Equals(89, len(abbieOutFriendLinkBag.Links))
 
 	// choose arbitrary Link from the LinkBag and fill in its Record doc
@@ -1042,6 +1042,9 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 	link7.Record = docs[0]
 	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
 	// Pause("ZZZ")
+
+	// TODO: add this method ??
+	// obinary.ResolveLinks(dbc, abbieOutFriendLinkBag) // maybe include a fetchplan here?
 
 	// zekevtx = docs[1]
 	// Equals("Rossi", zekeVtx.GetField("lastName").Value)

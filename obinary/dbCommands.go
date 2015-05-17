@@ -325,7 +325,7 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // object (dbc.currDb).
 //
 func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
-	docs, err := GetRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
+	docs, err := FetchRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
 	if err != nil {
 		return err
 	}
@@ -398,20 +398,20 @@ func CloseDatabase(dbc *DBClient) error {
 }
 
 //
-// GetDatabaseSize retrieves the size of the current database in bytes.
+// FetchDatabaseSize retrieves the size of the current database in bytes.
 // It is a database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
 //
-func GetDatabaseSize(dbc *DBClient) (int64, error) {
+func FetchDatabaseSize(dbc *DBClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_SIZE))
 }
 
 //
-// GetNumRecordsInDatabase retrieves the number of records of the current
+// FetchNumRecordsInDatabase retrieves the number of records of the current
 // database. It is a database-level operation, so OpenDatabase must have
 // already been called first in order to start a session with the database.
 //
-func GetNumRecordsInDatabase(dbc *DBClient) (int64, error) {
+func FetchNumRecordsInDatabase(dbc *DBClient) (int64, error) {
 	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
 }
 
@@ -497,15 +497,14 @@ func deleteByRID(dbc *DBClient, rid string, recVersion int32, async bool) error 
 }
 
 //
-// GetRecordById takes an RID of the form N:M or #N:M and reads that record from
-// the database.
+// FetchRecordByRID takes an ORID and reads that record from the database.
 // NOTE: for now I'm assuming all records are Documents (they can also be "raw bytes" or "flat data")
 // and for some reason I don't understand, multiple records can be returned, so I'm returning
 // a slice of ODocument
 //
 // TODO: may also want to expose options: ignoreCache, loadTombstones bool
 // TODO: need to properly handle fetchPlan
-func GetRecordByRID(dbc *DBClient, orid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
+func FetchRecordByRID(dbc *DBClient, orid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_LOAD)
@@ -641,9 +640,9 @@ func ReloadSchema(dbc *DBClient) error {
 }
 
 //
-// GetClusterDataRange returns the range of record ids for a cluster
+// FetchClusterDataRange returns the range of record ids for a cluster
 //
-func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, err error) {
+func FetchClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, err error) {
 	dbc.buf.Reset()
 
 	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
@@ -651,7 +650,7 @@ func GetClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, e
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
-		//       2) provide a GetClusterRangeById(dbc, clusterID)
+		//       2) provide a FetchClusterRangeById(dbc, clusterID)
 		return begin, end,
 			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
 	}
@@ -790,20 +789,20 @@ func DropCluster(dbc *DBClient, clusterName string) error {
 }
 
 //
-// GetEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
+// FetchEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
 // (tree-based) rather than embedded.  This function will fill in the links
 // of the passed in OLinkBag, rather than returning the new links. The Links
 // will have RIDs only, not full Records (ODocuments).  If you then want the
 // Records filled in, call the ResolveLinks function.
 //
-func GetEntriesOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive bool) error {
+func FetchEntriesOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusive bool) error {
 	var (
 		firstLink *oschema.OLink
 		linkSerde binserde.OBinaryTypeSerializer
 		err       error
 	)
 
-	firstLink, err = GetFirstKeyOfRemoteLinkBag(dbc, linkBag)
+	firstLink, err = FetchFirstKeyOfRemoteLinkBag(dbc, linkBag)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -902,13 +901,13 @@ func GetEntriesOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag, inclusi
 }
 
 //
-// GetFirstKeyOfRemoteLinkBag is the entry point for retrieving links from
+// FetchFirstKeyOfRemoteLinkBag is the entry point for retrieving links from
 // a remote server-side side LinkBag.  In general, this method should not be
-// called by end users. Instead, end users should call GetEntriesOfRemoteLinkBag
+// called by end users. Instead, end users should call FetchEntriesOfRemoteLinkBag
 //
 // TODO: make this an unexported func?
 //
-func GetFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (*oschema.OLink, error) {
+func FetchFirstKeyOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (*oschema.OLink, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_SBTREE_BONSAI_FIRST_KEY)
@@ -977,7 +976,27 @@ func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag)
 	return rw.WriteInt(buf, linkBag.GetPageOffset())
 }
 
+//
+// ResolveLinks iterates over all the OLinks passed in and does a
+// FetchRecordByRID for each one that has a null Record
+// TODO: maybe include a fetchplan here?
+//
 func ResolveLinks(dbc *DBClient, links []*oschema.OLink) error {
+	fetchPlan := ""
+	for i := 0; i < len(links); i++ {
+		if links[i].Record == nil {
+			docs, err := FetchRecordByRID(dbc, links[i].RID, fetchPlan)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			// DEBUG
+			if len(docs) > 1 {
+				ogl.Warnf("DEBUG: More than one record returned from FetchRecordByRID. Please report this use case to the ogonori author!!")
+			}
+			// END DEBUG
+			links[i].Record = docs[0]
+		}
+	}
 	return nil
 }
 
@@ -987,7 +1006,7 @@ func ResolveLinks(dbc *DBClient, links []*oschema.OLink) error {
 // Size field of the linkBag is NOT updated.  That is left for the caller to
 // decide whether to do.
 //
-func GetSizeOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (int, error) {
+func FetchSizeOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (int, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, REQUEST_RIDBAG_GET_SIZE)
@@ -1032,17 +1051,17 @@ func GetSizeOfRemoteLinkBag(dbc *DBClient, linkBag *oschema.OLinkBag) (int, erro
 // the clusters specified *including* deleted records (applicable for
 // autosharded storage only)
 //
-func GetClusterCountIncludingDeleted(dbc *DBClient, clusterNames ...string) (count int64, err error) {
+func FetchClusterCountIncludingDeleted(dbc *DBClient, clusterNames ...string) (count int64, err error) {
 	return getClusterCount(dbc, true, clusterNames)
 }
 
 //
-// GetClusterCountIncludingDeleted gets the number of records in all the
+// FetchClusterCountIncludingDeleted gets the number of records in all the
 // clusters specified. The count does NOT include deleted records in
-// autosharded storage. Use GetClusterCountIncludingDeleted if you want
+// autosharded storage. Use FetchClusterCountIncludingDeleted if you want
 // the count including deleted records
 //
-func GetClusterCount(dbc *DBClient, clusterNames ...string) (count int64, err error) {
+func FetchClusterCount(dbc *DBClient, clusterNames ...string) (count int64, err error) {
 	return getClusterCount(dbc, false, clusterNames)
 }
 
@@ -1056,7 +1075,7 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 			// TODO: This is problematic - someone else may add the cluster not through this
 			//       driver session and then this would fail - so options:
 			//       1) do a lookup of all clusters on the DB
-			//       2) provide a GetClusterCountById(dbc, clusterID)
+			//       2) provide a FetchClusterCountById(dbc, clusterID)
 			return int64(0),
 				fmt.Errorf("No cluster with name %s is known in database %s\n",
 					name, dbc.currDb.Name)

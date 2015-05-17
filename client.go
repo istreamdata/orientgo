@@ -647,16 +647,16 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	cnt1, err := obinary.GetClusterCountIncludingDeleted(dbc, "default", "index", "ouser")
+	cnt1, err := obinary.FetchClusterCountIncludingDeleted(dbc, "default", "index", "ouser")
 	Ok(err)
 	Assert(cnt1 > 0, "should be clusters")
 
-	cnt2, err := obinary.GetClusterCount(dbc, "default", "index", "ouser")
+	cnt2, err := obinary.FetchClusterCount(dbc, "default", "index", "ouser")
 	Ok(err)
 	Assert(cnt1 >= cnt2, "counts should match or have more deleted")
 	ogl.Debugf("Cluster count: %d\n", cnt2)
 
-	begin, end, err := obinary.GetClusterDataRange(dbc, "ouser")
+	begin, end, err := obinary.FetchClusterDataRange(dbc, "ouser")
 	Ok(err)
 	ogl.Debugln(">> cluster data range: %d, %d", begin, end)
 	Assert(end >= begin, "begin and end of ClusterDataRange")
@@ -689,7 +689,7 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	}
 	Assert(clusterId > 0, "clusterId should be bigger than zero")
 
-	cnt, err := obinary.GetClusterCount(dbc, "bigapple")
+	cnt, err := obinary.FetchClusterCount(dbc, "bigapple")
 	if err != nil {
 		Fatal(err)
 	}
@@ -796,7 +796,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Wilson", abbieVtx.GetField("lastName").Value)
 	Equals("Rossi", zekeVtx.GetField("lastName").Value)
 	friendLinkBag := abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
-	Equals(1, friendLinkBag.Size)
+	Equals(0, friendLinkBag.GetRemoteSize()) // FIXME: this is probably wrong -> is now 0
 	Equals(1, len(friendLinkBag.Links))
 	Assert(zekeVtx.RID.ClusterID != friendLinkBag.Links[0].RID.ClusterID, "friendLink should be from friend table")
 	Assert(friendLinkBag.Links[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
@@ -814,7 +814,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Person", zekeVtx.Classname)
 	Equals("555-55-5555", abbieVtx.GetField("SSN").Value)
 	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
-	Equals(1, linkBagInAbbieVtx.Size)
+	Equals(0, linkBagInAbbieVtx.GetRemoteSize())
 	Equals(1, len(linkBagInAbbieVtx.Links))
 	Assert(linkBagInAbbieVtx.Links[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
 	Equals(linkBagInAbbieVtx.Links[0].RID, friendEdge.RID)
@@ -976,13 +976,40 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
 
 	addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc, abbieRID)
+	// doCircularLinkExample(dbc)
+}
+
+func doCircularLinkExample(dbc *obinary.DBClient) {
+	Pause("START Special")
+	_, _, err := obinary.SQLCommand(dbc, "create class XUser extends V")
+	Ok(err)
+	_, _, err = obinary.SQLCommand(dbc, "create class XFollowing extends E")
+	Ok(err)
+	_, docs, err := obinary.SQLCommand(dbc, `create vertex XUser content {"id":1}`)
+	Ok(err)
+	user1 := docs[0]
+	_, docs, err = obinary.SQLCommand(dbc, `create vertex XUser content {"id":2}`)
+	Ok(err)
+	user2 := docs[0]
+	sql := fmt.Sprintf(`create edge XFollowing from %s to %s`, user1.RID.String(), user2.RID.String())
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	sql = fmt.Sprintf(`create edge XFollowing from %s to %s`, user2.RID.String(), user1.RID.String())
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	// docs, err = obinary.SQLQuery(dbc, "SELECT FROM XUser SKIP 0 LIMIT 100", "")
+	Pause("ABOUT1 SPECIAL")
+	docs, err = obinary.SQLQuery(dbc, "SELECT FROM XUser", "")
+	Pause("ABOUT2 SPECIAL")
+	Ok(err)
+	ogl.Warnf("XUser docs: %v\n", docs)
+	Pause("END Special")
 }
 
 func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, abbieRID oschema.ORID) {
 	var (
 		sql string
 		err error
-		// docs []*oschema.ODocument
 	)
 
 	nAbbieOutFriends := 88
@@ -1009,54 +1036,45 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 	Equals("Wilson", abbieVtx.GetField("lastName").Value)
 	abbieInFriendLinkBag := abbieVtx.GetField("in_Friend").Value.(*oschema.OLinkBag)
 	Equals(1, len(abbieInFriendLinkBag.Links))
-	Equals(1, abbieInFriendLinkBag.Size)
+	Equals(false, abbieInFriendLinkBag.IsRemote())
+	Assert(abbieInFriendLinkBag.GetRemoteSize() <= 0, "GetRemoteSize should not be set to positive val")
 
 	abbieOutFriendLinkBag := abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
 	Assert(abbieOutFriendLinkBag.Links == nil, "out_Friends links should not be present")
-	Equals(-1, abbieOutFriendLinkBag.Size)
+	Equals(true, abbieOutFriendLinkBag.IsRemote())
+	Assert(abbieInFriendLinkBag.GetRemoteSize() <= 0, "GetRemoteSize should not be set to positive val")
 
-	sz, err := obinary.GetSizeOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
+	sz, err := obinary.FetchSizeOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
 	Ok(err)
 	Equals(nAbbieOutFriends+1, sz)
-	// firstKey, err := obinary.GetFirstKeyOfRemoteLinkBag(dbc, abbieOutFriendLinkBag)
-	// Ok(err)
-	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: %v\n", firstKey)
 
 	// TODO: what happens if you set inclusive to false?
 	inclusive := true
-	err = obinary.GetEntriesOfRemoteLinkBag(dbc, abbieOutFriendLinkBag, inclusive)
+	err = obinary.FetchEntriesOfRemoteLinkBag(dbc, abbieOutFriendLinkBag, inclusive)
 	Ok(err)
-	ogl.Warnf("++ GetEntriesOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
-	Pause("ZZZB")
 	Equals(89, len(abbieOutFriendLinkBag.Links))
 
 	// choose arbitrary Link from the LinkBag and fill in its Record doc
 	link7 := abbieOutFriendLinkBag.Links[7]
-	// Assert(link7.RID != nil, "RID should be filled in")
+	Assert(link7.RID.ClusterID > 1, "RID should be filled in")
 	Assert(link7.Record == nil, "Link Record should NOT be filled in yet")
 
+	// choose arbitrary Link from the LinkBag and fill in its Record doc
+	link13 := abbieOutFriendLinkBag.Links[13]
+	Assert(link13.RID.ClusterID > 1, "RID should be filled in")
+	Assert(link13.Record == nil, "Link Record should NOT be filled in yet")
+
 	fetchPlan := ""
-	docs, err = obinary.GetRecordByRID(dbc, link7.RID, fetchPlan)
+	docs, err = obinary.FetchRecordByRID(dbc, link7.RID, fetchPlan)
 	Equals(1, len(docs))
-	ogl.Warnf("++ link7 record: %v\n", docs[0])
 	link7.Record = docs[0]
-	// ogl.Warnf("++ GetFirstKeyOfRemoteLinkBag: Links: %v\n", abbieOutFriendLinkBag.Links)
-	// Pause("ZZZ")
+	Assert(abbieOutFriendLinkBag.Links[7].Record != nil, "Link Record should be filled in")
 
-	// TODO: add this method ??
-	// obinary.ResolveLinks(dbc, abbieOutFriendLinkBag) // maybe include a fetchplan here?
-
-	// zekevtx = docs[1]
-	// Equals("Rossi", zekeVtx.GetField("lastName").Value)
-
-	// Equals(1, len(friendLinkBag))
-	// Assert(zekeVtx.RID.ClusterID != friendLinkBag[0].RID.ClusterID, "friendLink should be from friend table")
-	// // the link in abbie is an EDGE (of Friend class)
-	// Equals("Friend", friendLinkBag[0].Record.Classname)
-	// outEdgeLink = friendLinkBag[0].Record.GetField("out").Value.(*oschema.OLink)
-	// Equals(abbieVtx.RID, outEdgeLink.RID)
-	// inEdgeLink = friendLinkBag[0].Record.GetField("in").Value.(*oschema.OLink)
-	// Equals(zekeVtx.RID, inEdgeLink.RID)
+	err = obinary.ResolveLinks(dbc, abbieOutFriendLinkBag.Links) // TODO: maybe include a fetchplan here?
+	Ok(err)
+	for i, outFriendLink := range abbieOutFriendLinkBag.Links {
+		Assert(outFriendLink.Record != nil, fmt.Sprintf("Link Record not filled in for rec %d", i))
+	}
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
@@ -1101,7 +1119,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Michael", caretakerField.Value)
 
 	/* ---[ get by RID ]--- */
-	docs, err = obinary.GetRecordByRID(dbc, linusDocRID, "")
+	docs, err = obinary.FetchRecordByRID(dbc, linusDocRID, "")
 	Ok(err)
 	Equals(1, len(docs))
 	docByRID := docs[0]
@@ -1130,7 +1148,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	ogl.Printf("docs returned by RID: %v\n", *(docs[0]))
 
 	/* ---[ cluster data range ]--- */
-	begin, end, err := obinary.GetClusterDataRange(dbc, "cat")
+	begin, end, err := obinary.FetchClusterDataRange(dbc, "cat")
 	Ok(err)
 	ogl.Printf("begin = %v; end = %v\n", begin, end)
 
@@ -2015,10 +2033,14 @@ func main() {
 	/* ---[ run clean up in case of panics ]--- */
 	defer func() {
 		if r := recover(); r != nil {
-			ogl.Warn(">> >> >> >> PANIC CAUGHT ----> cleanup called") // DEBUG
 			lvl := ogl.GetLevel()
 			ogl.SetLevel(ogl.NORMAL)
-			ogl.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
+			switch r {
+			case "Equals fail", "Assert fail", "Ok fail":
+				// do not print stack trace
+			default:
+				ogl.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
+			}
 			ogl.SetLevel(lvl)
 			cleanUp(dbc, testType == "full")
 			os.Exit(1)

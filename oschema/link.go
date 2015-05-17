@@ -4,11 +4,13 @@ import "fmt"
 
 //
 // This file holds LINK type datastructures.
-// Namely, for LINK, LINKLIST (LINKSET) and LINKMAP.
+// Namely, for LINK, LINKLIST (LINKSET), LINKMAP and LINKBAG (aka RidBag)
 //
 
 //
-// DOCUMENT ME
+// OLink represents a LINK in the OrientDB system.
+// It holds a RID and optionally a Record pointer to
+// the ODocument that the RID points to.
 //
 type OLink struct {
 	RID    ORID
@@ -41,24 +43,14 @@ func (lnk *OLink) String() string {
 //
 //
 type OLinkBag struct {
-	Links             []*OLink
-	Size              int // this is the size on the remote server => TODO: need to ensure this is properly used
-	CollectionPointer *treeCollectionPointer
+	Links []*OLink
+	ORemoteLinkBag
 }
 
-// // EXPTAL
-// type OLinkBag struct {
-// 	Links             []*OLink
-// 	Size              int
-// 	TreeOLinkBag
-// }
-
-// type TreeOLinkBag struct {
-// 	fileId     int64
-// 	pageIndex  int64
-// 	pageOffset int32
-// }
-// // END EXPTAL
+type ORemoteLinkBag struct {
+	size              int // this is the size on the remote server
+	CollectionPointer *treeCollectionPointer
+}
 
 type treeCollectionPointer struct {
 	fileId     int64
@@ -66,20 +58,32 @@ type treeCollectionPointer struct {
 	pageOffset int32
 }
 
-func (lb *OLinkBag) GetFileID() int64 {
+func (lb *ORemoteLinkBag) GetFileID() int64 {
 	return lb.CollectionPointer.fileId
 }
 
-func (lb *OLinkBag) GetPageIndex() int64 {
+func (lb *ORemoteLinkBag) GetPageIndex() int64 {
 	return lb.CollectionPointer.pageIndex
 }
 
-func (lb *OLinkBag) GetPageOffset() int32 {
+func (lb *ORemoteLinkBag) GetPageOffset() int32 {
 	return lb.CollectionPointer.pageOffset
+}
+
+func (lb *ORemoteLinkBag) GetRemoteSize() int {
+	return lb.size
+}
+
+func (lb *ORemoteLinkBag) SetRemoteSize(sz int32) {
+	lb.size = int(sz)
 }
 
 func (lb *OLinkBag) AddLink(lnk *OLink) {
 	lb.Links = append(lb.Links, lnk)
+}
+
+func (lb *OLinkBag) IsRemote() bool {
+	return lb.ORemoteLinkBag.CollectionPointer != nil
 }
 
 //
@@ -88,7 +92,7 @@ func (lb *OLinkBag) AddLink(lnk *OLink) {
 // with an embedded LinkBag.
 //
 func NewOLinkBag(links []*OLink) *OLinkBag {
-	return &OLinkBag{Links: links, Size: len(links)}
+	return &OLinkBag{Links: links}
 }
 
 //
@@ -106,11 +110,6 @@ func NewTreeOLinkBag(fileId int64, pageIdx int64, pageOffset int32, size int32) 
 		pageOffset: pageOffset,
 	}
 
-	return &OLinkBag{CollectionPointer: &treeptr, Size: int(size)}
+	rLinkBag := ORemoteLinkBag{CollectionPointer: &treeptr, size: int(size)}
+	return &OLinkBag{ORemoteLinkBag: rLinkBag}
 }
-
-// // ------
-
-// type OLinkMap struct {
-// 	Links map[string]*OLink
-// }

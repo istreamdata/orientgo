@@ -2,6 +2,9 @@ package binserde
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
+	"reflect"
 
 	"github.com/quux00/ogonori/obinary/rw"
 	"github.com/quux00/ogonori/oerror"
@@ -75,22 +78,15 @@ func (ols OLinkSerializer) Deserialize(buf *bytes.Buffer) (interface{}, error) {
 // not a *oschema.OLink, the method will panic.
 //
 func (ols OLinkSerializer) Serialize(val interface{}) ([]byte, error) {
-	lnk := val.(*oschema.OLink)
-	// TODO: do the big-endian translation of shorts and longs to byte arrays
-	//       here manually - rather than creating another bytes.Buffer and passing
-	//       it to rw.WriteShort, which passes it to binary.Write
+	lnk, ok := val.(*oschema.OLink)
+	if !ok {
+		return nil, fmt.Errorf("Invalid LINK should be oschema.OLink, got %s", reflect.TypeOf(val))
+	}
 
 	bs := make([]byte, 2+8) // sz of short + long
-	buf := bytes.NewBuffer(bs)
-	err := rw.WriteShort(buf, lnk.RID.ClusterID)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	err = rw.WriteLong(buf, lnk.RID.ClusterPos)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	return buf.Bytes(), nil
+	binary.BigEndian.PutUint16(bs[0:2], uint16(lnk.RID.ClusterID))
+	binary.BigEndian.PutUint64(bs[2:10], uint64(lnk.RID.ClusterPos))
+	return bs, nil
 }
 
 func init() {

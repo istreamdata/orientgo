@@ -75,6 +75,7 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 		}
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
+			buf.Seek(uint(header.dataPtrs[i] - 1)) // -1 bcs the lead byte (serialization version) was stripped off
 			val, err := serde.readDataValue(dbc, buf, ofield.Typ)
 			if err != nil {
 				return err

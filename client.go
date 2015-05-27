@@ -980,7 +980,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
 
 	addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc, abbieRID)
-	doCircularLinkExample(dbc)
+	// doCircularLinkExample(dbc)
 }
 
 func doCircularLinkExample(dbc *obinary.DBClient) {

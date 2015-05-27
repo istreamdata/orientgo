@@ -34,7 +34,7 @@ type ORecordSerializerV0 struct{}
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the io.Reader being passed in.
 //
-func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf io.Reader) (err error) {
+func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ByteBuf) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -480,7 +480,7 @@ func (serde ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interfa
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf io.Reader, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -956,7 +956,7 @@ func getDataType(val interface{}) byte {
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: change return type to (*oschema.OEmbeddedMap, error) {  ???
-func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf io.Reader) (map[string]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *obuf.ByteBuf) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1014,7 +1014,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf io.Reader) (
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf io.Reader) ([]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *obuf.ByteBuf) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)

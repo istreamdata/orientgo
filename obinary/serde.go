@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/quux00/ogonori/obuf"
 	"github.com/quux00/ogonori/oschema"
 )
 
@@ -21,12 +22,13 @@ type ORecordSerializer interface {
 	// of the serialized record) should be stripped off (already read) from the
 	// io.Reader being passed in
 	//
-	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf io.Reader) error
+	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ByteBuf) error
 
 	//
 	// Deserialize reads bytes from the io.Reader and updates the ODocument object
 	// passed in, but only for the fields specified in the `fields` slice.
 	// The ODocument must already be created; nil cannot be passed in for the `doc` field.
+	// TODO: unclear if this is necessary -> idea comes from the Java client API
 	//
 	DeserializePartial(doc *oschema.ODocument, buf io.Reader, fields []string) error
 

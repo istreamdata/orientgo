@@ -1,13 +1,13 @@
 package obinary
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/obuf"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/oschema"
 )
@@ -376,7 +376,8 @@ func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	}
 
 	serde := dbc.RecordSerDes[int(responseBytes[0])]
-	buf := bytes.NewBuffer(responseBytes[1:])
+	// buf := bytes.NewBuffer(responseBytes[1:])
+	buf := obuf.NewBuffer(responseBytes[1:])
 	doc := oschema.NewDocument("")
 	err = serde.Deserialize(dbc, doc, buf)
 	if err != nil {

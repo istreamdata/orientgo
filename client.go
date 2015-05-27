@@ -52,10 +52,14 @@ import (
 
 // EDIT THESE to match your setup
 const (
-	OgonoriDocDB            = "ogonoriTest"
-	ogonoriGraphDB          = "ogonoriGraphTest"
-	adminUser               = "root"
-	adminPassw              = "jiffylube"
+	OgonoriDocDB   = "ogonoriTest"
+	ogonoriGraphDB = "ogonoriGraphTest"
+	adminUser      = "root"
+	adminPassw     = "jiffylube"
+)
+
+// Do not edit these
+const (
 	FetchPlanFollowAllLinks = "*:-1"
 )
 

@@ -32,7 +32,7 @@ func IsFinalVarIntByte(b byte) bool {
 // ReadVarIntAndDecode32 reads a varint from buf to a uint32
 // and then zigzag decodes it to an int32 value.
 //
-func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) {
+func ReadVarIntAndDecode32(buf io.Reader) (int32, error) {
 	encodedLen, err := ReadVarIntToUint32(buf)
 	if err != nil {
 		return 0, oerror.NewTrace(err)
@@ -44,7 +44,7 @@ func ReadVarIntAndDecode32(buf *bytes.Buffer) (int32, error) {
 // ReadVarIntAndDecode64 reads a varint from buf to a uint64
 // and then zigzag decodes it to an int64 value.
 //
-func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
+func ReadVarIntAndDecode64(buf io.Reader) (int64, error) {
 	encodedLen, err := ReadVarIntToUint64(buf)
 	if err != nil {
 		return 0, oerror.NewTrace(err)
@@ -58,7 +58,7 @@ func ReadVarIntAndDecode64(buf *bytes.Buffer) (int64, error) {
 // This method only "inflates" the varint into a uint32; it does NOT
 // zigzag decode it.
 //
-func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
+func ReadVarIntToUint32(buf io.Reader) (uint32, error) {
 	var (
 		bs  []byte
 		a   uint32
@@ -99,7 +99,7 @@ func ReadVarIntToUint32(buf *bytes.Buffer) (uint32, error) {
 // This method only "inflates" the varint into a uint64; it does NOT
 // zigzag decode it.
 //
-func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
+func ReadVarIntToUint64(buf io.Reader) (uint64, error) {
 	var (
 		bs  []byte
 		a   uint64
@@ -185,11 +185,13 @@ func ReadVarIntToUint64(buf *bytes.Buffer) (uint64, error) {
 // the remaining bytes in the []byte are left as 0x0.
 // Note: n should only be 4 or 8, but this not checked.
 //
-func extractAndPadNBytes(buf *bytes.Buffer, n int) ([]byte, error) {
+func extractAndPadNBytes(buf io.Reader, n int) ([]byte, error) {
 	encbytes := make([]byte, n)
+	bs := make([]byte, 1) // NEW
 
 	for i := 0; i < n; i++ {
-		b, err := buf.ReadByte()
+		// b, err := buf.ReadByte()
+		_, err := buf.Read(bs)
 		if err != nil {
 			if err == io.EOF {
 				return encbytes,
@@ -197,8 +199,8 @@ func extractAndPadNBytes(buf *bytes.Buffer, n int) ([]byte, error) {
 			}
 			return encbytes, err
 		}
-		encbytes[i] = b
-		if IsFinalVarIntByte(b) {
+		encbytes[i] = bs[0]
+		if IsFinalVarIntByte(bs[0]) {
 			return encbytes, nil
 		}
 	}

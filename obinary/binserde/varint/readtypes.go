@@ -1,8 +1,8 @@
 package varint
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/quux00/ogonori/oerror"
 )
@@ -13,7 +13,7 @@ import (
 // input buffer. The difference is that the integer indicating the length
 // of the byte array to follow is a zigzag encoded varint.
 //
-func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
+func ReadBytes(buf io.Reader) ([]byte, error) {
 	// an encoded varint give the length of the remaining byte array
 	// TODO: might be better to have a ReadVarIntAndDecode that chooses whether to do
 	//       int32 or int64 based on the size of the varint and then returns interface{} ?
@@ -31,9 +31,13 @@ func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 	}
 
 	size := int(lenbytes)
-	data := buf.Next(size)
-	if len(data) != size {
-		return nil, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+	data := make([]byte, size)
+	n, err := buf.Read(data)
+	if err != nil {
+		return nil, oerror.NewTrace(err)
+	}
+	if n != size {
+		return nil, oerror.IncorrectNetworkRead{Expected: size, Actual: n}
 	}
 	return data, nil
 }
@@ -44,7 +48,7 @@ func ReadBytes(buf *bytes.Buffer) ([]byte, error) {
 // from the input buffer. The difference is that the integer indicating the
 // length of the byte array to follow is a zigzag encoded varint.
 //
-func ReadString(buf *bytes.Buffer) (string, error) {
+func ReadString(buf io.Reader) (string, error) {
 	bs, err := ReadBytes(buf)
 	if err != nil {
 		return "", oerror.NewTrace(err)

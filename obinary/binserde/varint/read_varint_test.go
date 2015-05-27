@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"github.com/quux00/ogonori/obuf"
+
 	"testing"
 )
 
@@ -23,17 +25,17 @@ func TestIsFinalVarIntByte(t *testing.T) {
 
 func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	bs := []byte{0x39}
-	buf := bytes.NewBuffer(bs)
+	buf := obuf.NewBuffer(bs)
 	actualUint, err := ReadVarIntToUint32(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x39}
 	var expectedUint uint32
-	buf = bytes.NewBuffer(expectedBytes)
+	buf2 := bytes.NewBuffer(expectedBytes)
 	// I'm specifying BigEndian here because that's how I
 	// ordered the "expectedBytes" - it is unrelated to how the
 	// actual varint is ordered (which is LittleEndian)
-	err = binary.Read(buf, binary.BigEndian, &expectedUint)
+	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
 	equals(t, expectedUint, actualUint)
@@ -41,14 +43,14 @@ func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 
 func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	bs := []byte{0x0}
-	buf := bytes.NewBuffer(bs)
+	buf := obuf.NewBuffer(bs)
 	actualUint, err := ReadVarIntToUint32(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
 	var expectedUint uint32
-	buf = bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedUint)
+	buf2 := bytes.NewBuffer(expectedBytes)
+	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
 	equals(t, expectedUint, actualUint)
@@ -169,14 +171,14 @@ func TestReadVarInt3BytesAllZeros(t *testing.T) {
 
 func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x70}
-	buf := bytes.NewBuffer(bs)
+	buf := obuf.NewBuffer(bs)
 	actualUint, err := ReadVarIntToUint32(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0e, 0x03, 0xc7, 0x8f}
 	var expectedUint uint32
-	buf = bytes.NewBuffer(expectedBytes)
-	err = binary.Read(buf, binary.BigEndian, &expectedUint)
+	buf2 := bytes.NewBuffer(expectedBytes)
+	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
 	equals(t, expectedUint, actualUint)

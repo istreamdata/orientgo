@@ -46,6 +46,38 @@ func TestSkip(t *testing.T) {
 	equals(t, string(rdbs), " 123")
 }
 
+func TestUnreadByte(t *testing.T) {
+	bs := []byte("hello there 123")
+	buf := NewBuffer(bs)
+	buf.Skip(2)
+	rdbs := make([]byte, 4)
+	n, err := buf.Read(rdbs)
+	ok(t, err)
+	equals(t, 4, n)
+	equals(t, string(rdbs), "llo ")
+
+	err = buf.UnreadByte()
+	ok(t, err)
+
+	n, err = buf.Read(rdbs)
+	ok(t, err)
+	equals(t, 4, n)
+	equals(t, string(rdbs), " the")
+
+	err = buf.UnreadByte()
+	ok(t, err)
+
+	n, err = buf.Read(rdbs)
+	ok(t, err)
+	equals(t, 4, n)
+	equals(t, string(rdbs), "ere ")
+
+	err = buf.UnreadByte()
+	ok(t, err)
+	err = buf.UnreadByte()
+	assert(t, err != nil, "Multiple unreads should not be permitted")
+}
+
 func TestLenAndFullLen(t *testing.T) {
 	bs := []byte("hello there 123")
 	buf := NewBuffer(bs)

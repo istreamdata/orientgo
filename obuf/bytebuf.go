@@ -79,3 +79,12 @@ func (b *ByteBuf) FullLen() int {
 func (b *ByteBuf) Read(p []byte) (n int, err error) {
 	return b.buf.Read(p)
 }
+
+//
+// UnreadByte unreads the last byte returned by the most recent read
+// operation. If write has happened since the last read, UnreadByte
+// returns an error.
+//
+func (b *ByteBuf) UnreadByte() error {
+	return b.buf.UnreadByte()
+}

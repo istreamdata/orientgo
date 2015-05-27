@@ -2,6 +2,7 @@ package obinary
 
 import (
 	"bytes"
+	"io"
 
 	"github.com/quux00/ogonori/oschema"
 )
@@ -18,16 +19,16 @@ type ORecordSerializer interface {
 	// ODocument object.  The ODocument must already be created; nil cannot be
 	// passed in for the `doc` field.  The serialization version (the first byte
 	// of the serialized record) should be stripped off (already read) from the
-	// bytes.Buffer being passed in
+	// io.Reader being passed in
 	//
-	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) error // TODO: should this take an io.Reader instead of *bytes.Buffer ???
+	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf io.Reader) error
 
 	//
-	// Deserialize reads bytes from the bytes.Buffer and updates the ODocument object
+	// Deserialize reads bytes from the io.Reader and updates the ODocument object
 	// passed in, but only for the fields specified in the `fields` slice.
 	// The ODocument must already be created; nil cannot be passed in for the `doc` field.
 	//
-	DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error
+	DeserializePartial(doc *oschema.ODocument, buf io.Reader, fields []string) error
 
 	//
 	// Serialize reads the ODocument and serializes to bytes into the bytes.Buffer.

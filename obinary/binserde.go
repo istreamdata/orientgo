@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/obinary/rw"
+	"github.com/quux00/ogonori/obuf"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
@@ -30,9 +32,9 @@ type ORecordSerializerV0 struct{}
 
 //
 // The serialization version (the first byte of the serialized record) should
-// be stripped off (already read) from the bytes.Buffer being passed
+// be stripped off (already read) from the io.Reader being passed in.
 //
-func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf io.Reader) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -94,7 +96,7 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 // IDEA: maybe this could be DeserializeField?  Might be useful for RidBags. Anything else?
 //
 //
-func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Buffer, fields []string) error {
+func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf io.Reader, fields []string) error {
 	// TODO: impl me
 	return nil
 }
@@ -296,7 +298,7 @@ type header struct {
 
 /* ---[ helper fns ]--- */
 
-func readClassname(buf *bytes.Buffer) (string, error) {
+func readClassname(buf io.Reader) (string, error) {
 	var (
 		cnameLen   int32
 		cnameBytes []byte
@@ -312,8 +314,12 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 			fmt.Errorf("Varint for classname len in binary serialization was negative: %d", cnameLen))
 	}
 
-	cnameBytes = buf.Next(int(cnameLen))
-	if len(cnameBytes) != int(cnameLen) {
+	cnameBytes = make([]byte, int(cnameLen))
+	n, err := buf.Read(cnameBytes)
+	if err != nil {
+		return "", oerror.NewTrace(err)
+	}
+	if n != int(cnameLen) {
 		return "",
 			fmt.Errorf("Could not read expected number of bytes for className. Expected %d; Read: %d",
 				cnameLen, len(cnameBytes))
@@ -322,7 +328,7 @@ func readClassname(buf *bytes.Buffer) (string, error) {
 	return string(cnameBytes), nil
 }
 
-func readHeader(buf *bytes.Buffer) (header, error) {
+func readHeader(buf io.Reader) (header, error) {
 	hdr := header{
 		properties: make([]headerProperty, 0, 8),
 		dataPtrs:   make([]int32, 0, 8),
@@ -343,10 +349,13 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			// for a string (property name)
 
 			// read property name
-			size := int(decoded)
-			data := buf.Next(size)
-			if len(data) != size {
-				return header{}, oerror.IncorrectNetworkRead{Expected: size, Actual: len(data)}
+			data := make([]byte, int(decoded))
+			n, err := buf.Read(data)
+			if err != nil {
+				return header{}, oerror.NewTrace(err)
+			}
+			if len(data) != n {
+				return header{}, oerror.IncorrectNetworkRead{Expected: len(data), Actual: n}
 			}
 			// hdr.propertyNames = append(hdr.propertyNames, string(data))
 
@@ -357,12 +366,16 @@ func readHeader(buf *bytes.Buffer) (header, error) {
 			}
 
 			// read data type
-			dataType, err := buf.ReadByte()
+			bsDataType := make([]byte, 1)
+			n, err = buf.Read(bsDataType)
 			if err != nil {
 				return header{}, oerror.NewTrace(err)
 			}
+			if n != 1 {
+				return header{}, oerror.IncorrectNetworkRead{Expected: 1, Actual: n}
+			}
 
-			hdrProp := headerProperty{name: data, typ: dataType}
+			hdrProp := headerProperty{name: data, typ: bsDataType[0]}
 			hdr.properties = append(hdr.properties, hdrProp)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 
@@ -467,7 +480,7 @@ func (serde ORecordSerializerV0) writeDataValue(buf *bytes.Buffer, value interfa
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf io.Reader, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -557,7 +570,7 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *bytes.Buffer,
 // OrientDB server converts a DATETIME type is to millisecond unix epoch and
 // stores it as the type LONG.  It is written as a varint long.
 //
-func (serde ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, error) {
+func (serde ORecordSerializerV0) readDateTime(buf io.Reader) (time.Time, error) {
 	dtAsLong, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
@@ -578,7 +591,7 @@ func (serde ORecordSerializerV0) readDateTime(buf *bytes.Buffer) (time.Time, err
 //     The date is converted to second unix epoch,moved at midnight UTC+0,
 //     divided by 86400(seconds in a day) and stored as the type LONG
 //
-func (serde ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) {
+func (serde ORecordSerializerV0) readDate(buf io.Reader) (time.Time, error) {
 	seconds, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
@@ -598,7 +611,7 @@ func (serde ORecordSerializerV0) readDate(buf *bytes.Buffer) (time.Time, error) 
 //
 // Returns map of string keys to *oschema.OLink
 //
-func (serde ORecordSerializerV0) readLinkMap(buf *bytes.Buffer) (map[string]*oschema.OLink, error) {
+func (serde ORecordSerializerV0) readLinkMap(buf io.Reader) (map[string]*oschema.OLink, error) {
 	nentries, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -647,7 +660,7 @@ func pause(msg string) {
 //
 // readLinkBag handles both Embedded and remote Tree-based OLinkBags.
 //
-func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
+func (serde ORecordSerializerV0) readLinkBag(buf io.Reader) (*oschema.OLinkBag, error) {
 	bagType, err := rw.ReadByte(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -659,14 +672,18 @@ func (serde ORecordSerializerV0) readLinkBag(buf *bytes.Buffer) (*oschema.OLinkB
 	return readEmbeddedLinkBag(buf)
 }
 
-func readEmbeddedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
-	b, err := buf.ReadByte()
+func readEmbeddedLinkBag(rdr io.Reader) (*oschema.OLinkBag, error) {
+	bs := make([]byte, 1)
+	n, err := rdr.Read(bs)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
+	if n != 1 {
+		return nil, oerror.IncorrectNetworkRead{Expected: 1, Actual: n}
+	}
 
-	if b == 1 {
-		uuid, err := readLinkBagUUID(buf)
+	if bs[0] == 1 {
+		uuid, err := readLinkBagUUID(rdr)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -675,22 +692,34 @@ func readEmbeddedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	} else {
 		// if b wasn't zero, then there's no UUID and b was the first byte of an int32
 		// specifying the size of the embedded bag collection
-		buf.UnreadByte()
+		// TODO: I'm not sure this is the right thing - the OrientDB is pretty hazy on how this works
+		switch rdr.(type) {
+		case *bytes.Buffer:
+			buf := rdr.(*bytes.Buffer)
+			buf.UnreadByte()
+
+		case *obuf.ByteBuf:
+			buf := rdr.(*obuf.ByteBuf)
+			buf.UnreadByte()
+
+		default:
+			panic("Unknown type of buffer in binserde#readEmbeddedLinkBag")
+		}
 	}
 
-	bagsz, err := rw.ReadInt(buf)
+	bagsz, err := rw.ReadInt(rdr)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 	links := make([]*oschema.OLink, bagsz)
 
 	for i := int32(0); i < bagsz; i++ {
-		clusterID, err := rw.ReadShort(buf)
+		clusterID, err := rw.ReadShort(rdr)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
 
-		clusterPos, err := rw.ReadLong(buf)
+		clusterPos, err := rw.ReadLong(rdr)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -702,7 +731,7 @@ func readEmbeddedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	return oschema.NewOLinkBag(links), nil
 }
 
-func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
+func readLinkBagUUID(buf io.Reader) (int32, error) {
 	// TODO: I don't know what form the UUID is - an int32?  How is it serialized?
 	panic("This LINKBAG has a UUID; support for UUIDs has not yet been added")
 }
@@ -715,7 +744,7 @@ func readLinkBagUUID(buf *bytes.Buffer) (int32, error) {
 //     TREEBASED             30                         0                 2048                -1             0
 //         0,      0, 0, 0, 0, 0, 0, 0, 30,   0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 8, 0,     -1, -1, -1, -1,  0, 0, 0, 0,
 //
-func readTreeBasedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
+func readTreeBasedLinkBag(buf io.Reader) (*oschema.OLinkBag, error) {
 	fileId, err := rw.ReadLong(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -745,7 +774,7 @@ func readTreeBasedLinkBag(buf *bytes.Buffer) (*oschema.OLinkBag, error) {
 	return oschema.NewTreeOLinkBag(fileId, pageIdx, pageOffset, size), nil
 }
 
-func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLink, error) {
+func (serde ORecordSerializerV0) readLinkList(buf io.Reader) ([]*oschema.OLink, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -767,7 +796,7 @@ func (serde ORecordSerializerV0) readLinkList(buf *bytes.Buffer) ([]*oschema.OLi
 // readLink reads a two int64's - the cluster and record.
 // We translate it here to a string RID (cluster:record) and return it.
 //
-func (serde ORecordSerializerV0) readLink(buf *bytes.Buffer) (*oschema.OLink, error) {
+func (serde ORecordSerializerV0) readLink(buf io.Reader) (*oschema.OLink, error) {
 	clusterId, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -926,8 +955,8 @@ func getDataType(val interface{}) byte {
 // readEmbeddedMap handles the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
-// TODO: change to: func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Buffer) (*oschema.OEmbeddedMap, error) {  ??
-func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buffer) (map[string]interface{}, error) {
+// TODO: change return type to (*oschema.OEmbeddedMap, error) {  ???
+func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf io.Reader) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -985,7 +1014,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *bytes.Buffe
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *bytes.Buffer) ([]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf io.Reader) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)

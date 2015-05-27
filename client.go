@@ -980,7 +980,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// sql = `DELETE VERTEX Person WHERE in.@Class = 'MembershipExpired'`
 
 	addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc, abbieRID)
-	// doCircularLinkExample(dbc)
+	doCircularLinkExample(dbc)
 }
 
 func doCircularLinkExample(dbc *obinary.DBClient) {
@@ -2064,7 +2064,7 @@ func main() {
 	}
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	ogl.SetLevel(ogl.WARN)
+	// ogl.SetLevel(ogl.WARN)
 	// conxStr := "admin@admin:localhost/ogonoriTest"
 	// databaseSqlAPI(conxStr)
 	// databaseSqlPreparedStmtAPI(conxStr)

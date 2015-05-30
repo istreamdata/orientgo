@@ -19,6 +19,8 @@ Little work has been done on the serialization front, so supporting object creat
 
 The primary focus is of ogonori is to build a Go (golang) client supporting OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
 
+*Documentation*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
+
 
 #### [Update: 29-May-2015]
 

@@ -24,9 +24,9 @@ The primary focus is of ogonori is to build a Go (golang) client supporting Orie
 
 __Highlights__
 
-* Support for LinkBags (RidBags) are now in place.  Graph databases tend to make heavy use of LinkBags and the earlier defect account in Issue `#XX` is now resolved.
-* Settled on "Fetch" to mean methods that pull from the database server and "Get" to mean methods that return values in the local objects.  The OrientDB Java client is not at all transparent about which operations cause database lookups.  Ogonori will strive to be transparent on this front.
-* Created new `oschema.ORID` struct and stopped using string RIDs in ogonori code base
+* Support for LinkBags (RidBags) are now in place.  Graph databases tend to make heavy use of LinkBags and the earlier defect account in Issue #3 is now resolved.
+* Settled on "Fetch" to mean methods that pull from the database server and "Get" to mean methods that return values in the local objects.  
+* Created new `oschema.ORID` struct and stopped using string RIDs in the ogonori code base
 
 __Details__
 
@@ -36,7 +36,7 @@ Fetch vs. Get: The OrientDB Java client is not at all transparent about which op
 
 
 
-
+<br/>
 #### [Update: 03-May-2015]
 
 __Highlights__

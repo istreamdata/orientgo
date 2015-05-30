@@ -15,7 +15,6 @@ type ogonoriStmt struct {
 	// dbc        *obinary.DBClient // TODO: review this - this is how the mysql driver does it
 	conn  *ogonoriConn
 	query string // the SQL query/cmd specified by the user
-	// paramCount int    // TODO: can we know this in OrientDB w/o parsing the SQL?
 }
 
 //

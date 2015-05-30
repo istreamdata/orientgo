@@ -53,7 +53,7 @@ import (
 // EDIT THESE to match your setup
 const (
 	OgonoriDocDB   = "ogonoriTest"
-	ogonoriGraphDB = "ogonoriGraphTest"
+	OgonoriGraphDB = "ogonoriGraphTest"
 	adminUser      = "root"
 	adminPassw     = "jiffylube"
 )
@@ -288,11 +288,11 @@ func cleanUpDocDB(dbc *obinary.DBClient, fullTest bool) {
 
 func cleanUpGraphDB(dbc *obinary.DBClient, fullTest bool) {
 	if fullTest {
-		dropDatabase(dbc, ogonoriGraphDB, constants.GraphDb)
+		dropDatabase(dbc, OgonoriGraphDB, constants.GraphDb)
 
 	} else {
 		_ = obinary.CloseDatabase(dbc)
-		err := obinary.OpenDatabase(dbc, ogonoriGraphDB, constants.GraphDb, "admin", "admin")
+		err := obinary.OpenDatabase(dbc, OgonoriGraphDB, constants.GraphDb, "admin", "admin")
 		if err != nil {
 			ogl.Warn(err.Error())
 			return
@@ -304,6 +304,93 @@ func cleanUpGraphDB(dbc *obinary.DBClient, fullTest bool) {
 			ogl.Warn(err.Error())
 		}
 	}
+}
+
+func graphCommandsSqlAPI(conxStr string) {
+	db, err := sql.Open("ogonori", conxStr)
+	Ok(err)
+	defer db.Close()
+
+	err = db.Ping()
+	Ok(err)
+
+	insertSQL := "insert into Person SET firstName='Joe', lastName='Namath'"
+	res, err := db.Exec(insertSQL)
+	Ok(err)
+
+	nrows, _ := res.RowsAffected()
+	ogl.Printf("nrows: %v\n", nrows)
+	lastId, _ := res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastId)
+	Equals(int64(1), nrows)
+	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	createVtxSQL := `CREATE VERTEX Person SET firstName = 'Terry', lastName = 'Bradshaw'`
+	res, err = db.Exec(createVtxSQL)
+	Ok(err)
+
+	nrows, _ = res.RowsAffected()
+	ogl.Printf("nrows: %v\n", nrows)
+	lastId, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastId)
+	Equals(int64(1), nrows)
+	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	sql := `CREATE EDGE Friend FROM
+            (SELECT FROM Person where firstName = 'Joe' AND lastName = 'Namath')
+            TO
+            (SELECT FROM Person where firstName = 'Terry' AND lastName = 'Bradshaw')`
+	res, err = db.Exec(sql)
+	Ok(err)
+	nrows, _ = res.RowsAffected()
+	ogl.Printf("nrows: %v\n", nrows)
+	lastId, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastId)
+	Equals(int64(1), nrows)
+	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
+	sql = `select from Friend order by @rid desc LIMIT 1`
+	rows, err := db.Query(sql)
+	rowdocs := make([]*oschema.ODocument, 0, 1)
+	for rows.Next() {
+		var newdoc oschema.ODocument
+		err = rows.Scan(&newdoc)
+		rowdocs = append(rowdocs, &newdoc)
+	}
+	err = rows.Err()
+	Ok(err)
+
+	Equals(1, len(rowdocs))
+	Equals("Friend", rowdocs[0].Classname)
+	friendOutLink := rowdocs[0].GetField("out").Value.(*oschema.OLink)
+	Assert(friendOutLink.Record == nil, "should be nil")
+
+	ogl.Printf("friendOutLink: %v\n", friendOutLink)
+
+	// REMOVE THE STUFF BELOW since can't specify fetchPlain in SQL (??? => ask on user group)'
+	// sql = `select from Friend order by @rid desc LIMIT 1 fetchPlan=*:-1`
+	// rows, err = db.Query(sql)
+	// rowdocs = make([]*oschema.ODocument, 0, 1)
+	// for rows.Next() {
+	// 	var newdoc oschema.ODocument
+	// 	err = rows.Scan(&newdoc)
+	// 	rowdocs = append(rowdocs, &newdoc)
+	// }
+	// err = rows.Err()
+	// Ok(err)
+
+	// Equals(1, len(rowdocs))
+	// Equals("Friend", rowdocs[0].Classname)
+	// friendOutLink = rowdocs[0].GetField("out").Value.(*oschema.OLink)
+	// // Assert(friendOutLink.Record != nil, "should NOT be nil") // FAILS: looks like you cannot put a fetchplain in an SQL query itself?
+
+	// nrows, _ = res.RowsAffected()
+	// ogl.Printf("nrows: %v\n", nrows)
+	// lastId, _ = res.LastInsertId()
+	// ogl.Printf("last insert id: %v\n", lastId)
+	// Equals(int64(1), nrows)
+	// Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+
 }
 
 func databaseSqlAPI(conxStr string) {
@@ -718,17 +805,17 @@ func createOgonoriGraphDb(dbc *obinary.DBClient) {
 	Assert(dbc.GetSessionId() >= int32(0), "sessionid")
 	Assert(dbc.GetCurrDB() == nil, "currDB should be nil")
 
-	dbexists, err := obinary.DatabaseExists(dbc, ogonoriGraphDB, constants.Persistent)
+	dbexists, err := obinary.DatabaseExists(dbc, OgonoriGraphDB, constants.Persistent)
 	Ok(err)
 	if dbexists {
-		dropDatabase(dbc, ogonoriGraphDB, constants.GraphDb)
+		dropDatabase(dbc, OgonoriGraphDB, constants.GraphDb)
 	}
 
-	err = obinary.CreateDatabase(dbc, ogonoriGraphDB, constants.GraphDb, constants.Persistent)
+	err = obinary.CreateDatabase(dbc, OgonoriGraphDB, constants.GraphDb, constants.Persistent)
 	Ok(err)
-	dbexists, err = obinary.DatabaseExists(dbc, ogonoriGraphDB, constants.Persistent)
+	dbexists, err = obinary.DatabaseExists(dbc, OgonoriGraphDB, constants.Persistent)
 	Ok(err)
-	Assert(dbexists, ogonoriGraphDB+" should now exists after creating it")
+	Assert(dbexists, OgonoriGraphDB+" should now exists after creating it")
 }
 
 func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
@@ -745,7 +832,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	ogl.Println("- - - - - - GRAPH COMMANDS - - - - - - -")
 
-	err = obinary.OpenDatabase(dbc, ogonoriGraphDB, constants.GraphDb, "admin", "admin")
+	err = obinary.OpenDatabase(dbc, OgonoriGraphDB, constants.GraphDb, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -984,30 +1071,113 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 }
 
 func doCircularLinkExample(dbc *obinary.DBClient) {
-	Pause("START Special")
-	_, _, err := obinary.SQLCommand(dbc, "create class XUser extends V")
+	_, docs, err := obinary.SQLCommand(dbc, `create vertex Person content {"firstName":"AAA", "lastName":"BBB", "SSN":"111-11-1111"}`)
 	Ok(err)
-	_, _, err = obinary.SQLCommand(dbc, "create class XFollowing extends E")
+	Equals(1, len(docs))
+	aaaDoc := docs[0]
+
+	_, docs, err = obinary.SQLCommand(dbc, `create vertex Person content {"firstName":"YYY", "lastName":"ZZZ"}`)
 	Ok(err)
-	_, docs, err := obinary.SQLCommand(dbc, `create vertex XUser content {"id":1}`)
+	yyyDoc := docs[0]
+
+	sql := fmt.Sprintf(`create edge Friend from %s to %s`, aaaDoc.RID.String(), yyyDoc.RID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	user1 := docs[0]
-	_, docs, err = obinary.SQLCommand(dbc, `create vertex XUser content {"id":2}`)
+	aaa2yyyFriendDoc := docs[0]
+
+	sql = fmt.Sprintf(`create edge Friend from %s to %s`, yyyDoc.RID.String(), aaaDoc.RID.String())
+	_, docs, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
-	user2 := docs[0]
-	sql := fmt.Sprintf(`create edge XFollowing from %s to %s`, user1.RID.String(), user2.RID.String())
-	_, _, err = obinary.SQLCommand(dbc, sql)
+	yyy2aaaFriendDoc := docs[0]
+
+	// [ODocument<Classname: Person; RID: #11:93; Version: 3; fields:
+	//   OField<id: -1; name: firstName; datatype: 7; value: AAA>
+	//   OField<id: -1; name: lastName; datatype: 7; value: BBB>
+	//   OField<id: -1; name: SSN; datatype: 7; value: 111-11-1111>
+	//   OField<id: -1; name: out_Friend; datatype: 22; value: &{[<OLink RID: #12:93, Record: ODocument<Classname: Friend; RID:
+	//  #12:93; Version: 3; fields: [...]>>] {0 <nil>}}>
+	//   OField<id: -1; name: in_Friend; datatype: 22; value: &{[<OLink RID: #12:94, Record: ODocument<Classname: Friend; RID:
+	//  #12:94; Version: 3; fields: [...]>>] {0 <nil>}}>>
+
+	//  ODocument<Classname: Person; RID: #11:94; Version: 3; fields:
+	//   OField<id: -1; name: lastName; datatype: 7; value: ZZZ>
+	//   OField<id: -1; name: in_Friend; datatype: 22; value: &{[<OLink RID: #12:93, Record: ODocument<Classname: Friend; RID:
+	//  #12:93; Version: 3; fields: [...]>>] {0 <nil>}}>
+	//   OField<id: -1; name: out_Friend; datatype: 22; value: &{[<OLink RID: #12:94, Record: ODocument<Classname: Friend; RID:
+	//  #12:94; Version: 3; fields: [...]>>] {0 <nil>}}>
+	//   OField<id: -1; name: firstName; datatype: 7; value: YYY>>
+	// ]
+
+	// [ODocument<Classname: Friend; RID: #12:93; Version: 3; fields:
+	//   OField<id: -1; name: out; datatype: 13; value: <OLink RID: #11:93, Record: ODocument<Classname: Person; RID: #11:93;
+	// Version: 3; fields: [...]>>>
+	//   OField<id: -1; name: in; datatype: 13; value: <OLink RID: #11:94, Record: ODocument<Classname: Person; RID: #11:94;
+	// Version: 3; fields: [...]>>>>
+	//  ODocument<Classname: Friend; RID: #12:94; Version: 3; fields:
+	//   OField<id: -1; name: out; datatype: 13; value: <OLink RID: #11:94, Record: ODocument<Classname: Person; RID: #11:94;
+	// Version: 3; fields: [...]>>>
+	//   OField<id: -1; name: in; datatype: 13; value: <OLink RID: #11:93, Record: ODocument<Classname: Person; RID: #11:93;
+	// Version: 3; fields: [...]>>>>
+
+	docs, err = obinary.SQLQuery(dbc, "SELECT FROM Person where firstName='AAA' OR firstName='YYY' SKIP 0 LIMIT 100 ORDER BY firstName", "")
 	Ok(err)
-	sql = fmt.Sprintf(`create edge XFollowing from %s to %s`, user2.RID.String(), user1.RID.String())
-	_, _, err = obinary.SQLCommand(dbc, sql)
+	Equals(2, len(docs))
+	Equals(aaaDoc.RID, docs[0].RID)
+	aaaOutFriendLinks := docs[0].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	Equals(1, len(aaaOutFriendLinks))
+	Equals(aaaOutFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
+	Assert(aaaOutFriendLinks[0].Record == nil, "should not be filled in")
+
+	yyyOutFriendLinks := docs[1].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	Equals(1, len(yyyOutFriendLinks))
+	Equals(yyyOutFriendLinks[0].RID, yyy2aaaFriendDoc.RID)
+	Assert(yyyOutFriendLinks[0].Record == nil, "should not be filled in")
+
+	// ------
+
+	docs, err = obinary.SQLQuery(dbc, "SELECT FROM Person where firstName='AAA' OR firstName='YYY' ORDER BY firstName", FetchPlanFollowAllLinks)
 	Ok(err)
-	// docs, err = obinary.SQLQuery(dbc, "SELECT FROM XUser SKIP 0 LIMIT 100", "")
-	Pause("ABOUT1 SPECIAL")
-	docs, err = obinary.SQLQuery(dbc, "SELECT FROM XUser", "")
-	Pause("ABOUT2 SPECIAL")
+	Equals(2, len(docs))
+	Equals(aaaDoc.RID, docs[0].RID)
+	aaaOutFriendLinks = docs[0].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	Equals(1, len(aaaOutFriendLinks))
+	Equals(aaaOutFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
+	Assert(aaaOutFriendLinks[0].Record != nil, "should not be filled in")
+
+	Equals("YYY", docs[1].GetField("firstName").Value)
+	yyyOutFriendLinks = docs[1].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	Equals(1, len(yyyOutFriendLinks))
+	Equals(yyyOutFriendLinks[0].RID, yyy2aaaFriendDoc.RID)
+	Assert(yyyOutFriendLinks[0].Record != nil, "should not be filled in")
+
+	yyyInFriendLinks := docs[1].GetField("in_Friend").Value.(*oschema.OLinkBag).Links
+	Equals(yyyInFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
+	Equals(yyyInFriendLinks[0].Record.RID, aaa2yyyFriendDoc.RID)
+	Equals("YYY", yyyInFriendLinks[0].Record.GetField("in").Value.(*oschema.OLink).Record.GetField("firstName").Value)
+
+	// ------
+
+	sql = fmt.Sprintf("select from friend where @rid=%s or @rid=%s ORDER BY @rid",
+		aaa2yyyFriendDoc.RID, yyy2aaaFriendDoc.RID)
+	docs, err = obinary.SQLQuery(dbc, sql, FetchPlanFollowAllLinks)
 	Ok(err)
-	ogl.Warnf("XUser docs: %v\n", docs)
-	Pause("END Special")
+	Equals(2, len(docs))
+	Equals(aaa2yyyFriendDoc.RID, docs[0].RID)
+	outLinkToAAA := docs[0].GetField("out").Value.(*oschema.OLink)
+	Equals(outLinkToAAA.RID, aaaDoc.RID)
+	Equals("AAA", outLinkToAAA.Record.GetField("firstName").Value)
+
+	inLinkFromYYY := docs[0].GetField("in").Value.(*oschema.OLink)
+	Equals(inLinkFromYYY.RID, yyyDoc.RID)
+	Equals("YYY", inLinkFromYYY.Record.GetField("firstName").Value)
+
+	outLinkToYYY := docs[1].GetField("out").Value.(*oschema.OLink)
+	Equals(outLinkToYYY.RID, yyyDoc.RID)
+	Equals("YYY", outLinkToYYY.Record.GetField("firstName").Value)
+
+	inLinkFromAAA := docs[1].GetField("in").Value.(*oschema.OLink)
+	Equals(inLinkFromAAA.RID, aaaDoc.RID)
+	Equals("AAA", inLinkFromAAA.Record.GetField("firstName").Value)
 }
 
 func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, abbieRID oschema.ORID) {
@@ -2064,8 +2234,8 @@ func main() {
 	}
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	// ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/ogonoriTest"
+	ogl.SetLevel(ogl.WARN)
+	conxStr := "admin@admin:localhost/" + OgonoriDocDB
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)
 
@@ -2073,6 +2243,9 @@ func main() {
 	// graph database tests
 	ogl.SetLevel(ogl.WARN)
 	graphCommandsNativeAPI(dbc, testType != "dataOnly")
+	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	ogl.SetLevel(ogl.NORMAL)
+	graphCommandsSqlAPI(graphConxStr)
 
 	//
 	// experimenting with JSON functionality

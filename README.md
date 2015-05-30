@@ -5,9 +5,37 @@
 <br/>
 # Status
 
-This project is in early stages and not usable yet.
+This project is in early stages and the API is unstable.
 
-The primary focus is to build an implementation of the Network Binary Protocol for OrientDB version 2, eventually supporting both Document and Graph DBs
+However, the SQL statements that a project will typically need to do can be done now using either the golang `database/sql` API or the current function-based API in the ogonori/obinary package.  The obinary package is intended as low-level and eventually a friendlier object-based API will probably be built on top of it.
+
+Note that the database/sql API has some constraints that can be make it painful to work with OrientDB.  For example:
+* when you insert a record, the Go `database/sql` API only allows one to return a single int64 identifier for the record, but OrientDB uses as a compound int16:int64 RID, so getting the RID of records you just inserted requires another round trip to the database to query the RID.
+* there is no way (that I know of) to specify an OrientDB fetch plan in the SQL only, and the `database/sql` package provides no affordance for adding this. So if you want to pull in additional linked records using a fetch plan (such as `*:-1`), then you'll need to use the ogonori native low-level `obinary` API.
+
+Early adopters are welcome to try it out and report any problems found.  You are also welcome to suggest a more user-friendly API on top of the low-level `obinary` one.
+
+Little work has been done on the serialization front, so supporting object creation on the client side followed by saves (standalone or in transactions) are not yet supported.
+
+The primary focus is of ogonori is to build a Go (golang) client supporting OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
+
+
+#### [Update: 29-May-2015]
+
+__Highlights__
+
+* Support for LinkBags (RidBags) are now in place.  Graph databases tend to make heavy use of LinkBags and the earlier defect account in Issue `#XX` is now resolved.
+* Settled on "Fetch" to mean methods that pull from the database server and "Get" to mean methods that return values in the local objects.  The OrientDB Java client is not at all transparent about which operations cause database lookups.  Ogonori will strive to be transparent on this front.
+* Created new `oschema.ORID` struct and stopped using string RIDs in ogonori code base
+
+__Details__
+
+In order to support LinkBags I needed a "seekable" ByteBuffer, so I wrote obuf.ByteBuf, which is currently a read-only buffer with `Seek` (absolute) and `Skip` (relative) methods.  The Deserializer now takes obuf.ByteBuf rather than the stdlib bytes.Buffer, which is not seekable.
+
+Fetch vs. Get: The OrientDB Java client is not at all transparent about which operations cause database lookups.  Ogonori will strive to be transparent on this front.
+
+
+
 
 #### [Update: 03-May-2015]
 

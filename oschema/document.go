@@ -84,7 +84,7 @@ func (doc *ODocument) Value() (driver.Value, error) {
 // TODO: haven't detected when this is called yet
 //
 func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
-	ogl.Printf("** ODocument.ConvertValue: %T: %v\n", v, v)
+	ogl.Debugf("** ODocument.ConvertValue: %T: %v\n", v, v)
 
 	return []byte(`{"a": 1}`), nil // FIXME: bogus
 }
@@ -207,7 +207,7 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte
 //
 func (doc *ODocument) String() string {
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString(fmt.Sprintf("ODocument[Classname: %s; RID: %s; Version: %d; fields: \n",
+	_, err := buf.WriteString(fmt.Sprintf("ODocument<Classname: %s; RID: %s; Version: %d; fields: \n",
 		doc.Classname, doc.RID, doc.Version))
 	if err != nil {
 		panic(err)
@@ -221,7 +221,7 @@ func (doc *ODocument) String() string {
 	}
 
 	buf.Truncate(buf.Len() - 1)
-	buf.WriteString("]\n")
+	buf.WriteString(">\n")
 	return buf.String()
 }
 
@@ -231,6 +231,6 @@ func (doc *ODocument) String() string {
 // circular links.
 //
 func (doc *ODocument) StringNoFields() string {
-	return fmt.Sprintf("ODocument[Classname: %s; RID: %s; Version: %d; fields: [...]]",
+	return fmt.Sprintf("ODocument<Classname: %s; RID: %s; Version: %d; fields: [...]>",
 		doc.Classname, doc.RID, doc.Version)
 }

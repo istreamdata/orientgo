@@ -104,10 +104,10 @@ func (em *OEmbeddedArrayMap) All() (keys []string, vals []interface{}, types []b
 
 func (em OEmbeddedArrayMap) String() string {
 	var buf bytes.Buffer
-	buf.WriteString("[EmbeddedMap:\n")
+	buf.WriteString("<EmbeddedMap:\n")
 	buf.WriteString(fmt.Sprintf("  Keys : %v\n", em.keys))
 	buf.WriteString(fmt.Sprintf("  Types: %v\n", em.types))
 	buf.WriteString(fmt.Sprintf("  Vals : %v\n", em.vals))
-	buf.WriteString("\n]")
+	buf.WriteString("\n>")
 	return buf.String()
 }

@@ -60,6 +60,6 @@ func (fld *OField) ToJSON() ([]byte, error) {
 // *OField implements Stringer interface
 //
 func (fld *OField) String() string {
-	return fmt.Sprintf("OField[id: %d; name: %s; datatype: %d; value: %v]",
+	return fmt.Sprintf("OField<id: %d; name: %s; datatype: %d; value: %v>",
 		fld.Id, fld.Name, fld.Typ, fld.Value)
 }

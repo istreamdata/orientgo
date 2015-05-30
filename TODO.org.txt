@@ -11,7 +11,6 @@
 ** I suspect any that pull links will fail, since I don't yet know how to support links
 * TODO Run the go static analysis tool that checks for places not checking error return values
 * TODO Write SerDe Serializer
-* QUESTION Build a RID datatype ??
 * TODO Advanced queries to try:
 ** DONE INSERT INTO Diver SET name = 'Bill', buddy = (SELECT FROM Diver WHERE name = 'Max')
 ** DONE INSERT INTO Husband SET name = 'Wayne', wife = (INSERT into Diver name = 'Jill')
@@ -23,7 +22,7 @@
         ($city.country.name = 'Italy' or $city.country.name = 'France')
 * TODO [#C] ODatabase#ClustCfg is just a binary blob -> parse that and decide what to keep
 * TODO [#C] Determine if result of SQLQuery needs a ResultSet cursor for large queries?  Review what Java client does.
-* DEFERRED Re-evaluate db/network reader API -> think about building better byteBuffer
+* DONE Re-evaluate db/network reader API -> think about building better byteBuffer -> DONE for reader, NOT for writer
 ** See https://github.com/djherbis/buffer for ideas
 
 # ---[ Command Implementations ]--- #
@@ -34,7 +33,7 @@
 * DONE REQUEST_DB_CLOSE                       = 5
 * DONE REQUEST_DB_EXIST                       = 6
 * DONE REQUEST_DB_DROP                        = 7
-* DONE REQUEST_DB_SIZE                        = 8
+** DONE REQUEST_DB_SIZE                        = 8
 * DONE REQUEST_DB_COUNTRECORDS                = 9
 * DONE REQUEST_DATACLUSTER_ADD                = 10
 * DONE REQUEST_DATACLUSTER_DROP               = 11
@@ -55,7 +54,7 @@
 * TODO REQUEST_RECORD_CLEAN_OUT               = 38 // since 1.3.0
 * TODO REQUEST_POSITIONS_FLOOR                = 39 // since 1.3.0
 * DEFERRED REQUEST_COUNT                      = 40 // DEPRECATED: USE REQUEST_DATACLUSTER_COUNT
-* IN-PROGRESS REQUEST_COMMAND                 = 41
+* DONE REQUEST_COMMAND                 = 41
 * TODO REQUEST_POSITIONS_CEILING              = 42 // since 1.3.0
 * TODO REQUEST_RECORD_HIDE                    = 43 // since 1.7
 * TODO REQUEST_TX_COMMIT                      = 60
@@ -75,6 +74,6 @@
 * TODO REQUEST_DATACLUSTER_RELEASE = 97
 * TODO REQUEST_CREATE_SBTREE_BONSAI            = 110
 * TODO REQUEST_SBTREE_BONSAI_GET               = 111
-* TODO REQUEST_SBTREE_BONSAI_FIRST_KEY         = 112
-* TODO REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR = 113
-* TODO REQUEST_RIDBAG_GET_SIZE                 = 114
+* DONE REQUEST_SBTREE_BONSAI_FIRST_KEY         = 112
+* DONE REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR = 113
+* DONE REQUEST_RIDBAG_GET_SIZE                 = 114

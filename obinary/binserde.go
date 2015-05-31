@@ -1099,7 +1099,7 @@ func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
 // chosen to get around this is to open a new client connection
 // via OpenDatabase, which will automatically read in the
 // current state of the GlobalProperties.  The GlobalProperties
-// are then copied from the new DBClient.currDb to the old one,
+// are then copied from the new DBClient.currDB to the old one,
 // and the new connection (DBClient) is closed.  This allows
 // the code that called this to resume reading from its data
 // stream where it left off.
@@ -1111,12 +1111,12 @@ func refreshGlobalProperties(dbc *DBClient) error {
 		return err
 	}
 	defer dbctmp.Close()
-	err = OpenDatabase(dbctmp, dbc.GetCurrDB().Name, constants.DocumentDb, "admin", "admin")
+	err = OpenDatabase(dbctmp, dbc.GetCurrDB().Name, constants.DocumentDB, "admin", "admin")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
 		return err
 	}
 
-	dbc.currDb = dbctmp.currDb
+	dbc.currDB = dbctmp.currDB
 	return nil
 }

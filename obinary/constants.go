@@ -6,7 +6,7 @@ package obinary
 
 // internal client constants
 const (
-	NoSessionId                       = -1
+	NoSessionID                       = -1
 	MaxSupportedBinaryProtocolVersion = 28 // max protocol supported by this client
 	MinSupportedBinaryProtocolVersion = 21 // min protocol supported by this client
 	MinBinarySerializerVersion        = 22 // if server protocol version is less, use csv serde, not binary serde

@@ -17,10 +17,10 @@ import (
 )
 
 //
-// OpenDatabase sends the REQUEST_DB_OPEN command to the OrientDb server to
+// OpenDatabase sends the REQUEST_DB_OPEN command to the OrientDB server to
 // open the db in read/write mode.  The database name and type are required, plus
 // username and password.  Database type should be one of the obinary constants:
-// DocumentDbType or GraphDbType.
+// DocumentDBType or GraphDBType.
 //
 func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, username, passw string) error {
 	buf := dbc.buf
@@ -87,7 +87,7 @@ func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, u
 		return oerror.NewTrace(err)
 	}
 
-	dbc.currDb = NewDatabase(dbname, dbtype)
+	dbc.currDB = NewDatabase(dbname, dbtype)
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
 	sessionValSent, err := rw.ReadInt(dbc.conx)
@@ -140,7 +140,7 @@ func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, u
 		}
 		clusters = append(clusters, OCluster{Name: clusterName, Id: clusterId})
 	}
-	dbc.currDb.Clusters = clusters
+	dbc.currDB.Clusters = clusters
 
 	// cluster-config - bytes - null unless running server in clustered config
 	// TODO: treating this as an opaque blob for now
@@ -148,7 +148,7 @@ func OpenDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, u
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
-	dbc.currDb.ClustCfg = clusterCfg
+	dbc.currDB.ClustCfg = clusterCfg
 
 	// orientdb server release - throwing away for now // TODO: need this?
 	_, err = rw.ReadString(dbc.conx)
@@ -279,12 +279,12 @@ func loadConfigRecord(dbc *DBClient) (schemaRID string, err error) {
 			errors.New("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
 	}
 
-	err = parseConfigRecord(dbc.currDb, string(databytes))
+	err = parseConfigRecord(dbc.currDB, string(databytes))
 	if err != nil {
 		return schemaRID, err
 	}
 
-	schemaRID = dbc.currDb.StorageCfg.schemaRID
+	schemaRID = dbc.currDB.StorageCfg.schemaRID
 	return schemaRID, err
 }
 
@@ -323,7 +323,7 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 //
 // loadSchema loads record #0:1 for the current database, caching the
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
-// object (dbc.currDb).
+// object (dbc.currDB).
 //
 func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
 	docs, err := FetchRecordByRID(dbc, schemaRID, "*:-1 index:0") // fetchPlan used by the Java client
@@ -336,7 +336,7 @@ func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
 	}
 
 	/* ---[ schemaVersion ]--- */
-	dbc.currDb.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
+	dbc.currDB.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
 
 	/* ---[ globalProperties ]--- */
 	globalPropsFld := docs[0].GetField("globalProperties")
@@ -345,14 +345,14 @@ func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
 		pdoc := pfield.(*oschema.ODocument)
 		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
-		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
+		dbc.currDB.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
 	ogl.Debugln("=======================================")
 	ogl.Debugln("=======================================")
-	ogl.Debugf("dbc.currDb.SchemaVersion: %v\n", dbc.currDb.SchemaVersion)
-	ogl.Debugf("len(dbc.currDb.GlobalProperties): %v\n", len(dbc.currDb.GlobalProperties))
-	ogl.Debugf("dbc.currDb.GlobalProperties: %v\n", dbc.currDb.GlobalProperties)
+	ogl.Debugf("dbc.currDB.SchemaVersion: %v\n", dbc.currDB.SchemaVersion)
+	ogl.Debugf("len(dbc.currDB.GlobalProperties): %v\n", len(dbc.currDB.GlobalProperties))
+	ogl.Debugf("dbc.currDB.GlobalProperties: %v\n", dbc.currDB.GlobalProperties)
 	ogl.Debugln("=======================================")
 	ogl.Debugln("=======================================")
 
@@ -362,7 +362,7 @@ func loadSchema(dbc *DBClient, schemaRID oschema.ORID) error {
 	for _, cfield := range classesFld.Value.([]interface{}) {
 		cdoc := cfield.(*oschema.ODocument)
 		oclass = oschema.NewOClassFromDocument(cdoc)
-		dbc.currDb.Classes[oclass.Name] = oclass
+		dbc.currDB.Classes[oclass.Name] = oclass
 	}
 
 	return nil
@@ -390,10 +390,10 @@ func CloseDatabase(dbc *DBClient) error {
 
 	// the server has no response to a DB_CLOSE
 
-	// remove session, token and currDb info
-	dbc.sessionId = NoSessionId
+	// remove session, token and currDB info
+	dbc.sessionId = NoSessionID
 	dbc.token = nil
-	dbc.currDb = nil // TODO: anything in currDb that needs to be closed?
+	dbc.currDB = nil // TODO: anything in currDB that needs to be closed?
 
 	return nil
 }
@@ -404,7 +404,7 @@ func CloseDatabase(dbc *DBClient) error {
 // been called first in order to start a session with the database.
 //
 func FetchDatabaseSize(dbc *DBClient) (int64, error) {
-	return getLongFromDb(dbc, byte(REQUEST_DB_SIZE))
+	return getLongFromDB(dbc, byte(REQUEST_DB_SIZE))
 }
 
 //
@@ -413,7 +413,7 @@ func FetchDatabaseSize(dbc *DBClient) (int64, error) {
 // already been called first in order to start a session with the database.
 //
 func FetchNumRecordsInDatabase(dbc *DBClient) (int64, error) {
-	return getLongFromDb(dbc, byte(REQUEST_DB_COUNTRECORDS))
+	return getLongFromDB(dbc, byte(REQUEST_DB_COUNTRECORDS))
 }
 
 func DeleteRecordByRIDAsync(dbc *DBClient, rid string, recVersion int32) error {
@@ -593,7 +593,6 @@ func FetchRecordByRID(dbc *DBClient, orid oschema.ORID, fetchPlan string) ([]*os
 			// use it to look up serializer
 			serde := dbc.RecordSerDes[int(databytes[0])]
 			// then strip off the version byte and send the data to the serde
-			// err = serde.Deserialize(dbc, doc, bytes.NewBuffer(databytes[1:]))
 			err = serde.Deserialize(dbc, doc, obuf.NewBuffer(databytes[1:]))
 			if err != nil {
 				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", orid, err)
@@ -647,14 +646,14 @@ func ReloadSchema(dbc *DBClient) error {
 func FetchClusterDataRange(dbc *DBClient, clusterName string) (begin, end int64, err error) {
 	dbc.buf.Reset()
 
-	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	clusterID := findClusterWithName(dbc.currDB.Clusters, strings.ToLower(clusterName))
 	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a FetchClusterRangeById(dbc, clusterID)
 		return begin, end,
-			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDB.Name)
 	}
 
 	err = writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DATARANGE)
@@ -733,7 +732,7 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterID int16, err error) 
 		return clusterID, oerror.NewTrace(err)
 	}
 
-	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterID})
+	dbc.currDB.Clusters = append(dbc.currDB.Clusters, OCluster{cname, clusterID})
 	return clusterID, err
 }
 
@@ -746,13 +745,13 @@ func AddCluster(dbc *DBClient, clusterName string) (clusterID int16, err error) 
 func DropCluster(dbc *DBClient, clusterName string) error {
 	dbc.buf.Reset()
 
-	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	clusterID := findClusterWithName(dbc.currDB.Clusters, strings.ToLower(clusterName))
 	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a DropClusterById(dbc, clusterID)
-		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDB.Name)
 	}
 
 	err := writeCommandAndSessionId(dbc, REQUEST_DATACLUSTER_DROP)
@@ -980,7 +979,7 @@ func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag)
 
 //
 // ResolveLinks iterates over all the OLinks passed in and does a
-// FetchRecordByRID for each one that has a null Record
+// FetchRecordByRID for each one that has a null Record.
 // TODO: maybe include a fetchplan here?
 //
 func ResolveLinks(dbc *DBClient, links []*oschema.OLink) error {
@@ -1072,7 +1071,7 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 
 	clusterIDs := make([]int16, len(clusterNames))
 	for i, name := range clusterNames {
-		clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(name))
+		clusterID := findClusterWithName(dbc.currDB.Clusters, strings.ToLower(name))
 		if clusterID < 0 {
 			// TODO: This is problematic - someone else may add the cluster not through this
 			//       driver session and then this would fail - so options:
@@ -1080,7 +1079,7 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 			//       2) provide a FetchClusterCountById(dbc, clusterID)
 			return int64(0),
 				fmt.Errorf("No cluster with name %s is known in database %s\n",
-					name, dbc.currDb.Name)
+					name, dbc.currDB.Name)
 		}
 		clusterIDs[i] = clusterID
 	}
@@ -1135,7 +1134,7 @@ func getClusterCount(dbc *DBClient, countTombstones bool, clusterNames []string)
 }
 
 func writeCommandAndSessionId(dbc *DBClient, cmd byte) error {
-	if dbc.sessionId == NoSessionId {
+	if dbc.sessionId == NoSessionID {
 		return oerror.SessionNotInitialized{}
 	}
 
@@ -1152,7 +1151,7 @@ func writeCommandAndSessionId(dbc *DBClient, cmd byte) error {
 	return nil
 }
 
-func getLongFromDb(dbc *DBClient, cmd byte) (int64, error) {
+func getLongFromDB(dbc *DBClient, cmd byte) (int64, error) {
 	dbc.buf.Reset()
 
 	err := writeCommandAndSessionId(dbc, cmd)
@@ -1174,12 +1173,12 @@ func getLongFromDb(dbc *DBClient, cmd byte) (int64, error) {
 	}
 
 	// the answer to the query
-	longFromDb, err := rw.ReadLong(dbc.conx)
+	longFromDB, err := rw.ReadLong(dbc.conx)
 	if err != nil {
 		return int64(-1), oerror.NewTrace(err)
 	}
 
-	return longFromDb, nil
+	return longFromDB, nil
 }
 
 //

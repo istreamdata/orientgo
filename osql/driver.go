@@ -50,9 +50,10 @@ func (d *OgonoriDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 
-	// TODO: right now assumes DocumentDb type - pass in on the dsn??
+	// TODO: right now assumes DocumentDB type - pass in on the dsn??
+	//       NOTE: I tried a graphDB with DocumentDB type and it worked, so why is it necesary at all?
 	// TODO: this maybe shouldn't happen in this method -> might do it lazily in Query/Exec methods?
-	err = obinary.OpenDatabase(dbc, dbname, constants.DocumentDb, uname, passw)
+	err = obinary.OpenDatabase(dbc, dbname, constants.DocumentDB, uname, passw)
 	if err != nil {
 		return nil, err
 	}

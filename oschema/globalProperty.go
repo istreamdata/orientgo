@@ -3,7 +3,7 @@ package oschema
 //
 // OGlobalProperty is used by OrientDB to efficiently store "property" (field)
 // types and names (but not values) across all clusters in a database
-// These are stored in record #0:1 of a database and loaded when the DbClient
+// These are stored in record #0:1 of a database and loaded when the DBClient
 // starts up.  (TODO: it will also need to be updated when new fields are added
 // at runtime)
 //

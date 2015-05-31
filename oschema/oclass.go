@@ -14,6 +14,10 @@ type OClass struct {
 	CustomFields     map[string]string
 }
 
+//
+// Should be passed an ODocument that comes from a load schema
+// request to the database.
+//
 func NewOClassFromDocument(doc *ODocument) *OClass {
 	oclass := &OClass{Properties: make(map[string]*OProperty)}
 

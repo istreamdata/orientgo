@@ -147,7 +147,6 @@ func ReadShort(rdr io.Reader) (int16, error) {
 	return shortval, nil
 }
 
-// TODO: what would these methods look with bytes.Buffer as args -> more efficient?
 func ReadFloat(rdr io.Reader) (float32, error) {
 	floatSz := 4
 	readbuf := make([]byte, floatSz)

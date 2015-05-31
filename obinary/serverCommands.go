@@ -128,7 +128,7 @@ func ConnectToServer(dbc *DBClient, adminUser, adminPassw string) error {
 
 //
 // CreateDatabase will create a `remote` database of the type and storageType specified.
-// dbType must be type DocumentDbType or GraphDbType.
+// dbType must be type DocumentDBType or GraphDBType.
 // storageType must type PersistentStorageType or VolatileStorageType.
 //
 func CreateDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType, storageType constants.StorageType) error {
@@ -137,7 +137,7 @@ func CreateDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType,
 	/* ---[ precondition checks ]--- */
 
 	// TODO: may need to change this to serverSessionid (can the "sessionId" be used for both server connections and db conx?)
-	if dbc.sessionId == NoSessionId {
+	if dbc.sessionId == NoSessionID {
 		return oerror.SessionNotInitialized{}
 	}
 
@@ -193,8 +193,8 @@ func CreateDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType,
 // DropDatabase drops the specified database. The caller must provide
 // both the name and the type of the database.  The type should either:
 //
-//     obinary.DocumentDbType
-//     obinary.GraphDbType
+//     obinary.DocumentDBType
+//     obinary.GraphDBType
 //
 // This is a "server" command, so you must have already called
 // ConnectToServer before calling this function.
@@ -202,7 +202,7 @@ func CreateDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType,
 func DropDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType) error {
 	dbc.buf.Reset()
 
-	if dbc.sessionId == NoSessionId {
+	if dbc.sessionId == NoSessionID {
 		return oerror.SessionNotInitialized{}
 	}
 
@@ -261,7 +261,7 @@ func DropDatabase(dbc *DBClient, dbname string, dbtype constants.DatabaseType) e
 func DatabaseExists(dbc *DBClient, dbname string, storageType constants.StorageType) (bool, error) {
 	dbc.buf.Reset()
 
-	if dbc.sessionId == NoSessionId {
+	if dbc.sessionId == NoSessionID {
 		return false, oerror.SessionNotInitialized{}
 	}
 
@@ -319,7 +319,7 @@ func DatabaseExists(dbc *DBClient, dbname string, storageType constants.StorageT
 }
 
 //
-// RequestDbList works like the "list databases" command from the OrientDB client.
+// RequestDBList works like the "list databases" command from the OrientDB client.
 // The result is put into a map, where the key of the map is the name of the
 // database and the value is the type concatenated with the path, like so:
 //
@@ -329,7 +329,7 @@ func DatabaseExists(dbc *DBClient, dbname string, storageType constants.StorageT
 func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	dbc.buf.Reset()
 
-	if dbc.sessionId == NoSessionId {
+	if dbc.sessionId == NoSessionID {
 		return nil, oerror.SessionNotInitialized{}
 	}
 
@@ -376,7 +376,6 @@ func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	}
 
 	serde := dbc.RecordSerDes[int(responseBytes[0])]
-	// buf := bytes.NewBuffer(responseBytes[1:])
 	buf := obuf.NewBuffer(responseBytes[1:])
 	doc := oschema.NewDocument("")
 	err = serde.Deserialize(dbc, doc, buf)

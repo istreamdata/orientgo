@@ -182,7 +182,6 @@ func nextBinaryString(buf *bytes.Buffer) (int, string) {
 	return intVal, string(strBytes)
 }
 
-// TODO: this may be wrong based on findings in production code -> need to research why
 func bigEndianConvertToInt(bs []byte) int {
-	return int(bs[3]) | int(bs[2])<<8 | int(bs[1])<<16 | int(bs[0])<<24
+	return int(binary.BigEndian.Uint32(bs))
 }

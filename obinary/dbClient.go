@@ -24,25 +24,25 @@ type DBClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	serializationVersion  byte
-	currDb                *ODatabase // only one db session open at a time
+	currDB                *ODatabase // only one db session open at a time
 	RecordSerDes          []ORecordSerializer
 }
 
 /* ---[ getters for testing ]--- */
 func (dbc *DBClient) GetCurrDB() *ODatabase {
-	return dbc.currDb
+	return dbc.currDB
 }
 
-func (dbc *DBClient) GetSessionId() int32 {
+func (dbc *DBClient) GetSessionID() int32 {
 	return dbc.sessionId
 }
 
 //
-// NewDBClient creates a new DBClient after contacting the OrientDb server
+// NewDBClient creates a new DBClient after contacting the OrientDB server
 // specified in the ClientOptions and validating that the server and client
 // speak the same binary protocol version.
-// The DBClient returned is ready to make calls to the OrientDb but has not
-// yet established a database session or a session with the OrientDb server.
+// The DBClient returned is ready to make calls to the OrientDB but has not
+// yet established a database session or a session with the OrientDB server.
 // After this, the user needs to call either OpenDatabase or CreateServerSession.
 //
 func NewDBClient(opts ClientOptions) (*DBClient, error) {
@@ -100,7 +100,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 		serializationType:     serializerType,
 		binaryProtocolVersion: svrProtocolNum,
 		serializationVersion:  byte(0), // default is 0 // TODO: need to detect if server is using a higher version
-		sessionId:             NoSessionId,
+		sessionId:             NoSessionID,
 		RecordSerDes:          []ORecordSerializer{serdeV0},
 	}
 
@@ -108,7 +108,7 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 }
 
 func (dbc *DBClient) Close() error {
-	if dbc.currDb != nil {
+	if dbc.currDB != nil {
 		// ignoring any error here, since closing the conx also terminates the session
 		CloseDatabase(dbc)
 	}
@@ -116,9 +116,9 @@ func (dbc *DBClient) Close() error {
 }
 
 func (dbc *DBClient) String() string {
-	if dbc.currDb == nil {
+	if dbc.currDB == nil {
 		return "DBClient<not-connected-to-db>"
 	}
-	return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDb Details: %v>",
-		dbc.currDb.Name, dbc.currDb.Typ, len(dbc.currDb.Clusters), dbc.sessionId, dbc.currDb)
+	return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
+		dbc.currDB.Name, dbc.currDB.Typ, len(dbc.currDB.Clusters), dbc.sessionId, dbc.currDB)
 }

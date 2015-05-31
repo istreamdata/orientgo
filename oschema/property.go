@@ -2,11 +2,12 @@ package oschema
 
 //
 // OProperty roughly corresponds to OProperty in Java client.
-// It represents a property of a class in OrientDb.
-// TODO: need to clarify the relationship between OProperty and OField ...
+// It represents a property of a class in OrientDB.
+// A property represents the metadata of a field. A field (OField)
+// is the actual data of a field in an ODocument.
 //
 type OProperty struct {
-	Id           int32 // TODO: is the size specified in OrientDB docs?
+	ID           int32 // TODO: is the size specified in OrientDB docs?
 	Name         string
 	Fullname     string // Classname.propertyName
 	Type         byte   // corresponds to one of the type constants above
@@ -20,10 +21,14 @@ type OProperty struct {
 	Readonly     bool
 }
 
+//
+// NewOPropertyFromDocument creates a new OProperty from an ODocument
+// that was created after a load schema call to the OrientDB server.
+//
 func NewOPropertyFromDocument(doc *ODocument) *OProperty {
 	oprop := &OProperty{}
 	if fld := doc.GetField("globalId"); fld != nil && fld.Value != nil {
-		oprop.Id = fld.Value.(int32)
+		oprop.ID = fld.Value.(int32)
 	}
 	if fld := doc.GetField("name"); fld != nil && fld.Value != nil {
 		oprop.Name = fld.Value.(string)

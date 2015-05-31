@@ -1,5 +1,5 @@
 //
-// Package varint is used for the OrientDb schemaless serialization
+// Package varint is used for the OrientDB schemaless serialization
 // where variable size integers are used with zigzag encoding to
 // convert negative integers to a positive unsigned int format so
 // that smaller integers (whether negative or positive) can be transmitted

@@ -88,9 +88,9 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	)
 	binary.Read(buf, binary.BigEndian, &svrProtocolNum)
 	if svrProtocolNum < MinSupportedBinaryProtocolVersion {
-		return nil, UnsupportedVersionError{serverVersion: svrProtocolNum}
+		return nil, ErrUnsupportedVersion{serverVersion: svrProtocolNum}
 	} else if svrProtocolNum > MaxSupportedBinaryProtocolVersion {
-		return nil, UnsupportedVersionError{serverVersion: svrProtocolNum}
+		return nil, ErrUnsupportedVersion{serverVersion: svrProtocolNum}
 	}
 
 	serializerType = BinarySerialization

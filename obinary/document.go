@@ -19,7 +19,7 @@ func createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc [
 
 	// the first byte specifies record serialization version
 	// use it to look up serializer and strip off that byte
-	serde := dbc.currDb.RecordSerDes[int(serializedDoc[0])]
+	serde := dbc.RecordSerDes[int(serializedDoc[0])]
 	recBuf := obuf.NewBuffer(serializedDoc[1:])
 	err := serde.Deserialize(dbc, doc, recBuf)
 	if err != nil {

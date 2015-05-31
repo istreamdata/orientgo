@@ -14,21 +14,18 @@ type ODatabase struct {
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
 	SchemaVersion    int32
-	RecordSerDes     []ORecordSerializer             // serdes w/ global properties - for db-level cmds
 	GlobalProperties map[int]oschema.OGlobalProperty // key: property-id (aka field-id)
 	Classes          map[string]*oschema.OClass      // key: class name (TODO: check how Java client does it)
 }
 
 func NewDatabase(name string, dbtype constants.DatabaseType) *ODatabase {
 	gp := make(map[int]oschema.OGlobalProperty)
-	serdeV0 := &ORecordSerializerV0{}
 
 	return &ODatabase{
 		Name:             name,
 		Typ:              dbtype,
 		SchemaVersion:    -1,
 		GlobalProperties: gp,
-		RecordSerDes:     []ORecordSerializer{serdeV0},
 		Classes:          make(map[string]*oschema.OClass),
 	}
 }

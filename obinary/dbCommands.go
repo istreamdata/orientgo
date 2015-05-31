@@ -591,7 +591,7 @@ func FetchRecordByRID(dbc *DBClient, orid oschema.ORID, fetchPlan string) ([]*os
 
 			// the first byte specifies record serialization version
 			// use it to look up serializer
-			serde := dbc.currDb.RecordSerDes[int(databytes[0])]
+			serde := dbc.RecordSerDes[int(databytes[0])]
 			// then strip off the version byte and send the data to the serde
 			// err = serde.Deserialize(dbc, doc, bytes.NewBuffer(databytes[1:]))
 			err = serde.Deserialize(dbc, doc, obuf.NewBuffer(databytes[1:]))

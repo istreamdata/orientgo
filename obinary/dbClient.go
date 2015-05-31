@@ -24,16 +24,8 @@ type DBClient struct {
 	serializationType     string
 	binaryProtocolVersion int16
 	serializationVersion  byte
-	currDb                *ODatabase          // only one db session open at a time
-	RecordSerDes          []ORecordSerializer // serdes w/o globalProps - for server-level cmds
-	//
-	// There are two separate arrays of ORecordSerializers - the one here does NOT
-	// have its GlobalProperties field set, which means it cannot be used for some
-	// database-level queries where it needs to reference schema info.  But some
-	// server-level commands (e.g., RequestDbList) need to used a Deserializer.
-	// This list here is to be used for server-level commands.  For database-level
-	// commands use the RecordSerDes in the currDb object.
-	//
+	currDb                *ODatabase // only one db session open at a time
+	RecordSerDes          []ORecordSerializer
 }
 
 /* ---[ getters for testing ]--- */
@@ -125,8 +117,8 @@ func (dbc *DBClient) Close() error {
 
 func (dbc *DBClient) String() string {
 	if dbc.currDb == nil {
-		return "DBClient[not-connected-to-db]"
+		return "DBClient<not-connected-to-db>"
 	}
-	return fmt.Sprintf("DBClient[connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDb Details: %v]",
+	return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDb Details: %v>",
 		dbc.currDb.Name, dbc.currDb.Typ, len(dbc.currDb.Clusters), dbc.sessionId, dbc.currDb)
 }

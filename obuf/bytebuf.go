@@ -5,6 +5,8 @@ package obuf
 
 import "bytes"
 
+// TODO: should ByteBuf be an interface ??
+
 //
 // ByteBuf implements the Reader interface. It wraps
 // a bytes.Buffer but allows relative Skips (forward)

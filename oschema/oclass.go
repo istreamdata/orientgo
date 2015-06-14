@@ -4,8 +4,8 @@ type OClass struct {
 	Name             string
 	ShortName        string
 	Properties       map[string]*OProperty // key=Property.Name
-	DefaultClusterId int32
-	ClusterIds       []int32
+	DefaultClusterId int32                 // TODO: why is this int32 ??  shouldn't it be int16?
+	ClusterIds       []int32               // TODO: why is this int32 ??  shouldn't it be int16?
 	SuperClass       string
 	OverSize         float32
 	StrictMode       bool

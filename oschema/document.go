@@ -162,7 +162,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 	case bool:
 		ftype = BOOLEAN
 	case int:
-		ftype = INTEGER // TODO: need to check the size of the int => might be LONG
+		ftype = LONG
 	case int32:
 		ftype = INTEGER
 	case int64:

@@ -2142,6 +2142,18 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 }
 
+func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
+	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	Ok(err)
+	defer obinary.CloseDatabase(dbc)
+
+	doc := oschema.NewDocument("Dalek")
+	doc.Field("name", "dalek4").FieldWithType("episode", 24, oschema.INTEGER)
+	err = obinary.CreateRecord(dbc, doc)
+	Ok(err)
+	ogl.Warnf("DOC after CREATE: %v\n", doc)
+}
+
 // ------
 
 func removeProperty(dbc *obinary.DBClient, class, property string) {
@@ -2232,6 +2244,9 @@ func main() {
 		ogl.SetLevel(ogl.WARN)
 		dbClusterCommandsNativeAPI(dbc)
 	}
+
+	// try to create new records from low-level create API (not SQL)
+	// createRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)

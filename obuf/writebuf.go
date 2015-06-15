@@ -38,17 +38,29 @@ func (b *WriteBuf) Reset() {
 }
 
 //
+// Skip moves ahead a relative n bytes from the current offset,
+// which is determined as the end of the last write or the
+// last Seek position, if that was the most recent operation.
+// If n + currOffset is larger than the capacity of the underlying
+// byte array, the buffer size capacity will be increased.
+//
+func (b *WriteBuf) Skip(n uint) {
+	seekpos := n + uint(b.off)
+	b.Seek(seekpos)
+}
+
+//
 // Seek to an absolute position in the underlying byte array
 // regardless of what part of the buffer has been read so far.
 //
-// If n is beyond the end of the underlying byte array, this
-// the buffer size will be increased
+// If n is beyond the end of the underlying byte array, the
+// buffer size capacity will be increased.
 //
 func (b *WriteBuf) Seek(n uint) {
 	x := int(n)
 	if x > len(b.bs) {
-		b.grow(x)
-		// b.grow(x * 2)
+		gsz := min(x*2, len(b.bs)*2)
+		b.grow(x + gsz)
 	}
 	b.off = x
 }
@@ -62,6 +74,13 @@ func (b *WriteBuf) grow(min int) {
 
 func max(x, y int) int {
 	if x > y {
+		return x
+	}
+	return y
+}
+
+func min(x, y int) int {
+	if x < y {
 		return x
 	}
 	return y

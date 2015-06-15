@@ -1,8 +1,8 @@
 package varint
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/oerror"
@@ -14,18 +14,18 @@ import (
 // input buffer. The difference is that the integer indicating the length
 // of the byte array to follow is a zigzag encoded varint.
 //
-func WriteBytes(buf *bytes.Buffer, bs []byte) (err error) {
+func WriteBytes(wtr io.Writer, bs []byte) (err error) {
 	sz := int64(len(bs))
 	if sz <= int64(constants.MaxInt) {
-		err = EncodeAndWriteVarInt32(buf, int32(sz))
+		err = EncodeAndWriteVarInt32(wtr, int32(sz))
 	} else {
-		err = EncodeAndWriteVarInt64(buf, sz)
+		err = EncodeAndWriteVarInt64(wtr, sz)
 	}
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
-	n, err := buf.Write(bs)
+	n, err := wtr.Write(bs)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -43,6 +43,6 @@ func WriteBytes(buf *bytes.Buffer, bs []byte) (err error) {
 // from the input buffer. The difference is that the integer indicating the
 // length of the byte array to follow is a zigzag encoded varint.
 //
-func WriteString(buf *bytes.Buffer, s string) error {
-	return WriteBytes(buf, []byte(s))
+func WriteString(wtr io.Writer, s string) error {
+	return WriteBytes(wtr, []byte(s))
 }

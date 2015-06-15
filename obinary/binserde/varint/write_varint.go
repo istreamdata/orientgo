@@ -1,7 +1,6 @@
 package varint
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -24,11 +23,11 @@ const (
 //
 // EncodeAndWriteVarInt32 zigzag encodes the int32 passed in and then
 // translates that number to a protobuf/OrientDB varint, writing
-// the bytes of that varint to the bytes.Buffer.
+// the bytes of that varint to the io.Writer.
 //
-func EncodeAndWriteVarInt32(buf *bytes.Buffer, n int32) error {
+func EncodeAndWriteVarInt32(wtr io.Writer, n int32) error {
 	zze := ZigzagEncodeUInt32(n)
-	err := WriteVarInt32(buf, zze)
+	err := WriteVarInt32(wtr, zze)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -38,11 +37,11 @@ func EncodeAndWriteVarInt32(buf *bytes.Buffer, n int32) error {
 //
 // EncodeAndWriteVarInt64 zigzag encodes the int64 passed in and then
 // translates that number to a protobuf/OrientDB varint, writing
-// the bytes of that varint to the bytes.Buffer.
+// the bytes of that varint to the io.Writer.
 //
-func EncodeAndWriteVarInt64(buf *bytes.Buffer, n int64) error {
+func EncodeAndWriteVarInt64(wtr io.Writer, n int64) error {
 	zze := ZigzagEncodeUInt64(n)
-	err := WriteVarInt64(buf, zze)
+	err := WriteVarInt64(wtr, zze)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -129,7 +128,7 @@ func WriteVarInt64(w io.Writer, n uint64) error {
 
 //
 // varintEncode encodes into the little-endian format of
-// Google's Protocol Buffer standard
+// Google's Protocol Buffers standard
 //
 func varintEncode(w io.Writer, v uint64, nbytes int) error {
 	bs := make([]byte, nbytes)

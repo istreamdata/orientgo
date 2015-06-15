@@ -106,7 +106,7 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 	// need to create a new buffer for the serialized record for ptr value calculations,
 	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
 	// that are NOT part of the serialized record
-	// NOTE: this method assumes the byte(0) (serialization version) has ALREADY been written to `buf`
+	// Also, this method assumes the byte(0) (serialization version) has ALREADY been written to `buf`
 	serdebuf := new(bytes.Buffer) // holds only the serialized value
 
 	// write the serialization version in so that the later buffer size math works
@@ -144,6 +144,34 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 	return nil
 }
 
+//
+// In Progress attempt to rewrite writeSerializedRecord and related fns
+// using a seekable/skipping WriteBuf
+//
+func (serde ORecordSerializerV0) writeSerializedRecordNEW(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
+	nfields := len(doc.FieldNames())
+	// ptrPos := make([]int, 0, nfields)         // position in buf where data ptr int needs to be written
+	// ptrVal := make([]int, 0, nfields)         // data ptr value to write into buf
+	wbuf := obuf.NewWriteBuffer(nfields * 42) // just a heuristic guess as to capacity needed
+
+	if doc.Classname == "" {
+		// serializing a property or SQL params map -> use propertyName
+		for _, fldName := range doc.FieldNames() {
+			// propertyName
+			err = varint.WriteString(wbuf, fldName)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+
+			// fld := doc.GetField(fldName)
+
+		}
+	}
+
+	// TODO: at the end copy wbuf.Bytes() into buf
+	return nil
+}
+
 func (serde ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
 	nfields := len(doc.FieldNames())
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
@@ -156,19 +184,19 @@ func (serde ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *o
 	if doc.Classname == "" {
 		// serializing a property or SQL params map -> use propertyName
 		for _, fldName := range doc.FieldNames() {
-			fld := doc.GetField(fldName)
 			// propertyName
 			err = varint.WriteString(buf, fldName)
 			if err != nil {
 				return oerror.NewTrace(err)
 			}
 			ptrPos = append(ptrPos, buf.Len())
-			// placeholder data pointer
+			// placeholder data pointer of tmp val 0
 			err = rw.WriteInt(buf, 0)
 			if err != nil {
 				return oerror.NewTrace(err)
 			}
 			// data value type
+			fld := doc.GetField(fldName)
 			ogl.Debugf("@@@ Writing data type: %v\n", fld.Typ)
 			err = rw.WriteByte(buf, fld.Typ)
 			if err != nil {

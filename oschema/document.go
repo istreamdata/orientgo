@@ -97,8 +97,9 @@ func (doc *ODocument) ToJSON() ([]byte, error) {
 }
 
 //
-// FieldNames returns the names of all the fields currently in this ODocument.
-// These fields may not have already been committed to the database.
+// FieldNames returns the names of all the fields currently in this ODocument
+// in "entry order". These fields may not have already been committed to
+// the database.
 //
 func (doc *ODocument) FieldNames() []string {
 	names := make([]string, 0, len(doc.entryOrder))
@@ -106,6 +107,20 @@ func (doc *ODocument) FieldNames() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+//
+// GetFields return the OField objects in the Document in "entry order".
+// There is some overhead to getting them in entry order, so if you
+// don't care about that order, just access the Fields field of the
+// ODocument struct directly.
+//
+func (doc *ODocument) GetFields() []*OField {
+	fields := make([]*OField, len(doc.entryOrder))
+	for i, name := range doc.entryOrder {
+		fields[i] = doc.Fields[name]
+	}
+	return fields
 }
 
 //

@@ -123,7 +123,8 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 	ogl.Debugf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
 
 	ogl.Debugf("doc A: %v\n", doc) // DEBUG
-	err = serde.writeSerializedRecord(serdebuf, doc)
+	//err = serde.writeSerializedRecord(serdebuf, doc)
+	err = serde.writeSerializedRecordNEW(serdebuf, doc)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -150,27 +151,204 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 //
 func (serde ORecordSerializerV0) writeSerializedRecordNEW(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
 	nfields := len(doc.FieldNames())
-	// ptrPos := make([]int, 0, nfields)         // position in buf where data ptr int needs to be written
+	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 	// ptrVal := make([]int, 0, nfields)         // data ptr value to write into buf
 	wbuf := obuf.NewWriteBuffer(nfields * 42) // just a heuristic guess as to capacity needed
 
+	wbuf.Write(buf.Bytes())
+	slcPos := buf.Len()
+
 	if doc.Classname == "" {
+		// TODO: move this block to a separate fn
+		docFields := doc.GetFields()
 		// serializing a property or SQL params map -> use propertyName
-		for _, fldName := range doc.FieldNames() {
+		// first write the header out, putting placeholders for data ptrs
+		for _, fld := range docFields {
 			// propertyName
-			err = varint.WriteString(wbuf, fldName)
+			err = varint.WriteString(wbuf, fld.Name)
 			if err != nil {
 				return oerror.NewTrace(err)
 			}
+			ptrPos = append(ptrPos, wbuf.Len())
+			wbuf.Skip(4)
 
-			// fld := doc.GetField(fldName)
+			ogl.Debugf("@@@ Writing data type: %v\n", fld.Typ)
+			err = rw.WriteByte(wbuf, fld.Typ)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+		}
+		wbuf.WriteByte(byte(0)) // End of Header sentinel
 
+		// now write out the data values
+		for i, fld := range docFields {
+			currPos := wbuf.Len()
+			wbuf.Seek(uint(ptrPos[i]))
+			err = rw.WriteInt(wbuf, int32(currPos))
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			wbuf.Seek(uint(currPos))
+			err = serde.writeDataValueNEW(wbuf, fld.Value, fld.Typ)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+		}
+
+	} else {
+		// TODO: NEW TERRITORY
+		panic("NEW TERRITORY")
+	}
+
+	_, err = buf.Write(wbuf.Bytes()[slcPos:]) // TODO: get rid of this slice business
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
+}
+
+//
+// writeDataValue is part of the Serialize functionality
+// TODO: change name to writeSingleValue ?
+//
+func (serde ORecordSerializerV0) writeDataValueNEW(buf *obuf.WriteBuf, value interface{}, datatype byte) (err error) {
+	switch datatype {
+	case oschema.STRING:
+		err = varint.WriteString(buf, value.(string))
+		ogl.Debugf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
+	case oschema.BOOLEAN:
+		err = rw.WriteBool(buf, value.(bool))
+		ogl.Debugf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
+	case oschema.INTEGER:
+		err = varint.EncodeAndWriteVarInt32(buf, value.(int32))         // TODO: are serialized integers ALWAYS varint encoded?
+		ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", value.(int32)) // DEBUG
+	case oschema.SHORT:
+		err = rw.WriteShort(buf, value.(int16))
+		ogl.Debugf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
+	case oschema.LONG:
+		err = varint.EncodeAndWriteVarInt64(buf, value.(int64))          // TODO: are serialized longs ALWAYS varint encoded?
+		ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", value.(int64)) // DEBUG
+	case oschema.FLOAT:
+		err = rw.WriteFloat(buf, value.(float32))
+		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
+	case oschema.DOUBLE:
+		err = rw.WriteDouble(buf, value.(float64))
+		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
+	case oschema.DATETIME:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue DATETIME NOT YET IMPLEMENTED")
+	case oschema.DATE:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue DATE NOT YET IMPLEMENTED")
+	case oschema.BINARY:
+		err = varint.WriteBytes(buf, value.([]byte))
+		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
+	case oschema.EMBEDDEDRECORD:
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDRECORD NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDLIST:
+		// val, err = serde.readEmbeddedCollection(buf)
+		// ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDLIST NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDSET:
+		// val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
+		// ogl.Debugf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
+		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
+	case oschema.EMBEDDEDMAP:
+		err = serde.writeEmbeddedMapNEW(buf, value.(oschema.OEmbeddedMap))
+		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(oschema.OEmbeddedMap))
+	case oschema.LINK:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
+	case oschema.LINKLIST:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKLIST NOT YET IMPLEMENTED")
+	case oschema.LINKSET:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKSET NOT YET IMPLEMENTED")
+	case oschema.LINKMAP:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue LINKMAP NOT YET IMPLEMENTED")
+	case oschema.BYTE:
+		err = rw.WriteByte(buf, value.(byte))
+		ogl.Debugf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
+	case oschema.CUSTOM:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
+	case oschema.DECIMAL:
+		// TODO: impl me -> Java client uses BigDecimal for this
+		panic("ORecordSerializerV0#writeDataValue DECIMAL NOT YET IMPLEMENTED")
+	case oschema.LINKBAG:
+		panic("ORecordSerializerV0#writeDataValue LINKBAG NOT YET IMPLEMENTED")
+	default:
+		// ANY and TRANSIENT are do nothing ops
+	}
+	return err
+}
+
+//
+// writeEmbeddedMap serializes the EMBEDDEDMAP type. Currently, OrientDB only uses string
+// types for the map keys, so that is an assumption of this method as well.
+//
+// TODO: this may not need to be a method -> change to fn ?
+func (serde ORecordSerializerV0) writeEmbeddedMapNEW(buf *obuf.WriteBuf, m oschema.OEmbeddedMap) error {
+	// number of entries in the map
+	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	ptrPos := make([]int, 0, m.Len()) // position in buf where data ptr int needs to be written
+
+	// TODO: do the map entries have to be written in any particular order?  I will assume no for now
+	keys, vals, types := m.All()
+
+	/* ---[ write embedded map header ]--- */
+	for i, k := range keys {
+		// key type
+		err = rw.WriteByte(buf, byte(oschema.STRING))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		// write the key value
+		err = varint.WriteString(buf, k)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+
+		ptrPos = append(ptrPos, buf.Len())
+		buf.Skip(4) // placeholder integer for data ptr
+
+		dataType := types[i]
+		if dataType == oschema.UNKNOWN {
+			dataType = getDataType(vals[i]) // TODO: not sure this is necessary
+		}
+		// write data type of the data
+		err = rw.WriteByte(buf, dataType)
+		if err != nil {
+			return oerror.NewTrace(err)
 		}
 	}
 
-	// TODO: at the end copy wbuf.Bytes() into buf
+	/* ---[ write embedded map data values ]--- */
+	for i := 0; i < len(vals); i++ {
+		currPos := buf.Len()
+		buf.Seek(uint(ptrPos[i]))
+		err = rw.WriteInt(buf, int32(currPos))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		buf.Seek(uint(currPos))
+		err = serde.writeDataValueNEW(buf, vals[i], types[i])
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
 	return nil
 }
+
+// ------------------------------------------------------------------
 
 func (serde ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *oschema.ODocument) (err error) {
 	nfields := len(doc.FieldNames())

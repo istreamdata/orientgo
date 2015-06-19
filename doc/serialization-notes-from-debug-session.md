@@ -103,6 +103,82 @@ The server log
     Reading byte (1 byte)... [OChannelBinaryServer]
 
 
+====
+----------
+My Attempt
+----------
+
+> Reading byte (1 byte)... [OChannelBinaryServer]
+> Read byte: 31 [OChannelBinaryServer]   <- REQUEST_RECORD_CREATE
+> Reading int (4 bytes)... [OChannelBinaryServer]
+> Read int: 286 [OChannelBinaryServer]   <- session-id
+> Reading short (2 bytes)... [OChannelBinaryServer]
+> Read short: -1 [OChannelBinaryServer]  <- cluster-id
+> Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+> Read chunk lenght: 38 [OChannelBinaryServer]
+> Reading 38 bytes... [OChannelBinaryServer]
+> Read 38 bytes: 
+> Dalenameepisode&
+>                   dalek4 [OChannelBinaryServer]
+> Reading byte (1 byte)... [OChannelBinaryServer]
+> Read byte: 100 [OChannelBinaryServer]                 <- record-type ('d'=document)
+> Reading byte (1 byte)... [OChannelBinaryServer]     
+> Read byte: 0 [OChannelBinaryServer]                   <- mode (0=synchronous)
+> Error deserializing record AApEYWxlawhuYW1lAAAAHwcOZXBpc29kZQAAACYBAAxkYWxlazQ= send this data for debugging [ORecordSerializerBinary]
+> Writing byte (1 byte): 1 [OChannelBinaryServer]
+> Writing int (4 bytes): 286 [OChannelBinaryServer]
+> Writing byte (1 byte): 1 [OChannelBinaryServer]
+> Writing string (4+40=44 bytes): java.lang.ArrayIndexOutOfBoundsException [OChannelBinaryServer]
+> Writing string (4+2=6 bytes): 38 [OChannelBinaryServer]
+> Writing byte (1 byte): 0 [OChannelBinaryServer]
+
+2015-06-19 10:10:20:782 INFO  /127.0.0.1:41656 - Flush [OChannelBinaryServer]Sent run-time exception to the client /127.0.0.1:41656: java.lang.ArrayIndexOutOfBoundsException: 38
+java.lang.ArrayIndexOutOfBoundsException: 38
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.OVarIntSerializer.readUnsignedVarLong(OVarIntSerializer.java:126)
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.OVarIntSerializer.readSignedVarLong(OVarIntSerializer.java:102)
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.OVarIntSerializer.readAsInteger(OVarIntSerializer.java:44)
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinaryV0.readSingleValue(ORecordSerializerBinaryV0.java:290)
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinaryV0.deserialize(ORecordSerializerBinaryV0.java:191)
+	at com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinary.fromStream(ORecordSerializerBinary.java:74)
+	at com.orientechnologies.orient.core.record.impl.ODocument.deserializeFields(ODocument.java:1796)
+	at com.orientechnologies.orient.core.record.impl.ODocument.checkForFields(ODocument.java:2189)
+	at com.orientechnologies.orient.core.record.impl.ODocument.validate(ODocument.java:1969)
+	at com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx.save(ODatabaseDocumentTx.java:2215)
+	at com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx.save(ODatabaseDocumentTx.java:2108)
+	at com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx.save(ODatabaseDocumentTx.java:117)
+	at com.orientechnologies.orient.server.network.protocol.binary.OBinaryNetworkProtocolAbstract.createRecord(OBinaryNetworkProtocolAbstract.java:349)
+	at com.orientechnologies.orient.server.network.protocol.binary.ONetworkProtocolBinary.createRecord(ONetworkProtocolBinary.java:1375)
+	at com.orientechnologies.orient.server.network.protocol.binary.ONetworkProtocolBinary.executeRequest(ONetworkProtocolBinary.java:350)
+	at com.orientechnologies.orient.server.network.protocol.binary.OBinaryNetworkProtocolAbstract.execute(OBinaryNetworkProtocolAbstract.java:216)
+	at com.orientechnologies.common.thread.OSoftThread.run(OSoftThread.java:65)
+
+
+
+  clusterid
+     sessionid  -1  -1
+[31 >0 0 1 26< >255 255<          0 10 68 97 108 101 107 8 110 97 109 101 0 0 0 31 7 14 101 112 105 115 111 100 101 0 0 0 38 1 0 12 100 97 108 101 107 52 100 0]
+
+                                    5  D   a  l   e   k  4  n  a   m   e  <--ptr-> TYP  7  e   p   i   s   o   d   e  <--ptr-> TYP EOH
+[31 >0 0 1 30< >255 255< 0 0 0 38 0 10 68 97 108 101 107 8 110 97 109 101 0 0 0 31 7   14 101 112 105 115 111 100 101 0 0 0 38  1  0
+  0    2    4        
+ 6  d   a  l   e   k  "4" 50?
+12 100 97 108 101 107 52  100 0]
+
+
+                                                   5  D   a  l   e   k  4  n  a   m   e  <--ptr-> TYP  7  e   p   i   s   o   d   e  <--ptr-> TYP EOH
+[ 31   0   0   1  30 255 255   0   0   0  38   0  10  68  97 108 101 107   8 110  97 109 101   0   0   0  31   7  14 101 112 105 115 111 100 101   0   0   0  38   1   0  12 100  97 108 101 107  52 100   0 ]
+[  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32  33  34  35  36  37  38  39  40  41  42  43  44  45  46  47  48  49  50 ]
+
+
+     | ---- classname ----- |
+       5  D   a   l   e   k    4  n   a   m   e  <------ptr-----> TYP  7  e   p   i   s   o   d   e  <------ptr----> TYP EOH   6  d    a  l  e   k    "4"
+[  0  10  68  97 108 101 107   8 110  97 109 101   0   0   0  31   7  14 101 112 105 115 111 100 101   0   0   0  38   1   0  12 100  97 108 101 107  52 ]
+[  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32  33  34  35  36  37 ]
+
+
+    
+====
+
 I missed where in the the unwinding back to the save call, the Java client also had this interaction (before the `save()` finished)
 
     Read byte: 41 [OChannelBinaryServer]

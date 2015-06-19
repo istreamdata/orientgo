@@ -107,10 +107,7 @@ func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf 
 // with the OrientDB binary serialization spec and writes them to the
 // bytes.Buffer passed in.
 //
-// The serialization version byte should have already been writte to
-// the bytes.Buffer before calling this method.
-//
-func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument) ([]byte, error) {
 	// need to create a new buffer for the serialized record for ptr value calculations,
 	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
 	// that are NOT part of the serialized record
@@ -118,41 +115,43 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 
 	// write the serialization version in so that the buffer size math works
 	// we will remove it at the end
-	err = rw.WriteByte(serdebuf, 0)
+	err := rw.WriteByte(serdebuf, 0)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return nil, oerror.NewTrace(err)
 	}
 
 	err = varint.WriteString(serdebuf, doc.Classname)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return nil, oerror.NewTrace(err)
 	}
 	ogl.Debugf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
 
 	ogl.Debugf("doc A: %v\n", doc) // DEBUG
 	err = serde.writeSerializedRecord(serdebuf, doc)
 	if err != nil {
-		return oerror.NewTrace(err)
+		return nil, oerror.NewTrace(err)
 	}
 
-	// append the serialized record onto the primary buffer
-	bs := serdebuf.Bytes()
-	ogl.Debugf("serdebuf B: %v\n", bs) // DEBUG
-	n, err := buf.Write(bs[1:])        // remove the version byte at the beginning
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-	if n != len(bs)-1 {
-		_, file, line, _ := runtime.Caller(0)
-		return fmt.Errorf("ERROR: file: %s: line %d: Incorrect number of bytes written to bytes buffer. Expected %d; Actual %d",
-			file, line, len(bs)-1, n)
-	}
+	return serdebuf.Bytes(), nil
 
-	return nil
+	// // append the serialized record onto the primary buffer
+	// bs := serdebuf.Bytes()
+	// ogl.Debugf("serdebuf B: %v\n", bs) // DEBUG
+	// n, err := buf.Write(bs[1:])        // remove the version byte at the beginning
+	// if err != nil {
+	// 	return oerror.NewTrace(err)
+	// }
+	// if n != len(bs)-1 {
+	// 	_, file, line, _ := runtime.Caller(0)
+	// 	return fmt.Errorf("ERROR: file: %s: line %d: Incorrect number of bytes written to bytes buffer. Expected %d; Actual %d",
+	// 		file, line, len(bs)-1, n)
+	// }
+
+	// return nil
 }
 
-func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error {
-	return nil
+func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument) ([]byte, error) {
+	return nil, nil
 }
 
 //
@@ -163,48 +162,65 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 	nfields := len(doc.FieldNames())
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 
-	if doc.Classname == "" {
-		// TODO: move this block to a separate fn
-		docFields := doc.GetFields()
-		// serializing a property or SQL params map -> use propertyName
-		// first write the header out, putting placeholders for data ptrs
-		for _, fld := range docFields {
-			// propertyName
-			err = varint.WriteString(wbuf, fld.Name)
-			if err != nil {
-				return oerror.NewTrace(err)
-			}
-			ptrPos = append(ptrPos, wbuf.Len())
-			wbuf.Skip(4)
-
-			err = rw.WriteByte(wbuf, fld.Typ)
-			if err != nil {
-				return oerror.NewTrace(err)
-			}
+	docFields := doc.GetFields()
+	for _, fld := range docFields {
+		// propertyName
+		err = varint.WriteString(wbuf, fld.Name)
+		if err != nil {
+			return oerror.NewTrace(err)
 		}
-		wbuf.WriteByte(0) // End of Header sentinel
+		ptrPos = append(ptrPos, wbuf.Len())
+		wbuf.Skip(4)
 
-		// now write out the data values
-		for i, fld := range docFields {
-			currPos := wbuf.Len()
-			wbuf.Seek(uint(ptrPos[i]))
-			err = rw.WriteInt(wbuf, int32(currPos))
-			if err != nil {
-				return oerror.NewTrace(err)
-			}
-			wbuf.Seek(uint(currPos))
-			err = serde.writeDataValue(wbuf, fld.Value, fld.Typ)
-			if err != nil {
-				return oerror.NewTrace(err)
-			}
+		err = rw.WriteByte(wbuf, fld.Typ)
+		if err != nil {
+			return oerror.NewTrace(err)
 		}
+	}
+	wbuf.WriteByte(0) // End of Header sentinel
 
-	} else {
-		// TODO: NEW TERRITORY
-		panic("NEW TERRITORY")
+	// now write out the data values
+	for i, fld := range docFields {
+		currPos := wbuf.Len()
+		wbuf.Seek(uint(ptrPos[i]))
+		err = rw.WriteInt(wbuf, int32(currPos))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		wbuf.Seek(uint(currPos))
+		err = serde.writeDataValue(wbuf, fld.Value, fld.Typ)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
 	}
 
 	return nil
+}
+
+func convertToInt32(value interface{}) (int32, error) {
+	v1, ok := value.(int32)
+	if ok {
+		return v1, nil
+	}
+	v2, ok := value.(int)
+	if ok {
+		return int32(v2), nil
+	}
+
+	return int32(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.INTEGER, ActualValue: value}
+}
+
+func convertToInt64(value interface{}) (int64, error) {
+	v1, ok := value.(int64)
+	if ok {
+		return v1, nil
+	}
+	v2, ok := value.(int)
+	if ok {
+		return int64(v2), nil
+	}
+
+	return int64(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.LONG, ActualValue: value}
 }
 
 //
@@ -220,14 +236,22 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		err = rw.WriteBool(buf, value.(bool))
 		ogl.Debugf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
 	case oschema.INTEGER:
-		err = varint.EncodeAndWriteVarInt32(buf, value.(int32))         // TODO: are serialized integers ALWAYS varint encoded?
-		ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", value.(int32)) // DEBUG
+		var i32val int32
+		i32val, err = convertToInt32(value)
+		if err == nil {
+			err = varint.EncodeAndWriteVarInt32(buf, i32val)         // TODO: are serialized integers ALWAYS varint encoded?
+			ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", i32val) // DEBUG
+		}
 	case oschema.SHORT:
 		err = rw.WriteShort(buf, value.(int16))
 		ogl.Debugf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
 	case oschema.LONG:
-		err = varint.EncodeAndWriteVarInt64(buf, value.(int64))          // TODO: are serialized longs ALWAYS varint encoded?
-		ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", value.(int64)) // DEBUG
+		var i64val int64
+		i64val, err = convertToInt64(value)
+		if err == nil {
+			err = varint.EncodeAndWriteVarInt64(buf, i64val)          // TODO: are serialized longs ALWAYS varint encoded?
+			ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", i64val) // DEBUG
+		}
 	case oschema.FLOAT:
 		err = rw.WriteFloat(buf, value.(float32))
 		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG

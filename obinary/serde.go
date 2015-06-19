@@ -1,7 +1,6 @@
 package obinary
 
 import (
-	"bytes"
 	"io"
 
 	"github.com/quux00/ogonori/obuf"
@@ -35,11 +34,11 @@ type ORecordSerializer interface {
 	//
 	// Serialize reads the ODocument and serializes to bytes into the bytes.Buffer.
 	//
-	Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error
+	Serialize(doc *oschema.ODocument) ([]byte, error)
 
 	//
 	// SerializeClass gets the class from the ODocument and serializes it to bytes
 	// into the bytes.Buffer.
 	//
-	SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error
+	SerializeClass(doc *oschema.ODocument) ([]byte, error)
 }

@@ -454,22 +454,21 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	doc.FieldWithType("params", paramsMap, oschema.EMBEDDEDMAP)
 
 	ogl.Debugf("DOC XX: %v\n", doc)
-	///////
 
-	buf := new(bytes.Buffer)
-	err := buf.WriteByte(dbc.serializationVersion)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
+	// buf := new(bytes.Buffer)
+	// err := buf.WriteByte(dbc.serializationVersion)
+	// if err != nil {
+	// 	return nil, oerror.NewTrace(err)
+	// }
 	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
-	err = serde.Serialize(doc, buf)
+	serializedBytes, err := serde.Serialize(doc)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	ogl.Debugf("serialized params: %v\n", buf.Bytes())
+	ogl.Debugf("serialized params: %v\n", serializedBytes)
 
-	return buf.Bytes(), nil
+	return serializedBytes, nil
 
 	// ------------------------
 	// final byte type = network.readByte();

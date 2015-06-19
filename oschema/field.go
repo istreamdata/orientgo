@@ -37,10 +37,62 @@ const (
 	UNKNOWN        = 255 // my addition
 )
 
+func ODataTypeNameFor(dt ODataType) string {
+	switch dt {
+	case BOOLEAN:
+		return "BOOLEAN"
+	case INTEGER:
+		return "INTEGER"
+	case LONG:
+		return "LONG"
+	case FLOAT:
+		return "FLOAT"
+	case DOUBLE:
+		return "DOUBLE"
+	case DATETIME:
+		return "DATETIME"
+	case STRING:
+		return "STRING"
+	case BINARY:
+		return "BINARY"
+	case EMBEDDEDRECORD:
+		return "EMBEDDEDRECORD"
+	case EMBEDDEDLIST:
+		return "EMBEDDEDLIST"
+	case EMBEDDEDSET:
+		return "EMBEDDEDSET"
+	case EMBEDDEDMAP:
+		return "EMBEDDEDMAP"
+	case LINK:
+		return "LINK"
+	case LINKLIST:
+		return "LINKLIST"
+	case LINKSET:
+		return "LINKSET"
+	case LINKMAP:
+		return "LINKMAP"
+	case BYTE:
+		return "BYTE"
+	case TRANSIENT:
+		return "TRANSIENT"
+	case DATE:
+		return "DATE"
+	case CUSTOM:
+		return "CUSTOM"
+	case DECIMAL:
+		return "DECIMAL"
+	case LINKBAG:
+		return "LINKBAG"
+	case ANY:
+		return "ANY"
+	default:
+		return "UNKNOWN"
+	}
+
+}
+
 //
-// OField is a generic data holder that goes in ODocuments
-// This is a less specific concept that OProperty.
-// TODO: need more clarification here
+// OField is a generic data holder that goes in ODocuments.
 //
 type OField struct {
 	Id    int32 // TODO: is the size specified in OrientDB docs?

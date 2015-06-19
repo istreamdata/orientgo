@@ -2147,11 +2147,46 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	doc := oschema.NewDocument("Dalek")
-	doc.Field("name", "dalek4").FieldWithType("episode", 24, oschema.INTEGER)
-	err = obinary.CreateRecord(dbc, doc)
+	// doc := oschema.NewDocument("Dalek")
+	// doc.Field("name", "dalekFive").FieldWithType("episode", int32(13), oschema.INTEGER)
+	// err = obinary.CreateRecord(dbc, doc)
+	// Ok(err)
+	// ogl.Warnf("DOC after CREATE: %v\n", doc)
+
+	winston := oschema.NewDocument("Cat")
+	winston.Field("name", "Winston").
+		Field("caretaker", "Churchill").
+		FieldWithType("age", 7, oschema.INTEGER)
+	Equals(-1, int(winston.RID.ClusterID))
+	Equals(-1, int(winston.RID.ClusterPos))
+	Equals(-1, int(winston.Version))
+	err = obinary.CreateRecord(dbc, winston)
 	Ok(err)
-	ogl.Warnf("DOC after CREATE: %v\n", doc)
+	Assert(int(winston.RID.ClusterID) > -1, "RID should be filled in")
+	Assert(int(winston.RID.ClusterPos) > -1, "RID should be filled in")
+	Assert(int(winston.Version) > -1, "Version should be filled in")
+
+	daemon := oschema.NewDocument("Cat")
+	daemon.Field("name", "Daemon").Field("caretaker", "Matt").Field("age", 4)
+	err = obinary.CreateRecord(dbc, daemon)
+	Ok(err)
+
+	indy := oschema.NewDocument("Cat")
+	indy.Field("name", "Indy").Field("age", 6)
+	err = obinary.CreateRecord(dbc, indy)
+	Ok(err)
+
+	sql := fmt.Sprintf("select from Cat where @rid=%s or @rid=%s or @rid=%s ORDER BY name",
+		winston.RID, daemon.RID, indy.RID)
+	resultDocs, err := obinary.SQLQuery(dbc, sql, "")
+	Ok(err)
+	Equals(3, len(resultDocs))
+	Equals(daemon.RID, resultDocs[0].RID)
+	Equals(indy.RID, resultDocs[1].RID)
+	Equals(winston.RID, resultDocs[2].RID)
+
+	Equals(indy.Version, resultDocs[1].Version)
+	Equals("Matt", resultDocs[0].GetField("caretaker").Value)
 }
 
 // ------
@@ -2246,21 +2281,21 @@ func main() {
 	}
 
 	// try to create new records from low-level create API (not SQL)
-	// createRecordsViaNativeAPI(dbc)
+	createRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/" + OgonoriDocDB
-	databaseSqlAPI(conxStr)
-	databaseSqlPreparedStmtAPI(conxStr)
+	// ogl.SetLevel(ogl.WARN)
+	// conxStr := "admin@admin:localhost/" + OgonoriDocDB
+	// databaseSqlAPI(conxStr)
+	// databaseSqlPreparedStmtAPI(conxStr)
 
-	/* ---[ Graph DB ]--- */
-	// graph database tests
-	ogl.SetLevel(ogl.WARN)
-	graphCommandsNativeAPI(dbc, testType != "dataOnly")
-	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
-	ogl.SetLevel(ogl.NORMAL)
-	graphCommandsSqlAPI(graphConxStr)
+	// /* ---[ Graph DB ]--- */
+	// // graph database tests
+	// ogl.SetLevel(ogl.WARN)
+	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
+	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	// ogl.SetLevel(ogl.NORMAL)
+	// graphCommandsSqlAPI(graphConxStr)
 
 	//
 	// experimenting with JSON functionality

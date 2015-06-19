@@ -1,7 +1,6 @@
 package obinary
 
 import (
-	"bytes"
 	"errors"
 
 	"github.com/quux00/ogonori/obinary/rw"
@@ -15,7 +14,7 @@ import (
 func CreateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 	dbc.buf.Reset()
 
-	err := writeCommandAndSessionId(dbc, REQUEST_COMMAND)
+	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_CREATE)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -36,13 +35,15 @@ func CreateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 		return oerror.NewTrace(err)
 	}
 
-	serdebuf := new(bytes.Buffer)
 	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
-	err = serde.Serialize(doc, serdebuf)
 
-	docbytes := serdebuf.Bytes()
+	// this writes the serialized record to dbc.buf
+	serializedBytes, err := serde.Serialize(doc)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
 
-	err = rw.WriteBytes(dbc.buf, docbytes)
+	err = rw.WriteBytes(dbc.buf, serializedBytes)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+
+	"github.com/quux00/ogonori/oschema"
 )
 
 //
@@ -113,6 +115,23 @@ type InvalidDatabaseType struct {
 
 func (e InvalidDatabaseType) Error() string {
 	return "Database Type is not valid: " + e.TypeRequested
+}
+
+// ------
+
+//
+// InvalidDatabaseType is an Error that indicates that the db type value
+// is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
+// valid types are "document" or "graph".  Constants for these values are
+// provided in the obinary ogonori code base.
+//
+type ErrDataTypeMismatch struct {
+	ExpectedDataType oschema.ODataType
+	ActualValue      interface{}
+}
+
+func (e ErrDataTypeMismatch) Error() string {
+	return fmt.Sprintf("DataTypeMismatch: Actual: %v of type %T; Expected %s", e.ActualValue, e.ActualValue, oschema.ODataTypeNameFor(e.ExpectedDataType))
 }
 
 // ------

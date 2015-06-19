@@ -84,7 +84,9 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 			// TODO: need to check field.Type and see if it is one that can map to Value
 			//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
 			field := currdoc.GetField(rows.cols[i])
-			dest[i] = field.Value
+			if field != nil {
+				dest[i] = field.Value
+			}
 		}
 	}
 

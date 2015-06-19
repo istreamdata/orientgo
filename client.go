@@ -2187,6 +2187,10 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 	Equals(indy.Version, resultDocs[1].Version)
 	Equals("Matt", resultDocs[0].GetField("caretaker").Value)
+
+	sql = fmt.Sprintf("DELETE FROM [%s, %s, %s]", winston.RID, daemon.RID, indy.RID)
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
 }
 
 // ------
@@ -2284,18 +2288,18 @@ func main() {
 	createRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	// ogl.SetLevel(ogl.WARN)
-	// conxStr := "admin@admin:localhost/" + OgonoriDocDB
-	// databaseSqlAPI(conxStr)
-	// databaseSqlPreparedStmtAPI(conxStr)
+	ogl.SetLevel(ogl.WARN)
+	conxStr := "admin@admin:localhost/" + OgonoriDocDB
+	databaseSqlAPI(conxStr)
+	databaseSqlPreparedStmtAPI(conxStr)
 
-	// /* ---[ Graph DB ]--- */
-	// // graph database tests
-	// ogl.SetLevel(ogl.WARN)
-	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
-	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
-	// ogl.SetLevel(ogl.NORMAL)
-	// graphCommandsSqlAPI(graphConxStr)
+	/* ---[ Graph DB ]--- */
+	// graph database tests
+	ogl.SetLevel(ogl.WARN)
+	graphCommandsNativeAPI(dbc, testType != "dataOnly")
+	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	ogl.SetLevel(ogl.NORMAL)
+	graphCommandsSqlAPI(graphConxStr)
 
 	//
 	// experimenting with JSON functionality

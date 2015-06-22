@@ -2089,7 +2089,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 	Equals(0, len(docs))
 
-	// OrientDB DATETIME is precise to the second
+	// OrientDB DATETIME is precise to the millisecond
 	sql = `INSERT into Cat SET name = 'Bruce', dt = '2014-11-25 09:14:54'`
 	ogl.Debugln(sql)
 	_, docs, err = obinary.SQLCommand(dbc, sql)
@@ -2191,6 +2191,77 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	sql = fmt.Sprintf("DELETE FROM [%s, %s, %s]", winston.RID, daemon.RID, indy.RID)
 	_, _, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
+
+	/* ---[ Try DATE ]--- */
+	sql = "CREATE PROPERTY Cat.bday DATE"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.bday")
+	}()
+
+	const dtTemplate = "Jan 2, 2006 at 3:04pm (MST)"
+	bdayTm, err := time.Parse(dtTemplate, "Feb 3, 2013 at 7:54pm (EST)")
+	Ok(err)
+
+	jj := oschema.NewDocument("Cat")
+	jj.Field("name", "JJ").
+		Field("age", 2).
+		FieldWithType("bday", bdayTm, oschema.DATE)
+	err = obinary.CreateRecord(dbc, jj)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM "+jj.RID.String())
+	}()
+
+	/* ---[ Try DATETIME ]--- */
+	sql = "CREATE PROPERTY Cat.ddd DATETIME"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.ddd")
+	}()
+
+	now := time.Now()
+	simba := oschema.NewDocument("Cat")
+	simba.Field("name", "Simba").
+		Field("age", 11).
+		FieldWithType("ddd", now, oschema.DATETIME)
+	err = obinary.CreateRecord(dbc, simba)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM "+simba.RID.String())
+	}()
+
+	Assert(jj.RID.ClusterID > 0, "ClusterID should be set")
+	Assert(jj.RID.ClusterPos >= 0, "ClusterID should be set")
+	Assert(simba.RID.ClusterID > 0, "ClusterID should be set")
+	Assert(simba.RID.ClusterPos >= 0, "ClusterID should be set")
+
+	jjbdayAfterCreate := jj.GetField("bday").Value.(time.Time)
+	Equals(0, jjbdayAfterCreate.Hour())
+	Equals(0, jjbdayAfterCreate.Minute())
+	Equals(0, jjbdayAfterCreate.Second())
+
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	Equals(1, len(docs))
+	simbaFromQuery := docs[0]
+	Equals(simba.RID, simbaFromQuery.RID)
+	Equals(simba.GetField("ddd").Value, simbaFromQuery.GetField("ddd").Value)
+
+	// test inserting wrong values for date and datetime
+	c1 := oschema.NewDocument("Cat")
+	c1.Field("name", "fluffy1").
+		Field("age", 22).
+		FieldWithType("ddd", "not a datetime", oschema.DATETIME)
+	err = obinary.CreateRecord(dbc, c1)
+	Assert(err != nil, "Should have returned error")
+	_, ok := oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
+	Assert(ok, "should be DataTypeMismatch error")
 }
 
 // ------
@@ -2227,10 +2298,7 @@ func (slnk ByRID) Less(i, j int) bool {
 
 // ------
 
-//
-// client.go acts as a functional test for the ogonori client
-//
-func main() {
+func mainTest() {
 	var (
 		dbc *obinary.DBClient
 		err error
@@ -2317,4 +2385,59 @@ func main() {
 	// ogl.Printf("%v\n", string(bsjson))
 
 	ogl.Println("DONE")
+}
+
+func explore() {
+	dbc, err := obinary.NewDBClient(obinary.ClientOptions{})
+	Ok(err)
+	defer dbc.Close()
+
+	err = obinary.OpenDatabase(dbc, "ogonoriTest", constants.DocumentDB, "admin", "admin")
+	Ok(err)
+	defer obinary.CloseDatabase(dbc)
+
+	// dalek77 := oschema.NewDocument("Dalek")
+	// dalek77.Field("name", "dalek77").Field("episode", 77).FieldWithType("miller-time", time.Now(), oschema.DATETIME)
+	// fmt.Println("----------------------------")
+	// fmt.Printf("%v\n", dalek77)
+	// fmt.Println("----------------------------")
+	// err = obinary.CreateRecord(dbc, dalek77)
+	// Ok(err)
+	// fmt.Printf("%v\n", dalek77)
+
+	// const longForm = "Jan 2, 2006 at 3:04pm (MST)"
+	// tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
+	// tl88 := tm88.UnixNano() / (1000 * 1000)
+
+	// dalek88 := oschema.NewDocument("Dalek")
+	// dalek88.Field("name", "dalek88").Field("episode", 88).FieldWithType("miller-time", int64(tl88), oschema.DATETIME)
+	// fmt.Println("----------------------------")
+	// fmt.Printf("%v\n", dalek88)
+	// fmt.Println("----------------------------")
+	// err = obinary.CreateRecord(dbc, dalek88)
+	// Ok(err)
+	// fmt.Printf("%v\n", dalek88)
+
+	dalek99 := oschema.NewDocument("Dalek")
+	dalek99.Field("name", "dalek99").
+		Field("episode", 99).
+		FieldWithType("miller-time", time.Now(), oschema.DATETIME).
+		FieldWithType("birthday", time.Now(), oschema.DATE)
+	fmt.Println("----------------------------")
+	fmt.Printf("%v\n", dalek99)
+	fmt.Println("----------------------------")
+	err = obinary.CreateRecord(dbc, dalek99)
+	Ok(err)
+	fmt.Printf("%v\n", dalek99)
+}
+
+//
+// client.go acts as a functional test for the ogonori client
+//
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "x" {
+		explore()
+	} else {
+		mainTest()
+	}
 }

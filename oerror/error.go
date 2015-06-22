@@ -127,11 +127,18 @@ func (e InvalidDatabaseType) Error() string {
 //
 type ErrDataTypeMismatch struct {
 	ExpectedDataType oschema.ODataType
+	ExpectedGoType   string
 	ActualValue      interface{}
 }
 
 func (e ErrDataTypeMismatch) Error() string {
-	return fmt.Sprintf("DataTypeMismatch: Actual: %v of type %T; Expected %s", e.ActualValue, e.ActualValue, oschema.ODataTypeNameFor(e.ExpectedDataType))
+	gotype := ""
+	if e.ExpectedGoType != "" {
+		gotype = " (" + e.ExpectedGoType + ")"
+	}
+	return fmt.Sprintf("DataTypeMismatch: Actual: %v of type %T; Expected %s%s",
+		e.ActualValue, e.ActualValue, oschema.ODataTypeNameFor(e.ExpectedDataType),
+		gotype)
 }
 
 // ------

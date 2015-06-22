@@ -259,11 +259,11 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		err = rw.WriteDouble(buf, value.(float64))
 		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
 	case oschema.DATETIME:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue DATETIME NOT YET IMPLEMENTED")
+		err = writeDateTime(buf, value)
+		ogl.Debugf("DEBUG DATETIME: -writeDataVal val: %v\n", value) // DEBUG
 	case oschema.DATE:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue DATE NOT YET IMPLEMENTED")
+		err = writeDate(buf, value)
+		ogl.Debugf("DEBUG DATE: -writeDataVal val: %v\n", value) // DEBUG
 	case oschema.BINARY:
 		err = varint.WriteBytes(buf, value.([]byte))
 		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
@@ -579,21 +579,101 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf,
 }
 
 //
+// writeDateTime takes an interface{} value that must be of type:
+//  - time.Time
+//  - int or int64, representing milliseconds since Epoch
+//
+// NOTE: format for OrientDB DATETIME:
+//   Golang formatted date: 2006-01-02 03:04:05
+//   Example: 2014-11-25 09:14:54
+//
+// OrientDB server converts a DATETIME type to millisecond unix epoch and
+// stores it as the type LONG.  It is written as a varint long to the
+// obuf.WriteBuf passed in.
+//
+func writeDateTime(buf *obuf.WriteBuf, value interface{}) error {
+	var millisEpoch int64
+
+	switch value.(type) {
+	case int:
+		millisEpoch = int64(value.(int))
+
+	case int64:
+		millisEpoch = value.(int64)
+
+	case time.Time:
+		// UnixNano returns t as a Unix time, the number of nanoseconds elapsed
+		// since January 1, 1970 UTC.
+		tm := value.(time.Time)
+		tt := tm.Round(time.Millisecond)
+		millisEpoch = tt.UnixNano() / (1000 * 1000)
+
+	default:
+		return oerror.ErrDataTypeMismatch{
+			ExpectedDataType: oschema.DATETIME,
+			ExpectedGoType:   "time.Time | int64 | int",
+			ActualValue:      value,
+		}
+	}
+	err := varint.EncodeAndWriteVarInt64(buf, millisEpoch)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
+}
+
+//
 // readDateTime reads an OrientDB DATETIME from the stream and converts it to
 // a golang time.Time struct. DATETIME is precise to the second.
 // The time zone of the time.Time returned should be the Local timezone.
 //
-// OrientDB server converts a DATETIME type is to millisecond unix epoch and
+// OrientDB server converts a DATETIME type to millisecond unix epoch and
 // stores it as the type LONG.  It is written as a varint long.
 //
-func (serde ORecordSerializerV0) readDateTime(buf io.Reader) (time.Time, error) {
-	dtAsLong, err := varint.ReadVarIntAndDecode64(buf)
+func (serde ORecordSerializerV0) readDateTime(r io.Reader) (time.Time, error) {
+	dtAsLong, err := varint.ReadVarIntAndDecode64(r)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
 	}
 	dtSecs := dtAsLong / 1000
-	dtMillis := dtAsLong % 1000
-	return time.Unix(dtSecs, dtMillis), nil
+	dtNanos := (dtAsLong % 1000) * 1000000
+	return time.Unix(dtSecs, dtNanos), nil
+}
+
+//
+// writeDateTime takes an interface{} value that must be of type time.Time
+//
+// NOTE: format for OrientDB DATETIME:
+//   Golang formatted date: 2006-01-02 03:04:05
+//   Example: 2014-11-25 09:14:54
+//
+// OrientDB server converts a DATETIME type to millisecond unix epoch and
+// stores it as the type LONG.  It is written as a varint long to the
+// obuf.WriteBuf passed in.
+//
+// From the OrientDB schemaless serialization spec on DATE:
+//     The date is converted to second unix epoch,moved at midnight UTC+0,
+//     divided by 86400(seconds in a day) and stored as the type LONG
+//
+func writeDate(buf *obuf.WriteBuf, value interface{}) error {
+	tm, ok := value.(time.Time)
+	if !ok {
+		return oerror.ErrDataTypeMismatch{
+			ExpectedDataType: oschema.DATE,
+			ExpectedGoType:   "time.Time",
+			ActualValue:      value,
+		}
+	}
+
+	tmMidnightUTC := time.Date(tm.Year(), tm.Month(), tm.Day(), 0, 0, 0, 0, time.FixedZone("UTC", 0))
+	secondsEpoch := tmMidnightUTC.Unix()
+	dateAfterDiv := secondsEpoch / int64(86400)
+
+	err := varint.EncodeAndWriteVarInt64(buf, dateAfterDiv)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
 }
 
 //
@@ -607,13 +687,13 @@ func (serde ORecordSerializerV0) readDateTime(buf io.Reader) (time.Time, error) 
 //     The date is converted to second unix epoch,moved at midnight UTC+0,
 //     divided by 86400(seconds in a day) and stored as the type LONG
 //
-func (serde ORecordSerializerV0) readDate(buf io.Reader) (time.Time, error) {
-	seconds, err := varint.ReadVarIntAndDecode64(buf)
+func (serde ORecordSerializerV0) readDate(r io.Reader) (time.Time, error) {
+	seconds, err := varint.ReadVarIntAndDecode64(r)
 	if err != nil {
 		return time.Unix(0, 0), oerror.NewTrace(err)
 	}
 
-	dateAsLong := seconds * int64(86400)    // multiple the 86,400 seconds back
+	dateAsLong := seconds * int64(86400)    // multiply the 86,400 seconds back
 	utctm := time.Unix(dateAsLong, 0).UTC() // OrientDB returns it as a UTC date, so start with that
 	loctm := utctm.Local()                  // convert to local time
 	_, offsetInSecs := loctm.Zone()         // the compute the time zone difference

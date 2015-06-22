@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/quux00/ogonori/ogl"
 )
@@ -214,7 +215,46 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte
 		Value: val,
 		Typ:   fieldType,
 	}
+
+	if fieldType == DATE {
+		fld.Value = adjustDateToMidnight(val)
+	} else if fieldType == DATETIME {
+		fld.Value = roundDateTimeToMillis(val)
+	}
+
 	return doc.AddField(name, fld)
+}
+
+//
+// roundDateTimeToMillis zeros out the micro and nanoseconds of a
+// time.Time object in order to match the precision with which
+// the OrientDB stores DATETIME values
+//
+func roundDateTimeToMillis(val interface{}) interface{} {
+	tm, ok := val.(time.Time)
+	if !ok {
+		// if the type is wrong, we will flag it as an error when the user tries
+		// to save it, rather than here while buidling the document
+		return val
+	}
+
+	return tm.Round(time.Millisecond)
+}
+
+//
+// adjustDateToMidnight zeros out the hour, minute, second, etc.
+// to set the time of a DATE to midnight.  This matches the
+// precision with which the OrientDB stores DATE values.
+//
+func adjustDateToMidnight(val interface{}) interface{} {
+	tm, ok := val.(time.Time)
+	if !ok {
+		// if the type is wrong, we will flag it as an error when the user tries
+		// to save it, rather than here while buidling the document
+		return val
+	}
+	tmMidnight := time.Date(tm.Year(), tm.Month(), tm.Day(), 0, 0, 0, 0, tm.Location())
+	return interface{}(tmMidnight)
 }
 
 //

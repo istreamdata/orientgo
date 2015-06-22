@@ -25,6 +25,9 @@
 * DONE Re-evaluate db/network reader API -> think about building better byteBuffer -> DONE for reader, NOT for writer
 ** See https://github.com/djherbis/buffer for ideas
 
+* TODO Test with MANDATORY/NOT NULL fields
+* TODO Test with documents that have different types for the same field (this is allowed - one could have a string and another an int, eg, as long as you haven't defined a schema property (?))
+
 # ---[ Command Implementations ]--- #
 * TODO REQUEST_SHUTDOWN                       = 1
 * DONE REQUEST_CONNECT                        = 2

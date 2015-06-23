@@ -243,7 +243,8 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 			ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", i32val) // DEBUG
 		}
 	case oschema.SHORT:
-		err = rw.WriteShort(buf, value.(int16))
+		// err = rw.WriteShort(buf, value.(int16))                           // TODO: should this be a varint?
+		err = varint.EncodeAndWriteVarInt32(buf, int32(value.(int16)))    // TODO: not sure this is right
 		ogl.Debugf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
 	case oschema.LONG:
 		var i64val int64
@@ -510,7 +511,9 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf,
 		val, err = varint.ReadVarIntAndDecode32(buf)
 		ogl.Debugf("DEBUG INT: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.SHORT:
-		val, err = rw.ReadShort(buf)
+		var i32 int32
+		i32, err = varint.ReadVarIntAndDecode32(buf)
+		val = int16(i32)
 		ogl.Debugf("DEBUG SHORT: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LONG:
 		val, err = varint.ReadVarIntAndDecode64(buf)

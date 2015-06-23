@@ -41,6 +41,8 @@ func typeFromString(typ string) byte {
 		return BOOLEAN
 	case "INTEGER":
 		return INTEGER
+	case "SHORT":
+		return SHORT
 	case "LONG":
 		return LONG
 	case "FLOAT":
@@ -84,7 +86,7 @@ func typeFromString(typ string) byte {
 	case "ANY":
 		return ANY
 	default:
-		panic("Unkwown type: " + typ)
+		panic("Unknown type: " + typ)
 	}
 }
 

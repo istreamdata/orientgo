@@ -2193,32 +2193,126 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	Ok(err)
 
 	/* ---[ Try DATE ]--- */
-	sql = "CREATE PROPERTY Cat.bday DATE"
-	_, _, err = obinary.SQLCommand(dbc, sql)
-	Ok(err)
-
-	defer func() {
-		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.bday")
-	}()
-
-	const dtTemplate = "Jan 2, 2006 at 3:04pm (MST)"
-	bdayTm, err := time.Parse(dtTemplate, "Feb 3, 2013 at 7:54pm (EST)")
-	Ok(err)
-
-	jj := oschema.NewDocument("Cat")
-	jj.Field("name", "JJ").
-		Field("age", 2).
-		FieldWithType("bday", bdayTm, oschema.DATE)
-	err = obinary.CreateRecord(dbc, jj)
-	Ok(err)
-
-	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM "+jj.RID.String())
-	}()
+	createRecordsWithDate(dbc)
 
 	/* ---[ Try DATETIME ]--- */
-	sql = "CREATE PROPERTY Cat.ddd DATETIME"
+	createRecordsWithDateTime(dbc)
+
+	// test inserting wrong values for date and datetime
+	testCreationOfMismatchedTypesAndValues(dbc)
+
+	/* ---[ Try Boolean, Byte and Short ]--- */
+	createRecordsWithBooleanByteAndShort(dbc)
+}
+
+func createRecordsWithBooleanByteAndShort(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.x BOOLEAN"
+	aa, bb, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	// DEBUG
+	fmt.Printf("aa: %v; bb: %v\n", aa, bb)
+	// END DEBUG
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.x")
+	}()
+
+	sql = "CREATE PROPERTY Cat.y BYTE"
+	aa, bb, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.y")
+	}()
+
+	sql = "CREATE PROPERTY Cat.z SHORT"
 	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.z")
+	}()
+
+	cat := oschema.NewDocument("Cat")
+	cat.Field("name", "kitteh").
+		Field("age", 4).
+		Field("x", false).
+		Field("y", byte(55)).
+		Field("z", int16(5123))
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	Assert(cat.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where y = 55", "")
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery := docs[0]
+	Equals(cat.GetField("x").Value.(bool), catFromQuery.GetField("x").Value.(bool))
+	Equals(cat.GetField("y").Value.(byte), catFromQuery.GetField("y").Value.(byte))
+	Equals(cat.GetField("z").Value.(int16), catFromQuery.GetField("z").Value.(int16))
+
+	// try with explicit types
+	cat2 := oschema.NewDocument("Cat")
+	cat2.Field("name", "cat2").
+		Field("age", 14).
+		FieldWithType("x", true, oschema.BOOLEAN).
+		FieldWithType("y", byte(44), oschema.BYTE).
+		FieldWithType("z", int16(16000), oschema.SHORT)
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+	Assert(cat2.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
+	}()
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where x = true", "")
+	Ok(err)
+	Equals(1, len(docs))
+
+	cat2FromQuery := docs[0]
+	Equals(cat2.GetField("x").Value.(bool), cat2FromQuery.GetField("x").Value.(bool))
+	Equals(cat2.GetField("y").Value.(byte), cat2FromQuery.GetField("y").Value.(byte))
+	Equals(cat2.GetField("z").Value.(int16), cat2FromQuery.GetField("z").Value.(int16))
+
+}
+
+func testCreationOfMismatchedTypesAndValues(dbc *obinary.DBClient) {
+	c1 := oschema.NewDocument("Cat")
+	c1.Field("name", "fluffy1").
+		Field("age", 22).
+		FieldWithType("ddd", "not a datetime", oschema.DATETIME)
+	err := obinary.CreateRecord(dbc, c1)
+	Assert(err != nil, "Should have returned error")
+	_, ok := oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
+	Assert(ok, "should be DataTypeMismatch error")
+
+	c2 := oschema.NewDocument("Cat")
+	c2.Field("name", "fluffy1").
+		Field("age", 22).
+		FieldWithType("ddd", float32(33244.2), oschema.DATE)
+	err = obinary.CreateRecord(dbc, c2)
+	Assert(err != nil, "Should have returned error")
+	_, ok = oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
+	Assert(ok, "should be DataTypeMismatch error")
+
+	// no fluffy1 should be in the database
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where name = 'fluffy1'", "")
+	Ok(err)
+	Equals(0, len(docs))
+}
+
+func createRecordsWithDateTime(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.ddd DATETIME"
+	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
 	defer func() {
@@ -2237,31 +2331,53 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 		obinary.SQLCommand(dbc, "DELETE FROM "+simba.RID.String())
 	}()
 
-	Assert(jj.RID.ClusterID > 0, "ClusterID should be set")
-	Assert(jj.RID.ClusterPos >= 0, "ClusterID should be set")
 	Assert(simba.RID.ClusterID > 0, "ClusterID should be set")
 	Assert(simba.RID.ClusterPos >= 0, "ClusterID should be set")
 
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	simbaFromQuery := docs[0]
+	Equals(simba.RID, simbaFromQuery.RID)
+	Equals(simba.GetField("ddd").Value, simbaFromQuery.GetField("ddd").Value)
+}
+
+func createRecordsWithDate(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.bday DATE"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.bday")
+	}()
+
+	const dtTemplate = "Jan 2, 2006 at 3:04pm (MST)"
+	bdayTm, err := time.Parse(dtTemplate, "Feb 3, 1932 at 7:54pm (EST)")
+	Ok(err)
+
+	jj := oschema.NewDocument("Cat")
+	jj.Field("name", "JJ").
+		Field("age", 2).
+		FieldWithType("bday", bdayTm, oschema.DATE)
+	err = obinary.CreateRecord(dbc, jj)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM "+jj.RID.String())
+	}()
+
+	Assert(jj.RID.ClusterID > 0, "ClusterID should be set")
+	Assert(jj.RID.ClusterPos >= 0, "ClusterID should be set")
 	jjbdayAfterCreate := jj.GetField("bday").Value.(time.Time)
 	Equals(0, jjbdayAfterCreate.Hour())
 	Equals(0, jjbdayAfterCreate.Minute())
 	Equals(0, jjbdayAfterCreate.Second())
 
-	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
 	Equals(1, len(docs))
-	simbaFromQuery := docs[0]
-	Equals(simba.RID, simbaFromQuery.RID)
-	Equals(simba.GetField("ddd").Value, simbaFromQuery.GetField("ddd").Value)
-
-	// test inserting wrong values for date and datetime
-	c1 := oschema.NewDocument("Cat")
-	c1.Field("name", "fluffy1").
-		Field("age", 22).
-		FieldWithType("ddd", "not a datetime", oschema.DATETIME)
-	err = obinary.CreateRecord(dbc, c1)
-	Assert(err != nil, "Should have returned error")
-	_, ok := oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
-	Assert(ok, "should be DataTypeMismatch error")
+	jjFromQuery := docs[0]
+	Equals(jj.RID, jjFromQuery.RID)
+	Equals(1932, jjFromQuery.GetField("bday").Value.(time.Time).Year())
 }
 
 // ------
@@ -2405,30 +2521,38 @@ func explore() {
 	// Ok(err)
 	// fmt.Printf("%v\n", dalek77)
 
-	// const longForm = "Jan 2, 2006 at 3:04pm (MST)"
-	// tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
-	// tl88 := tm88.UnixNano() / (1000 * 1000)
+	const longForm = "Jan 2, 2006 at 3:04pm (MST)"
+	tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
+	tl88 := tm88.UnixNano() / (1000 * 1000)
 
-	// dalek88 := oschema.NewDocument("Dalek")
-	// dalek88.Field("name", "dalek88").Field("episode", 88).FieldWithType("miller-time", int64(tl88), oschema.DATETIME)
-	// fmt.Println("----------------------------")
-	// fmt.Printf("%v\n", dalek88)
-	// fmt.Println("----------------------------")
-	// err = obinary.CreateRecord(dbc, dalek88)
-	// Ok(err)
-	// fmt.Printf("%v\n", dalek88)
+	// ogl.SetLevel(ogl.DEBUG)
 
-	dalek99 := oschema.NewDocument("Dalek")
-	dalek99.Field("name", "dalek99").
-		Field("episode", 99).
-		FieldWithType("miller-time", time.Now(), oschema.DATETIME).
-		FieldWithType("birthday", time.Now(), oschema.DATE)
+	dalek88 := oschema.NewDocument("Dalek")
+	dalek88.Field("name", "dalek88").
+		Field("episode", 88).
+		FieldWithType("miller-time", int64(tl88), oschema.DATETIME).
+		Field("mybyte", byte(0x07)).
+		Field("myshort", int16(9993))
 	fmt.Println("----------------------------")
-	fmt.Printf("%v\n", dalek99)
+	fmt.Printf("%v\n", dalek88)
 	fmt.Println("----------------------------")
-	err = obinary.CreateRecord(dbc, dalek99)
+	err = obinary.CreateRecord(dbc, dalek88)
 	Ok(err)
-	fmt.Printf("%v\n", dalek99)
+	fmt.Printf("%v\n", dalek88)
+
+	// dalek99 := oschema.NewDocument("Dalek")
+	// dalek99.Field("name", "dalek99").
+	// 	Field("episode", 99).
+	// 	FieldWithType("miller-time", time.Now(), oschema.DATETIME).
+	// 	FieldWithType("birthday", time.Now(), oschema.DATE).
+	// 	FieldWithType("mybyte", byte(6), oschema.BYTE).
+	// 	FieldWithType("myshort", int16(1010), oschema.SHORT)
+	// fmt.Println("----------------------------")
+	// fmt.Printf("%v\n", dalek99)
+	// fmt.Println("----------------------------")
+	// err = obinary.CreateRecord(dbc, dalek99)
+	// Ok(err)
+	// fmt.Printf("%v\n", dalek99)
 }
 
 //

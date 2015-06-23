@@ -185,7 +185,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 		ftype = LONG
 	case int16:
 		ftype = SHORT
-	case int8:
+	case byte, int8:
 		ftype = BYTE
 	case float32:
 		ftype = FLOAT

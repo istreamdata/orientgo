@@ -13,3 +13,5 @@ extry
 obinary/NEWdbcommands
 OLDclient.go
 obinary/binserdeORIG
+*.prof
+doc/pprof*

@@ -23,3 +23,32 @@
        0x0     0xfe     0x0       0x0      0x0      0x0     0x0      0x0
 
 
+
+
+
+### Java client handling Long.MAX_VALUE
+
+OVarIntSerializer#write(BytesContainer, long)
+value=9223372036854775807
+value = signedToUnsigned(value)  <-- this is actually zigzag encoding, NOT simple s->unsigned conversion
+value = -2  (Java's representation of max unsigned)
+OVarIntSerializer#writeUnsignedVarLong(long, BytesContainer)
+
+
+    private static long signedToUnsigned(long value) {
+      return (value << 1) ^ (value >> 63);
+    }
+
+
+    public static void writeUnsignedVarLong(long value, final BytesContainer bos) {
+      int pos;
+      while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
+        // out.writeByte(((int) value & 0x7F) | 0x80);
+        pos = bos.alloc((short) 1);
+        bos.bytes[pos] = (byte) (value & 0x7F | 0x80);
+        value >>>= 7;
+      }
+      // out.writeByte((int) value & 0x7F);
+      pos = bos.alloc((short) 1);
+      bos.bytes[pos] = (byte) (value & 0x7F);
+    }

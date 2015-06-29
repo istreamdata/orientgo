@@ -26,7 +26,7 @@ func TestIsFinalVarIntByte(t *testing.T) {
 func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	bs := []byte{0x39}
 	buf := obuf.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x39}
@@ -38,13 +38,13 @@ func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	bs := []byte{0x0}
 	buf := obuf.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -53,13 +53,13 @@ func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt1ByteAllOnes(t *testing.T) {
 	bs := []byte{0x7f}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x7f}
@@ -68,13 +68,13 @@ func TestReadVarInt1ByteAllOnes(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt2BytesRandomInput(t *testing.T) {
 	bs := []byte{0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x00, 0x38, 0x0f}
@@ -86,7 +86,7 @@ func TestReadVarInt2BytesRandomInput(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 
 	// ----------------------------
 	// explanation of this example:
@@ -112,7 +112,7 @@ func TestReadVarInt2BytesRandomInput(t *testing.T) {
 func TestReadVarInt3BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x1c, 0x07, 0x8f}
@@ -121,13 +121,13 @@ func TestReadVarInt3BytesRandomInputA(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt3BytesRandomInputB(t *testing.T) {
 	bs := []byte{0xdb, 0xaa, 0x23}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x08, 0xd5, 0x5b}
@@ -136,13 +136,13 @@ func TestReadVarInt3BytesRandomInputB(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt3BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0x7f}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x1f, 0xff, 0xff}
@@ -151,13 +151,13 @@ func TestReadVarInt3BytesAllOnes(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt3BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x0}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -166,13 +166,13 @@ func TestReadVarInt3BytesAllZeros(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x70}
 	buf := obuf.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0e, 0x03, 0xc7, 0x8f}
@@ -181,7 +181,7 @@ func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	err = binary.Read(buf2, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 
 	// ----------------------------
 	// explanation of this example:
@@ -205,7 +205,7 @@ func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 	bs := []byte{0x95, 0xbd, 0xcc, 0x46}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x08, 0xd3, 0x1e, 0x95}
@@ -214,7 +214,7 @@ func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 
 	// ----------------------------
 	// explanation of this example:
@@ -238,7 +238,7 @@ func TestReadVarInt4BytesRandomInputB(t *testing.T) {
 func TestReadVarInt4BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0xff, 0x7f}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0f, 0xff, 0xff, 0xff}
@@ -247,13 +247,13 @@ func TestReadVarInt4BytesAllOnes(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 func TestReadVarInt4BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x80, 0x0}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0}
@@ -262,7 +262,7 @@ func TestReadVarInt4BytesAllZeros(t *testing.T) {
 	err = binary.Read(buf, binary.BigEndian, &expectedUint)
 	ok(t, err)
 
-	equals(t, expectedUint, actualUint)
+	equals(t, uint64(expectedUint), actualUint)
 }
 
 /* ---[ ReadVarIntAndDecode32 ]--- */
@@ -270,80 +270,80 @@ func TestReadVarInt4BytesAllZeros(t *testing.T) {
 func TestReadVarIntAndDecode32_1Byte_Positive(t *testing.T) {
 	bs := []byte{0x1a} // = 26 (un-zigzag-decoded)
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
-	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+	zigzagDecodedInt := ZigzagDecodeInt32(uint32(actualUint))
 
 	buf = bytes.NewBuffer(bs)
 	actualInt, err := ReadVarIntAndDecode32(buf)
 	ok(t, err)
 
 	equals(t, zigzagDecodedInt, actualInt)
-	equals(t, uint32(26), actualUint)
+	equals(t, uint64(26), actualUint)
 	equals(t, int32(13), actualInt)
 }
 
 func TestReadVarIntAndDecode32_2Bytes_Positive(t *testing.T) {
 	bs := []byte{0x8c, 0x01}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
-	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+	zigzagDecodedInt := ZigzagDecodeInt32(uint32(actualUint))
 
 	buf = bytes.NewBuffer(bs)
 	actualInt, err := ReadVarIntAndDecode32(buf)
 	ok(t, err)
 
 	equals(t, zigzagDecodedInt, actualInt)
-	equals(t, uint32(140), actualUint)
+	equals(t, uint64(140), actualUint)
 	equals(t, int32(70), actualInt)
 }
 
 func TestReadVarIntAndDecode32_2Bytes_Negative(t *testing.T) {
 	bs := []byte{0x8d, 0x01}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
-	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+	zigzagDecodedInt := ZigzagDecodeInt32(uint32(actualUint))
 
 	buf = bytes.NewBuffer(bs)
 	actualInt, err := ReadVarIntAndDecode32(buf)
 	ok(t, err)
 
 	equals(t, zigzagDecodedInt, actualInt)
-	equals(t, uint32(141), actualUint)
+	equals(t, uint64(141), actualUint)
 	equals(t, int32(-71), actualInt)
 }
 
 func TestReadVarIntAndDecode32_3Bytes_Negative(t *testing.T) {
 	bs := []byte{0x8d, 0x81, 0x01}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
-	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+	zigzagDecodedInt := ZigzagDecodeInt32(uint32(actualUint))
 
 	buf = bytes.NewBuffer(bs)
 	actualInt, err := ReadVarIntAndDecode32(buf)
 	ok(t, err)
 
 	equals(t, zigzagDecodedInt, actualInt)
-	equals(t, uint32(16525), actualUint)
+	equals(t, uint64(16525), actualUint)
 	equals(t, int32(-8263), actualInt)
 }
 
 func TestReadVarIntAndDecode32_4Bytes_Zero(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x80, 0x00}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint32(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
-	zigzagDecodedInt := ZigzagDecodeInt32(actualUint)
+	zigzagDecodedInt := ZigzagDecodeInt32(uint32(actualUint))
 
 	buf = bytes.NewBuffer(bs)
 	actualInt, err := ReadVarIntAndDecode32(buf)
 	ok(t, err)
 
 	equals(t, zigzagDecodedInt, actualInt)
-	equals(t, uint32(0), actualUint)
+	equals(t, uint64(0), actualUint)
 	equals(t, int32(0), actualInt)
 }
 
@@ -365,7 +365,7 @@ func TestReadVarIntAndDecode32_4Bytes_Zero(t *testing.T) {
 func TestReadVarInt5BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x07, 0x01, 0xe3, 0xc7, 0x8f}
@@ -399,7 +399,7 @@ func TestReadVarInt5BytesRandomInputA(t *testing.T) {
 func TestReadVarInt6BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x03, 0x80, 0xf1, 0xe3, 0xc7, 0x8f}
@@ -432,7 +432,7 @@ func TestReadVarInt6BytesRandomInputA(t *testing.T) {
 func TestReadVarInt7BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x01, 0xc0, 0x78, 0xf1, 0xe3, 0xc7, 0x8f}
@@ -465,7 +465,7 @@ func TestReadVarInt7BytesRandomInputA(t *testing.T) {
 func TestReadVarInt7BytesRandomInputB(t *testing.T) {
 	bs := []byte{0x8d, 0xcc, 0x90, 0x80, 0x95, 0x81, 0x74}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x01, 0xd0, 0x09, 0x50, 0x04, 0x26, 0x0d}
@@ -498,7 +498,7 @@ func TestReadVarInt7BytesRandomInputB(t *testing.T) {
 func TestReadVarInt8BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x8f, 0x70}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0xe0, 0x3c, 0x78, 0xf1, 0xe3, 0xc7, 0x8f}
@@ -531,7 +531,7 @@ func TestReadVarInt8BytesRandomInputA(t *testing.T) {
 func TestReadVarInt5BytesAllOnes(t *testing.T) {
 	bs := []byte{0xff, 0xff, 0xff, 0xff, 0x7f}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x07, 0xff, 0xff, 0xff, 0xff}
@@ -546,7 +546,7 @@ func TestReadVarInt5BytesAllOnes(t *testing.T) {
 func TestReadVarInt5BytesAllZeros(t *testing.T) {
 	bs := []byte{0x80, 0x80, 0x80, 0x80, 0x0}
 	buf := bytes.NewBuffer(bs)
-	actualUint, err := ReadVarIntToUint64(buf)
+	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
 	expectedBytes := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
@@ -562,16 +562,16 @@ func TestReadVarIntAndZigzagDecode(t *testing.T) {
 	bs := []byte{0x64} // uint value 100
 
 	var (
-		zzencoded uint32
+		zzencoded uint64
 		actualVal int32
 		err       error
 	)
 	buf := bytes.NewBuffer(bs)
-	zzencoded, err = ReadVarIntToUint32(buf)
+	zzencoded, err = ReadVarIntToUint(buf)
 	ok(t, err)
-	actualVal = ZigzagDecodeInt32(zzencoded)
+	actualVal = ZigzagDecodeInt32(uint32(zzencoded))
 
-	equals(t, uint32(100), zzencoded)
+	equals(t, uint64(100), zzencoded)
 	equals(t, int32(50), actualVal)
 }
 
@@ -580,7 +580,7 @@ func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
 		b          byte
 		orig       int32
 		zzorig     uint32
-		zzreadback uint32
+		zzreadback uint64
 		result     int32
 	)
 	orig = int32(-18923)
@@ -590,7 +590,7 @@ func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
 
 	// write it to varint format
 	buf := new(bytes.Buffer)
-	err := WriteVarInt(buf, zzorig)
+	err := varintEncode(buf, uint64(zzorig))
 	ok(t, err)
 
 	// read it from varint to regular int32 format
@@ -604,29 +604,145 @@ func TestRoundTripFromWritingZZEncodedAndReadingBack(t *testing.T) {
 		}
 	}
 	buf = bytes.NewBuffer(bs)
-	zzreadback, err = ReadVarIntToUint32(buf)
+	zzreadback, err = ReadVarIntToUint(buf)
+	ok(t, err)
+	equals(t, zzorig, uint32(zzreadback))
+
+	// finally zigzag decode back to orig
+	result = ZigzagDecodeInt32(uint32(zzreadback))
+	equals(t, orig, result)
+}
+
+// func TestRoundTripAllPossible64bitSignedInts(t *testing.T) {
+// 	buf := new(bytes.Buffer)
+
+// 	start := constants.MaxInt64 - 5569882882998338
+// 	end := constants.MaxInt64 - 55698828819473
+
+// 	fmt.Println(start)
+// 	fmt.Println(end)
+
+// 	// ftest := func(start int64, end int64, chan )
+
+// 	for i := start; i > 0 && i <= end; i++ {
+// 		encodeDecodeTest(t, int64(i), buf)
+// 	}
+// }
+
+func encodeDecodeTest(t *testing.T, in int64, buf *bytes.Buffer) {
+	buf.Reset()
+
+	zzin := ZigzagEncodeUInt64(in)
+	err := varintEncode(buf, zzin)
+	ok(t, err)
+
+	zzout, err := ReadVarIntToUint(buf)
+	ok(t, err)
+	equals(t, zzin, zzout)
+
+	out := ZigzagDecodeInt64(zzout)
+	equals(t, in, out)
+}
+
+func TestRoundTripFromWritingZZEncodedAndReadingBack64(t *testing.T) {
+	var (
+		b          byte
+		orig       int64
+		zzorig     uint64
+		zzreadback uint64
+		result     int64
+	)
+	orig = MaxInt64
+
+	// first zigzag encode the orig val
+	zzorig = ZigzagEncodeUInt64(orig)
+
+	// write it to varint format
+	buf := new(bytes.Buffer)
+	err := varintEncode(buf, zzorig)
+	ok(t, err)
+
+	// read it from varint to regular int64 format
+	bs := make([]byte, 0, 8)
+	for {
+		b, err = buf.ReadByte()
+		ok(t, err)
+		bs = append(bs, b)
+		if IsFinalVarIntByte(b) {
+			break
+		}
+	}
+	buf = bytes.NewBuffer(bs)
+	zzreadback, err = ReadVarIntToUint(buf)
 	ok(t, err)
 	equals(t, zzorig, zzreadback)
 
 	// finally zigzag decode back to orig
-	result = ZigzagDecodeInt32(zzreadback)
+	result = ZigzagDecodeInt64(zzreadback)
 	equals(t, orig, result)
 }
 
-func TestExtactAndPadNBytesErrorCondition_NoHighBitSetWithLessThan4Entries(t *testing.T) {
-	// not a valid varint
-	bs := []byte{0x80, 0x99} // none has the high bit set to zero
-	buf := bytes.NewBuffer(bs)
+func TestPadTo8Bytes(t *testing.T) {
+	// 0 entries
+	var buf bytes.Buffer
+	padTo8Bytes(&buf)
+	equals(t, 8, buf.Len())
+	for _, b := range buf.Bytes() {
+		equals(t, byte(0x0), b)
+	}
 
-	_, err := extractAndPadNBytes(buf, 4)
-	assert(t, err != nil, "none had high bit set, so error should be returned")
+	for i := 1; i <= 8; i++ {
+		pad8tester(t, i, &buf)
+	}
+
+	// test more than 8 prewritten
+	buf.Reset()
+	nwritten := 9
+	equals(t, 0, buf.Len())
+	for i := 0; i < nwritten; i++ {
+		buf.WriteByte(0xaa)
+	}
+	padTo8Bytes(&buf)
+	equals(t, nwritten, buf.Len())
+	for i, b := range buf.Bytes() {
+		if i < nwritten {
+			equals(t, byte(0xaa), b)
+		} else {
+			equals(t, byte(0x0), b)
+		}
+	}
+
+	// test more than 8 prewritten
+	buf.Reset()
+	nwritten = 112
+	equals(t, 0, buf.Len())
+	for i := 0; i < nwritten; i++ {
+		buf.WriteByte(0xaa)
+	}
+	padTo8Bytes(&buf)
+	equals(t, nwritten, buf.Len())
+	for i, b := range buf.Bytes() {
+		if i < nwritten {
+			equals(t, byte(0xaa), b)
+		} else {
+			equals(t, byte(0x0), b)
+		}
+	}
 }
 
-func TestExtactAndPadNBytesErrorCondition_NoHighBitSetWith4Entries(t *testing.T) {
-	// not a valid varint
-	bs := []byte{0x80, 0x99, 0x80, 0x99} // none has the high bit set to zero
-	buf := bytes.NewBuffer(bs)
-
-	_, err := extractAndPadNBytes(buf, 4)
-	assert(t, err != nil, "none had high bit set, so error should be returned")
+func pad8tester(t *testing.T, nwritten int, buf *bytes.Buffer) {
+	buf.Reset()
+	equals(t, 0, buf.Len())
+	for i := 0; i < nwritten; i++ {
+		buf.WriteByte(0xaa)
+	}
+	padTo8Bytes(buf)
+	equals(t, 8, buf.Len())
+	for i, b := range buf.Bytes() {
+		if i < nwritten {
+			equals(t, byte(0xaa), b)
+		} else {
+			equals(t, byte(0x0), b)
+		}
+	}
 }

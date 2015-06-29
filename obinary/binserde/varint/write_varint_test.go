@@ -4,6 +4,19 @@ import (
 	"bytes"
 	"encoding/binary"
 	"testing"
+
+	"github.com/quux00/ogonori/constants"
+)
+
+const (
+	Max1Byte = uint32(^uint8(0) >> 1)   // 127
+	Max2Byte = uint32(^uint16(0) >> 2)  // 16,383
+	Max3Byte = uint32(^uint32(0) >> 11) // 2,097,151
+	Max4Byte = uint32(^uint32(0) >> 4)  // 268,435,455
+	Max5Byte = uint64(^uint64(0) >> 29) // 34,359,738,367
+	Max6Byte = uint64(^uint64(0) >> 22) // 4,398,046,511,103
+	Max7Byte = uint64(^uint64(0) >> 15) // 562,949,953,421,311
+	Max8Byte = uint64(^uint64(0) >> 8)  // 72,057,594,037,927,935
 )
 
 func TestWriteVarInt1Byte(t *testing.T) {
@@ -14,7 +27,7 @@ func TestWriteVarInt1Byte(t *testing.T) {
 	buf := new(bytes.Buffer) // going to write the int as a varint of bytes to this buffer
 
 	n = 0
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 1, buf.Len())
 	equals(t, byte(0x0), buf.Bytes()[0])
@@ -23,7 +36,8 @@ func TestWriteVarInt1Byte(t *testing.T) {
 
 	n = Max1Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
+	// err = WriteVarInt(buf, n)
 	ok(t, err)
 	equals(t, 1, buf.Len())
 	equals(t, byte(0x7f), buf.Bytes()[0])
@@ -32,8 +46,8 @@ func TestWriteVarInt1Byte(t *testing.T) {
 
 	n = 57 // => 0x0 0x0 0x0 0x39 (big-endian)
 	buf.Reset()
-	// func WriteVarInt32(w io.Writer, n uint32) error {
-	err = WriteVarInt32(buf, n)
+	// err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 
 	equals(t, 1, buf.Len())
@@ -53,7 +67,7 @@ func TestWriteVarInt2Bytes(t *testing.T) {
 	// 0011 1000   0000 1111  unencoded
 	// 1000 1111   0111 0000  varint-encoded
 	//   0x8f        0x70
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 2, buf.Len())
 	actual = buf.Bytes()
@@ -68,7 +82,7 @@ func TestWriteVarInt2Bytes(t *testing.T) {
 	// 1110 1001   0000 0111  varint-encoded
 	//   0xe9         0x07
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 2, buf.Len())
 	actual = buf.Bytes()
@@ -79,7 +93,7 @@ func TestWriteVarInt2Bytes(t *testing.T) {
 
 	n = Max1Byte + 1 // 128 => 0x0 0x0 0x1 0x0 (big-endian, non-encoded)
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 2, buf.Len())
 	actual = buf.Bytes()
@@ -90,7 +104,7 @@ func TestWriteVarInt2Bytes(t *testing.T) {
 
 	n = Max2Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 2, buf.Len())
 	actual = buf.Bytes()
@@ -98,7 +112,7 @@ func TestWriteVarInt2Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt3Bytes(t *testing.T) {
+func TestvarintEncode3Bytes(t *testing.T) {
 	var (
 		n                uint32
 		err              error
@@ -106,7 +120,7 @@ func TestWriteVarInt3Bytes(t *testing.T) {
 	)
 	n = 1836943 // 0x0 0x1c 0x07 0x8f
 	buf := new(bytes.Buffer)
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 3, buf.Len())
 
@@ -118,7 +132,7 @@ func TestWriteVarInt3Bytes(t *testing.T) {
 
 	n = 578907 // 0x0, 0x08, 0xd5, 0x5b
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 3, buf.Len())
 
@@ -130,7 +144,7 @@ func TestWriteVarInt3Bytes(t *testing.T) {
 
 	n = Max2Byte + 1 // 16,384 => 0x4000
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 3, buf.Len())
 	actual = buf.Bytes()
@@ -141,7 +155,7 @@ func TestWriteVarInt3Bytes(t *testing.T) {
 
 	n = Max3Byte // 0x1f ff ff
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 3, buf.Len())
 	actual = buf.Bytes()
@@ -149,7 +163,7 @@ func TestWriteVarInt3Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt4Bytes(t *testing.T) {
+func TestvarintEncode4Bytes(t *testing.T) {
 	var (
 		n                uint32
 		err              error
@@ -157,7 +171,7 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 	)
 	n = 235128719 // 0x0e 0x03 0xc7 0x8f
 	buf := new(bytes.Buffer)
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 4, buf.Len())
 	actual = buf.Bytes()
@@ -168,7 +182,7 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 
 	n = 148053653 // 0x08 0xd3 0x1e 0x95
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 4, buf.Len())
 	actual = buf.Bytes()
@@ -179,7 +193,7 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 
 	n = Max3Byte + 1
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 4, buf.Len())
 	actual = buf.Bytes()
@@ -190,7 +204,7 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 
 	n = Max4Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 4, buf.Len())
 	actual = buf.Bytes()
@@ -198,7 +212,7 @@ func TestWriteVarInt4Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt5Bytes(t *testing.T) {
+func TestvarintEncode5Bytes(t *testing.T) {
 	var (
 		n                uint64
 		err              error
@@ -210,7 +224,7 @@ func TestWriteVarInt5Bytes(t *testing.T) {
 	// 11101110 10000100 11110001 10110110 00110001  varint encoded
 	//   0xee     0x84     0xf1     0xb6     0x31
 	buf := new(bytes.Buffer)
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 5, buf.Len())
 	actual = buf.Bytes()
@@ -219,7 +233,7 @@ func TestWriteVarInt5Bytes(t *testing.T) {
 
 	n = uint64(Max4Byte) + 1
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 5, buf.Len())
 	actual = buf.Bytes()
@@ -228,7 +242,7 @@ func TestWriteVarInt5Bytes(t *testing.T) {
 
 	n = Max5Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, uint64(n))
 	ok(t, err)
 	equals(t, 5, buf.Len())
 	actual = buf.Bytes()
@@ -236,7 +250,7 @@ func TestWriteVarInt5Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt6Bytes(t *testing.T) {
+func TestvarintEncode6Bytes(t *testing.T) {
 	var (
 		n                uint64
 		err              error
@@ -248,7 +262,7 @@ func TestWriteVarInt6Bytes(t *testing.T) {
 	// 10001100 10010110 11010110 10101010 10110101 01110100  varint encoded
 	//   0x8c     0x96     0xd6     0xaa     0xb5     0x74
 	buf := new(bytes.Buffer)
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 6, buf.Len())
 	actual = buf.Bytes()
@@ -257,7 +271,7 @@ func TestWriteVarInt6Bytes(t *testing.T) {
 
 	n = uint64(Max5Byte) + 1
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 6, buf.Len())
 	actual = buf.Bytes()
@@ -266,7 +280,7 @@ func TestWriteVarInt6Bytes(t *testing.T) {
 
 	n = Max6Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 6, buf.Len())
 	actual = buf.Bytes()
@@ -274,7 +288,7 @@ func TestWriteVarInt6Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt7Bytes(t *testing.T) {
+func TestvarintEncode7Bytes(t *testing.T) {
 	var (
 		n                uint64
 		err              error
@@ -299,7 +313,7 @@ func TestWriteVarInt7Bytes(t *testing.T) {
 	//     0x9f        0xc8         0xb0         0xd5         0x94         0xef         0x24
 
 	buf := new(bytes.Buffer)
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 7, buf.Len())
 	actual = buf.Bytes()
@@ -308,7 +322,7 @@ func TestWriteVarInt7Bytes(t *testing.T) {
 
 	n = uint64(Max6Byte) + 1
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 7, buf.Len())
 	actual = buf.Bytes()
@@ -317,7 +331,7 @@ func TestWriteVarInt7Bytes(t *testing.T) {
 
 	n = Max7Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 7, buf.Len())
 	actual = buf.Bytes()
@@ -325,7 +339,7 @@ func TestWriteVarInt7Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarInt8Bytes(t *testing.T) {
+func TestvarintEncode8Bytes(t *testing.T) {
 	var (
 		n                uint64
 		err              error
@@ -335,7 +349,7 @@ func TestWriteVarInt8Bytes(t *testing.T) {
 
 	n = Max8Byte
 	buf.Reset()
-	err = WriteVarInt(buf, n)
+	err = varintEncode(buf, n)
 	ok(t, err)
 	equals(t, 8, buf.Len())
 	actual = buf.Bytes()
@@ -343,19 +357,45 @@ func TestWriteVarInt8Bytes(t *testing.T) {
 	equals(t, expected, actual)
 }
 
-func TestWriteVarIntLargeThanMax8ByteShouldReturnError(t *testing.T) {
-	var (
-		n   uint64
-		err error
-	)
+func TestWriteMinMaxInt(t *testing.T) {
 	buf := new(bytes.Buffer)
+	err := varintEncode(buf, uint64(constants.MaxInt))
+	ok(t, err)
+	actual := buf.Bytes()
+	expected := []byte{0xff, 0xff, 0xff, 0xff, 0x07}
+	equals(t, expected, actual)
 
-	n = Max8Byte + 1
-	err = WriteVarInt(buf, n)
-	assert(t, err != nil, "int larger than Max8Byte should return error when varint encode attempted")
+	buf.Reset()
+	n := int32(constants.MinInt) // 0xb 10000000000000000000000000000000 (negative)
+	un := uint32(n)              // 0xb 10000000000000000000000000000000
+	// varint conversion: 00001000 10000000 10000000 10000000 10000000 (big endian)
+	err = varintEncode(buf, uint64(un))
+	ok(t, err)
+	actual = buf.Bytes()
+	expected = []byte{0x80, 0x80, 0x80, 0x80, 0x08} // little endian
+	equals(t, expected, actual)
 }
 
-func TestEncodeAndWriteVarInt32_SingleByteVal(t *testing.T) {
+func TestWriteMinMaxLong(t *testing.T) {
+	buf := new(bytes.Buffer)
+	err := varintEncode(buf, uint64(constants.MaxInt64))
+	ok(t, err)
+	actual := buf.Bytes()
+	expected := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}
+	equals(t, expected, actual)
+
+	buf.Reset()
+	n := int64(constants.MinInt64) // 0xb 1000000000000000000000000000000000000000000000000000000000000000 (negative)
+	un := uint64(n)                // 0xb 1000000000000000000000000000000000000000000000000000000000000000
+	// varint conversion: 00000001 10000000 10000000 10000000 10000000 10000000 10000000 10000000 10000000 10000000 (big endian)
+	err = varintEncode(buf, un)
+	ok(t, err)
+	actual = buf.Bytes()
+	expected = []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01} // little endian
+	equals(t, expected, actual)
+}
+
+func TestEncodeAndvarintEncode32_SingleByteVal(t *testing.T) {
 	intval := int32(7)
 	buf1 := new(bytes.Buffer)
 	err := EncodeAndWriteVarInt32(buf1, intval)
@@ -435,7 +475,7 @@ func TestEncodeAndWriteVarInt32_FourByteVal(t *testing.T) {
 	equals(t, intval, decoded)
 }
 
-func TestEncodeAndWriteVarInt64_FiveByteVal(t *testing.T) {
+func TestEncodeAndvarintEncode64_FiveByteVal(t *testing.T) {
 	intval := (int64(Max5Byte) / 2) - 1 // have divide by 2, since gets doubled when zigzag encoded
 	buf := new(bytes.Buffer)
 	err := EncodeAndWriteVarInt64(buf, intval)

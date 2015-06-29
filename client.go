@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +11,11 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"net/http"
@@ -19,6 +23,7 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
+	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
@@ -2203,23 +2208,113 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 	/* ---[ Try Boolean, Byte and Short ]--- */
 	createRecordsWithBooleanByteAndShort(dbc)
+
+	/* ---[ Try Int, Long, Float and Double ]--- */
+	createRecordsWithIntLongFloatAndDouble(dbc)
+}
+
+func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.ii INTEGER"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.ii")
+	}()
+
+	sql = "CREATE PROPERTY Cat.lg LONG"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.lg")
+	}()
+
+	sql = "CREATE PROPERTY Cat.ff FLOAT"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.ff")
+	}()
+
+	sql = "CREATE PROPERTY Cat.dd DOUBLE"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.dd")
+	}()
+
+	floatval := float32(51474836) + 0.0834
+	doubleval := float64(51474836) * -1.0834
+	fmt.Printf("floatval: %v\n", floatval)
+	fmt.Printf("doubleval: %v\n", doubleval)
+
+	// 2147483647
+	// 9223372036854775807
+
+	cat := oschema.NewDocument("Cat")
+	cat.Field("name", "sourpuss").
+		Field("age", 15).
+		FieldWithType("ii", 2147483647, oschema.INTEGER).
+		// FieldWithType("lg", int64(9223372036854775807)-1, oschema.LONG).
+		FieldWithType("lg", int64(72057594037927900), oschema.LONG).
+		//                        72057594037927935
+		// Field("ii", 660611).
+		// FieldWithType("lg", 90909090113, oschema.LONG).
+		// FieldWithType("lg", 9090909018, oschema.LONG)
+		// Field("ii", constants.MaxInt).
+		// Field("lg", constants.MaxInt64).
+		FieldWithType("ff", floatval, oschema.FLOAT).
+		// FieldWithType("dd", doubleval, oschema.DOUBLE).
+		Field("dd", doubleval)
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	Assert(cat.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+	Pause("II ")
+
+	// _, err = obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt)))
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(2147483647))
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery := docs[0]
+
+	Equals(toInt(cat.GetField("ii").Value), toInt(catFromQuery.GetField("ii").Value))
+	Equals(toInt(cat.GetField("lg").Value), toInt(catFromQuery.GetField("lg").Value))
+	Equals(cat.GetField("ff").Value, catFromQuery.GetField("ff").Value)
+	Equals(cat.GetField("dd").Value, catFromQuery.GetField("dd").Value)
+}
+
+func toInt(value interface{}) int {
+	switch value.(type) {
+	case int:
+		return value.(int)
+	case int32:
+		return int(value.(int32))
+	case int64:
+		return int(value.(int64))
+	}
+	panic(fmt.Sprintf("Value %v cannot be cast to int", value))
 }
 
 func createRecordsWithBooleanByteAndShort(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.x BOOLEAN"
-	aa, bb, err := obinary.SQLCommand(dbc, sql)
+	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
-
-	// DEBUG
-	fmt.Printf("aa: %v; bb: %v\n", aa, bb)
-	// END DEBUG
 
 	defer func() {
 		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.x")
 	}()
 
 	sql = "CREATE PROPERTY Cat.y BYTE"
-	aa, bb, err = obinary.SQLCommand(dbc, sql)
+	_, _, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
 	defer func() {
@@ -2468,22 +2563,22 @@ func mainTest() {
 		dbClusterCommandsNativeAPI(dbc)
 	}
 
-	// try to create new records from low-level create API (not SQL)
+	// create new records from low-level create API (not SQL)
 	createRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/" + OgonoriDocDB
-	databaseSqlAPI(conxStr)
-	databaseSqlPreparedStmtAPI(conxStr)
+	// ogl.SetLevel(ogl.WARN)
+	// conxStr := "admin@admin:localhost/" + OgonoriDocDB
+	// databaseSqlAPI(conxStr)
+	// databaseSqlPreparedStmtAPI(conxStr)
 
-	/* ---[ Graph DB ]--- */
-	// graph database tests
-	ogl.SetLevel(ogl.WARN)
-	graphCommandsNativeAPI(dbc, testType != "dataOnly")
-	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
-	ogl.SetLevel(ogl.NORMAL)
-	graphCommandsSqlAPI(graphConxStr)
+	// /* ---[ Graph DB ]--- */
+	// // graph database tests
+	// ogl.SetLevel(ogl.WARN)
+	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
+	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	// ogl.SetLevel(ogl.NORMAL)
+	// graphCommandsSqlAPI(graphConxStr)
 
 	//
 	// experimenting with JSON functionality
@@ -2555,12 +2650,120 @@ func explore() {
 	// fmt.Printf("%v\n", dalek99)
 }
 
+// var testTable = []struct {
+//     input    []int
+//     expected int
+// }{
+//     {[]int{}, 1},
+//     {[]int{1}, 2},
+//     {[]int{5, 1, 4, 2}, 3},
+//     {[]int{1, 2, 4, 5, 6, 1, 4, 5, 2, 3}, 7},
+// }
+
+type testrange struct {
+	start int64
+	end   int64
+}
+
+func zigzagExhaustiveTest() {
+	runtime.GOMAXPROCS(8)
+
+	var wg sync.WaitGroup
+
+	fnRangeTester := func(fnum int, tr testrange, chfailures chan string) {
+		fmt.Printf("FN %d STARTED\n", fnum)
+		defer wg.Done()
+		buf := new(bytes.Buffer)
+		for i := tr.start; i != tr.end; i++ {
+			buf.Reset()
+
+			in := i
+			zzin := varint.ZigzagEncodeUInt64(in)
+			err := varint.VarintEncode(buf, zzin)
+			if err != nil {
+				chfailures <- fmt.Sprintf("Failed on %d: varintEncode err: %v", i, err)
+			}
+
+			zzout, err := varint.ReadVarIntToUint(buf) // TODO: rename VarIntDecode?
+			if err != nil {
+				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint err: %v", i, err)
+			}
+			if zzin != zzout {
+				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint zzin != zzout: %d != %d", i, zzin, zzout)
+			}
+
+			out := varint.ZigzagDecodeInt64(zzout)
+			if in != out {
+				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint in != out: %d != %d", i, in, out)
+			}
+		}
+		fmt.Printf("FN %d is DONE\n", fnum)
+	}
+
+	// ranges := []testrange{
+	// 	{-9223372036854775808, -6917529027641081856},
+	// 	{-6917529027641081855, -4611686018427387904},
+	// 	{-4611686018427387903, -2305843009213693952},
+	// 	{-2305843009213693951, -1},
+	// 	{0, 2305843009213693952},
+	// 	{2305843009213693953, 4611686018427387904},
+	// 	{4611686018427387905, 6917529027641081855},
+	// 	{6917529027641081856, 9223372036854775807},
+	// }
+
+	ranges := []testrange{
+		{100000001, 150000001},
+		{200000001, 250000001},
+		{300000001, 350000000},
+		{400000001, 450000000},
+		{500000001, 550000000},
+		{600000001, 650000000},
+		{700000001, 750000000},
+		{800000001, 850000000},
+	}
+
+	wg.Add(len(ranges))
+	failchan := make(chan string, 10)
+
+	for i, trange := range ranges {
+		go fnRangeTester(i, trange, failchan)
+	}
+
+	go func() {
+		wg.Wait()
+		close(failchan)
+	}()
+
+	// main thread monitors for failures, waiting for the failchan to be closed
+	for failmsg := range failchan {
+		fmt.Println(failmsg)
+	}
+	fmt.Println("DONE")
+}
+
 //
 // client.go acts as a functional test for the ogonori client
 //
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "x" {
+	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	var xplore = flag.Bool("x", false, "run explore fn")
+	var zigzag = flag.Bool("z", false, "zigzagExhaustiveTest")
+
+	flag.Parse()
+	if *cpuprofile != "" {
+		fmt.Println("Running with profiling")
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
+	if *xplore {
 		explore()
+	} else if *zigzag {
+		zigzagExhaustiveTest()
 	} else {
 		mainTest()
 	}

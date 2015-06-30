@@ -2254,21 +2254,14 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	// 2147483647
 	// 9223372036854775807
 
+	/* ---[ FieldWithType ]--- */
 	cat := oschema.NewDocument("Cat")
 	cat.Field("name", "sourpuss").
 		Field("age", 15).
-		FieldWithType("ii", 2147483647, oschema.INTEGER).
-		// FieldWithType("lg", int64(9223372036854775807)-1, oschema.LONG).
-		FieldWithType("lg", int64(72057594037927900), oschema.LONG).
-		//                        72057594037927935
-		// Field("ii", 660611).
-		// FieldWithType("lg", 90909090113, oschema.LONG).
-		// FieldWithType("lg", 9090909018, oschema.LONG)
-		// Field("ii", constants.MaxInt).
-		// Field("lg", constants.MaxInt64).
+		FieldWithType("ii", constants.MaxInt, oschema.INTEGER).
+		FieldWithType("lg", constants.MaxInt64, oschema.LONG).
 		FieldWithType("ff", floatval, oschema.FLOAT).
-		// FieldWithType("dd", doubleval, oschema.DOUBLE).
-		Field("dd", doubleval)
+		FieldWithType("dd", doubleval, oschema.DOUBLE)
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
@@ -2277,14 +2270,47 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	defer func() {
 		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
 	}()
-	Pause("II ")
 
-	// _, err = obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt)))
-	docs, err := obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(2147483647))
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt)))
 	Ok(err)
 	Equals(1, len(docs))
 
 	catFromQuery := docs[0]
+
+	Equals(toInt(cat.GetField("ii").Value), toInt(catFromQuery.GetField("ii").Value))
+	Equals(toInt(cat.GetField("lg").Value), toInt(catFromQuery.GetField("lg").Value))
+	Equals(cat.GetField("ff").Value, catFromQuery.GetField("ff").Value)
+	Equals(cat.GetField("dd").Value, catFromQuery.GetField("dd").Value)
+
+	/* ---[ Field ]--- */
+
+	iival := int32(constants.MaxInt) - 100
+	lgval := int64(constants.MaxInt64) - 4
+	ffval := float32(iival/2) + 0.34132 // TODO: why does this fail with float32(constants.MinInt)  // TODO: rename MinInt to MinInt32
+	ddval := float64(lgval/2) * -0.9724 // TODO: why does this fail with float64(constants.MinInt64)
+
+	cat2 := oschema.NewDocument("Cat")
+	cat2.Field("name", "Tom").
+		Field("age", 18).
+		Field("ii", iival).
+		Field("lg", lgval).
+		Field("ff", ffval).
+		Field("dd", ddval)
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+
+	Pause("II 9:  ")
+
+	Assert(cat2.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where lg = ?", "", strconv.Itoa(int(lgval)))
+	Ok(err)
+	Equals(1, len(docs))
 
 	Equals(toInt(cat.GetField("ii").Value), toInt(catFromQuery.GetField("ii").Value))
 	Equals(toInt(cat.GetField("lg").Value), toInt(catFromQuery.GetField("lg").Value))

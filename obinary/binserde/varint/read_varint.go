@@ -85,33 +85,29 @@ func ReadVarIntToUint(r io.Reader) (uint64, error) {
 	}
 
 	/* ---[ decode ]--- */
-	var buf bytes.Buffer
-	if len(varbs) == 1 {
-		buf.WriteByte(varbs[0])
 
-	} else {
-		var right, left uint
-		for i := 0; i < len(varbs)-1; i++ {
-			right = uint(i) % 8
-			left = 7 - right
-			if i == 7 {
-				continue
-			}
-			vbcurr := varbs[i]
-			vbnext := varbs[i+1]
+	var right, left uint
 
-			x := vbcurr & byte(0x7f)
-			y := x >> right
-			z := vbnext << left
-			buf.WriteByte(y | z)
+	finalbs := make([]byte, 8)
+
+	idx := 0
+	for i := 0; i < len(varbs)-1 && idx < 8; i++ {
+		right = uint(i) % 8
+		left = 7 - right
+		if i == 7 {
+			continue
 		}
+		vbcurr := varbs[i]
+		vbnext := varbs[i+1]
+
+		x := vbcurr & byte(0x7f)
+		y := x >> right
+		z := vbnext << left
+		finalbs[idx] = y | z
+		idx++
 	}
 
-	padTo8Bytes(&buf)
-	err = binary.Read(&buf, binary.LittleEndian, &u)
-	if err != nil {
-		return 0, err
-	}
+	u = binary.LittleEndian.Uint64(finalbs)
 	return u, nil
 }
 

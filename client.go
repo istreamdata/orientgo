@@ -175,46 +175,28 @@ func seedInitialData(dbc *obinary.DBClient) {
 	// seed initial data
 	var sqlCmd string
 	sqlCmd = "CREATE CLASS Animal"
-	fmt.Println(sqlCmd)
-	retval, docs, err := obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 
 	sqlCmd = "CREATE property Animal.name string"
-	fmt.Println(sqlCmd)
-	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 
 	sqlCmd = "CREATE property Animal.age integer"
-	fmt.Println(sqlCmd)
-	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 
 	sqlCmd = "CREATE CLASS Cat extends Animal"
-	fmt.Println(sqlCmd)
-	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 
 	sqlCmd = "CREATE property Cat.caretaker string"
-	fmt.Println(sqlCmd)
-	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 
 	sqlCmd = `INSERT INTO Cat (name, age, caretaker) VALUES ("Linus", 15, "Michael"), ("Keiko", 10, "Anna")`
-	fmt.Println(sqlCmd)
-	retval, docs, err = obinary.SQLCommand(dbc, sqlCmd)
+	_, _, err = obinary.SQLCommand(dbc, sqlCmd)
 	Ok(err)
-	fmt.Printf("retval: %v\n", retval)
-	fmt.Printf("docs: %v\n", docs)
 }
 
 func deleteNewRecordsDocDB(dbc *obinary.DBClient) {
@@ -2197,20 +2179,102 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	_, _, err = obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
-	/* ---[ Try DATE ]--- */
+	/* ---[ Test DATE Serialization ]--- */
 	createRecordsWithDate(dbc)
 
-	/* ---[ Try DATETIME ]--- */
+	/* ---[ Test DATETIME Serialization ]--- */
 	createRecordsWithDateTime(dbc)
 
 	// test inserting wrong values for date and datetime
 	testCreationOfMismatchedTypesAndValues(dbc)
 
-	/* ---[ Try Boolean, Byte and Short ]--- */
+	/* ---[ Test Boolean, Byte and Short Serialization ]--- */
 	createRecordsWithBooleanByteAndShort(dbc)
 
-	/* ---[ Try Int, Long, Float and Double ]--- */
+	/* ---[ Test Int, Long, Float and Double Serialization ]--- */
 	createRecordsWithIntLongFloatAndDouble(dbc)
+
+	/* ---[ Test BINARY Serialization ]--- */
+	createRecordsWithBINARYType(dbc)
+
+	/* ---[ Test EMBEDDEDRECORD Serialization ]--- */
+	createRecordsWithEmbeddedRecords(dbc)
+
+}
+func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
+
+}
+
+func createRecordsWithBINARYType(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.bin BINARY"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.bin")
+	}()
+
+	/* ---[ FieldWithType ]--- */
+	str := "four, five, six, pick up sticks"
+	bindata := []byte(str)
+
+	cat := oschema.NewDocument("Cat")
+	cat.Field("name", "little-jimmy").
+		Field("age", 1).
+		FieldWithType("bin", bindata, oschema.BINARY)
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	Assert(cat.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery := docs[0]
+
+	Equals(cat.GetField("bin").Value, catFromQuery.GetField("bin").Value)
+	Equals(str, string(catFromQuery.GetField("bin").Value.([]byte)))
+
+	/* ---[ Field No Type Specified ]--- */
+	binN := 650003 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
+	// TODO: or do we need to do a second query -> determine how the Java client does this
+	bindata2 := make([]byte, binN)
+
+	for i := 0; i < binN; i++ {
+		bindata2[i] = byte(i)
+	}
+
+	cat2 := oschema.NewDocument("Cat")
+	cat2.Field("name", "Sauron").
+		Field("age", 1111).
+		Field("bin", bindata2)
+
+	Assert(cat2.RID.ClusterID <= 0, "RID should NOT be filled in")
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+	Assert(cat2.RID.ClusterID > 0, "RID should be filled in")
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
+	}()
+
+	Pause("bin>> ")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+	cat2FromQuery := docs[0]
+
+	fmt.Printf("> > > > %v\n", len(cat2FromQuery.GetField("bin").Value.([]byte)))
+	Equals(bindata2, cat2FromQuery.GetField("bin").Value.([]byte))
+
+	// fmt.Printf("%v\n", cat2FromQuery.GetField("bin").Value.([]byte))
 }
 
 func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
@@ -2282,7 +2346,7 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	/* ---[ Field ]--- */
 
 	iival := int32(constants.MaxInt32) - 100
-	lgval := int64(constants.MaxInt64) - 4
+	lgval := int64(constants.MinInt64) + 4
 	ffval := float32(constants.MinInt32) * 4.996413569
 	ddval := float64(-9.834782455017E+225)
 
@@ -2300,17 +2364,18 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	Assert(cat2.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
 	}()
 
-	docs, err = obinary.SQLQuery(dbc, "select from Cat where lg = ?", "", strconv.Itoa(int(lgval)))
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
 	Ok(err)
 	Equals(1, len(docs))
+	cat2FromQuery := docs[0]
 
-	Equals(toInt(cat.GetField("ii").Value), toInt(catFromQuery.GetField("ii").Value))
-	Equals(toInt(cat.GetField("lg").Value), toInt(catFromQuery.GetField("lg").Value))
-	Equals(cat.GetField("ff").Value, catFromQuery.GetField("ff").Value)
-	Equals(cat.GetField("dd").Value, catFromQuery.GetField("dd").Value)
+	Equals(toInt(cat2.GetField("ii").Value), toInt(cat2FromQuery.GetField("ii").Value))
+	Equals(toInt(cat2.GetField("lg").Value), toInt(cat2FromQuery.GetField("lg").Value))
+	Equals(cat2.GetField("ff").Value, cat2FromQuery.GetField("ff").Value)
+	Equals(cat2.GetField("dd").Value, cat2FromQuery.GetField("dd").Value)
 }
 
 func toInt(value interface{}) int {

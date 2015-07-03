@@ -80,3 +80,10 @@
 * DONE REQUEST_SBTREE_BONSAI_FIRST_KEY         = 112
 * DONE REQUEST_SBTREE_BONSAI_GET_ENTRIES_MAJOR = 113
 * DONE REQUEST_RIDBAG_GET_SIZE                 = 114
+
+
+# TODOs -> Issues -> for others to work on
+	binN := 650003 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
+	// TODO: or do we need to do a second query -> determine how the Java client does this
+
+

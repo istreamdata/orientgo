@@ -57,7 +57,7 @@ func TestWriteString_GoodData_EmptyString(t *testing.T) {
 
 // This one is slow and slows done rapid testing, so commented out for now
 func xTestWriteBytes_VeryLargeArrayRequires64BitVarintEncode(t *testing.T) {
-	lbsize := int64(constants.MaxInt) + 4
+	lbsize := int64(constants.MaxInt32) + 4
 	largebytes := make([]byte, lbsize)
 	// set some sentinel values to check later
 	largebytes[0] = byte(255)

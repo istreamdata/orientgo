@@ -2246,19 +2246,16 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.dd")
 	}()
 
-	floatval := float32(51474836) + 0.0834
-	doubleval := float64(51474836) * -1.0834
-	fmt.Printf("floatval: %v\n", floatval)
-	fmt.Printf("doubleval: %v\n", doubleval)
-
-	// 2147483647
-	// 9223372036854775807
+	floatval := float32(constants.MaxInt32) + 0.5834
+	// doubleval := float64(7976931348623157 + e308) // Double.MIN_VALUE in Java => too big for Go
+	// doubleval := float64(9E-324) // Double.MIN_VALUE in Java  => too big for Go
+	doubleval := float64(7.976931348623157E+222)
 
 	/* ---[ FieldWithType ]--- */
 	cat := oschema.NewDocument("Cat")
 	cat.Field("name", "sourpuss").
 		Field("age", 15).
-		FieldWithType("ii", constants.MaxInt, oschema.INTEGER).
+		FieldWithType("ii", constants.MaxInt32, oschema.INTEGER).
 		FieldWithType("lg", constants.MaxInt64, oschema.LONG).
 		FieldWithType("ff", floatval, oschema.FLOAT).
 		FieldWithType("dd", doubleval, oschema.DOUBLE)
@@ -2271,7 +2268,7 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
 	}()
 
-	docs, err := obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt)))
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt32)))
 	Ok(err)
 	Equals(1, len(docs))
 
@@ -2284,13 +2281,13 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 
 	/* ---[ Field ]--- */
 
-	iival := int32(constants.MaxInt) - 100
+	iival := int32(constants.MaxInt32) - 100
 	lgval := int64(constants.MaxInt64) - 4
-	ffval := float32(iival/2) + 0.34132 // TODO: why does this fail with float32(constants.MinInt)  // TODO: rename MinInt to MinInt32
-	ddval := float64(lgval/2) * -0.9724 // TODO: why does this fail with float64(constants.MinInt64)
+	ffval := float32(constants.MinInt32) * 4.996413569
+	ddval := float64(-9.834782455017E+225)
 
 	cat2 := oschema.NewDocument("Cat")
-	cat2.Field("name", "Tom").
+	cat2.Field("name", "Jerry").
 		Field("age", 18).
 		Field("ii", iival).
 		Field("lg", lgval).
@@ -2299,8 +2296,6 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 
 	err = obinary.CreateRecord(dbc, cat2)
 	Ok(err)
-
-	Pause("II 9:  ")
 
 	Assert(cat2.RID.ClusterID > 0, "RID should be filled in")
 

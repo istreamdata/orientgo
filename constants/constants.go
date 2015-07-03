@@ -5,10 +5,10 @@ package constants
 
 const (
 	// TODO: put 32 suffix on these first for constants
-	MaxUint = ^uint32(0)
-	MinUint = 0
-	MaxInt  = int32(MaxUint >> 1)
-	MinInt  = -MaxInt - 1
+	MaxUint32 = ^uint32(0)
+	MinUint32 = 0
+	MaxInt32  = int32(MaxUint32 >> 1)
+	MinInt32  = -MaxInt32 - 1
 
 	MaxUint64 = ^uint64(0)
 	MinUint64 = 0

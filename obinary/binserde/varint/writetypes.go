@@ -16,7 +16,7 @@ import (
 //
 func WriteBytes(wtr io.Writer, bs []byte) (err error) {
 	sz := int64(len(bs))
-	if sz <= int64(constants.MaxInt) {
+	if sz <= int64(constants.MaxInt32) {
 		err = EncodeAndWriteVarInt32(wtr, int32(sz))
 	} else {
 		err = EncodeAndWriteVarInt64(wtr, sz)

@@ -359,15 +359,15 @@ func TestvarintEncode8Bytes(t *testing.T) {
 
 func TestWriteMinMaxInt(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := varintEncode(buf, uint64(constants.MaxInt))
+	err := varintEncode(buf, uint64(constants.MaxInt32))
 	ok(t, err)
 	actual := buf.Bytes()
 	expected := []byte{0xff, 0xff, 0xff, 0xff, 0x07}
 	equals(t, expected, actual)
 
 	buf.Reset()
-	n := int32(constants.MinInt) // 0xb 10000000000000000000000000000000 (negative)
-	un := uint32(n)              // 0xb 10000000000000000000000000000000
+	n := int32(constants.MinInt32) // 0xb 10000000000000000000000000000000 (negative)
+	un := uint32(n)                // 0xb 10000000000000000000000000000000
 	// varint conversion: 00001000 10000000 10000000 10000000 10000000 (big endian)
 	err = varintEncode(buf, uint64(un))
 	ok(t, err)

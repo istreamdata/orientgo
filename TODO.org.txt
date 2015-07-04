@@ -87,3 +87,26 @@
 	// TODO: or do we need to do a second query -> determine how the Java client does this
 
 
+Issues:
+
+
+# 1
+Determine how insertions and retrievals of BINARY types into/from OrientDB should be done.
+
+# 2, 3
+How to insert "flat" data and "raw bytes" such that the return type on query is 'f' or 'b'.  Once done then implement the appropriate 
+function below in obinary/qrycmd.go
+
+func readFlatDataRecord(dbc *DBClient) (*oschema.ODocument, error) {
+	ogl.Warnf("flat record ('f') record type -> haven't seen that before. What is it?")
+	return nil, errors.New("flat record ('f') record type -> haven't seen that before. What is it?")
+}
+
+//
+// TODO: need example from server to know how to handle this
+//
+func readRawBytesRecord(dbc *DBClient) (*oschema.ODocument, error) {
+	ogl.Warnf("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
+	return nil, errors.New("raw bytes ('b') record type -> haven't seen that before. Send to Deserializer?")
+}
+

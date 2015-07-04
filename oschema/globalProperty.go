@@ -55,8 +55,8 @@ func typeFromString(typ string) byte {
 		return STRING
 	case "BINARY":
 		return BINARY
-	case "EMBEDDEDRECORD":
-		return EMBEDDEDRECORD
+	case "EMBEDDED":
+		return EMBEDDED
 	case "EMBEDDEDLIST":
 		return EMBEDDEDLIST
 	case "EMBEDDEDSET":

@@ -267,8 +267,8 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 	case oschema.BINARY:
 		err = varint.WriteBytes(buf, value.([]byte))
 		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
-	case oschema.EMBEDDEDRECORD:
-		panic("ORecordSerializerV0#writeDataValue EMBEDDEDRECORD NOT YET IMPLEMENTED")
+	case oschema.EMBEDDED:
+		panic("ORecordSerializerV0#writeDataValue EMBEDDED NOT YET IMPLEMENTED")
 	case oschema.EMBEDDEDLIST:
 		// val, err = serde.readEmbeddedCollection(buf)
 		// ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
@@ -543,7 +543,7 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf,
 	case oschema.BINARY:
 		val, err = varint.ReadBytes(buf)
 		ogl.Debugf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
-	case oschema.EMBEDDEDRECORD:
+	case oschema.EMBEDDED:
 		doc := oschema.NewDocument("")
 		err = serde.Deserialize(dbc, doc, buf)
 		val = interface{}(doc)
@@ -946,8 +946,8 @@ func getDataType(val interface{}) byte {
 		return oschema.STRING
 	case []byte:
 		return oschema.BINARY
-	case *oschema.ODocument: // TODO: not sure this is the only way an EMBEDDEDRECORD can be sent ?? what about JSON?
-		return oschema.EMBEDDEDRECORD
+	case *oschema.ODocument: // TODO: not sure this is the only way an EMBEDDED can be sent ?? what about JSON?
+		return oschema.EMBEDDED
 	case []interface{}: // TODO: this may require some reflection -> how do I detect any type of slice?
 		return oschema.EMBEDDEDLIST
 	case map[string]struct{}: // TODO: settle on this convention for how to specify an OrientDB SET  ??

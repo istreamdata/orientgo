@@ -10,31 +10,31 @@ type ODataType byte
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
 // TODO: change to type ODataType
 const (
-	BOOLEAN        = 0
-	INTEGER        = 1
-	SHORT          = 2
-	LONG           = 3
-	FLOAT          = 4
-	DOUBLE         = 5
-	DATETIME       = 6
-	STRING         = 7
-	BINARY         = 8 // means []byte
-	EMBEDDEDRECORD = 9
-	EMBEDDEDLIST   = 10
-	EMBEDDEDSET    = 11
-	EMBEDDEDMAP    = 12
-	LINK           = 13
-	LINKLIST       = 14
-	LINKSET        = 15
-	LINKMAP        = 16
-	BYTE           = 17
-	TRANSIENT      = 18
-	DATE           = 19
-	CUSTOM         = 20
-	DECIMAL        = 21
-	LINKBAG        = 22
-	ANY            = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
-	UNKNOWN        = 255 // my addition
+	BOOLEAN      = 0
+	INTEGER      = 1
+	SHORT        = 2
+	LONG         = 3
+	FLOAT        = 4
+	DOUBLE       = 5
+	DATETIME     = 6
+	STRING       = 7
+	BINARY       = 8 // means []byte
+	EMBEDDED     = 9 // was: EMBEDDEDRECORD
+	EMBEDDEDLIST = 10
+	EMBEDDEDSET  = 11
+	EMBEDDEDMAP  = 12
+	LINK         = 13
+	LINKLIST     = 14
+	LINKSET      = 15
+	LINKMAP      = 16
+	BYTE         = 17
+	TRANSIENT    = 18
+	DATE         = 19
+	CUSTOM       = 20
+	DECIMAL      = 21
+	LINKBAG      = 22
+	ANY          = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
+	UNKNOWN      = 255 // my addition
 )
 
 func ODataTypeNameFor(dt ODataType) string {
@@ -55,8 +55,8 @@ func ODataTypeNameFor(dt ODataType) string {
 		return "STRING"
 	case BINARY:
 		return "BINARY"
-	case EMBEDDEDRECORD:
-		return "EMBEDDEDRECORD"
+	case EMBEDDED:
+		return "EMBEDDED"
 	case EMBEDDEDLIST:
 		return "EMBEDDEDLIST"
 	case EMBEDDEDSET:

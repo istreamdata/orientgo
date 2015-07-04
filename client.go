@@ -1656,6 +1656,32 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	tildeRID := docs[0].RID
 
+	/* ---[ Try EMBEDDED ]--- */
+
+	sql = `CREATE PROPERTY Cat.embeddedCat EMBEDDED`
+	retval, docs, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+	defer removeProperty(dbc, "Cat", "embeddedCat")
+
+	emb := `{"name": "Spotty", "age": 2, emb: {"@type": "d", "@class":"Cat", "name": "yowler", "age":13}}`
+	retval, docs, err = obinary.SQLCommand(dbc, "insert into Cat content "+emb)
+	Ok(err)
+	fmt.Printf("emb retval: %v\n", retval) // DEBUG
+	fmt.Printf("emb idocs: %v\n", docs)
+
+	Equals(1, len(docs))
+	Equals("Spotty", docs[0].GetField("name").Value)
+	Equals(2, int(docs[0].GetField("age").Value.(int32)))
+	Equals(byte(oschema.EMBEDDED), docs[0].GetField("emb").Typ)
+
+	embCat := docs[0].GetField("emb").Value.(*oschema.ODocument)
+	Equals("Cat", embCat.Classname)
+	Assert(embCat.Version < 0, "Version should be unset")
+	Assert(embCat.RID.ClusterID < 0, "RID.ClusterID should be unset")
+	Assert(embCat.RID.ClusterPos < 0, "RID.ClusterPos should be unset")
+	Equals("yowler", embCat.GetField("name").Value.(string))
+	Equals(int(13), toInt(embCat.GetField("age").Value))
+
 	/* ---[ Try LINKLIST ]--- */
 
 	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
@@ -2202,6 +2228,36 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 }
 func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.embrec EMBEDDED"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer func() {
+		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.embrec")
+	}()
+
+	// /* ---[ FieldWithType ]--- */
+	// str := "four, five, six, pick up sticks"
+	// bindata := []byte(str)
+
+	// cat := oschema.NewDocument("Cat")
+	// cat.Field("name", "little-jimmy").
+	// 	Field("age", 1).
+	// 	FieldWithType("bin", bindata, oschema.BINARY)
+
+	// err = obinary.CreateRecord(dbc, cat)
+	// Ok(err)
+	// Assert(cat.RID.ClusterID > 0, "RID should be filled in")
+
+	// defer func() {
+	// 	obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	// }()
+
+	// docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	// Ok(err)
+	// Equals(1, len(docs))
+
+	// catFromQuery := docs[0]
 
 }
 
@@ -2241,7 +2297,7 @@ func createRecordsWithBINARYType(dbc *obinary.DBClient) {
 	Equals(str, string(catFromQuery.GetField("bin").Value.([]byte)))
 
 	/* ---[ Field No Type Specified ]--- */
-	binN := 650003 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
+	binN := 65003 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
 	// TODO: or do we need to do a second query -> determine how the Java client does this
 	bindata2 := make([]byte, binN)
 
@@ -2264,17 +2320,12 @@ func createRecordsWithBINARYType(dbc *obinary.DBClient) {
 		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
 	}()
 
-	Pause("bin>> ")
-
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
 	Ok(err)
 	Equals(1, len(docs))
 	cat2FromQuery := docs[0]
 
-	fmt.Printf("> > > > %v\n", len(cat2FromQuery.GetField("bin").Value.([]byte)))
 	Equals(bindata2, cat2FromQuery.GetField("bin").Value.([]byte))
-
-	// fmt.Printf("%v\n", cat2FromQuery.GetField("bin").Value.([]byte))
 }
 
 func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
@@ -2658,7 +2709,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	// databaseSqlAPI(conxStr)
 	// databaseSqlPreparedStmtAPI(conxStr)
 
-	// /* ---[ Graph DB ]--- */
+	/* ---[ Graph DB ]--- */
 	// // graph database tests
 	// ogl.SetLevel(ogl.WARN)
 	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
@@ -2693,6 +2744,18 @@ func explore() {
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
+	docs, err := obinary.SQLQuery(dbc, "select from Dingo", "")
+	Ok(err)
+	fmt.Printf("%v\n", docs)
+
+	emb := `{name: "fergie", emb: {"@type": "d", "@class":"Cat", "name":"goonie", "age":3}}`
+	// emb := `{emb: {"@type": "d", "name":"gibbler", "age":13}}`
+	// emb := `{emb: {"@type":"b", "bytes":"silver"}}`
+	retval, idocs, err := obinary.SQLCommand(dbc, "insert into Dingo content "+emb)
+	Ok(err)
+	fmt.Printf("emb retval: %v\n", retval)
+	fmt.Printf("emb idocs: %v\n", idocs)
+
 	// dalek77 := oschema.NewDocument("Dalek")
 	// dalek77.Field("name", "dalek77").Field("episode", 77).FieldWithType("miller-time", time.Now(), oschema.DATETIME)
 	// fmt.Println("----------------------------")
@@ -2702,24 +2765,24 @@ func explore() {
 	// Ok(err)
 	// fmt.Printf("%v\n", dalek77)
 
-	const longForm = "Jan 2, 2006 at 3:04pm (MST)"
-	tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
-	tl88 := tm88.UnixNano() / (1000 * 1000)
+	// const longForm = "Jan 2, 2006 at 3:04pm (MST)"
+	// tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
+	// tl88 := tm88.UnixNano() / (1000 * 1000)
 
-	// ogl.SetLevel(ogl.DEBUG)
+	// // ogl.SetLevel(ogl.DEBUG)
 
-	dalek88 := oschema.NewDocument("Dalek")
-	dalek88.Field("name", "dalek88").
-		Field("episode", 88).
-		FieldWithType("miller-time", int64(tl88), oschema.DATETIME).
-		Field("mybyte", byte(0x07)).
-		Field("myshort", int16(9993))
-	fmt.Println("----------------------------")
-	fmt.Printf("%v\n", dalek88)
-	fmt.Println("----------------------------")
-	err = obinary.CreateRecord(dbc, dalek88)
-	Ok(err)
-	fmt.Printf("%v\n", dalek88)
+	// dalek88 := oschema.NewDocument("Dalek")
+	// dalek88.Field("name", "dalek88").
+	// 	Field("episode", 88).
+	// 	FieldWithType("miller-time", int64(tl88), oschema.DATETIME).
+	// 	Field("mybyte", byte(0x07)).
+	// 	Field("myshort", int16(9993))
+	// fmt.Println("----------------------------")
+	// fmt.Printf("%v\n", dalek88)
+	// fmt.Println("----------------------------")
+	// err = obinary.CreateRecord(dbc, dalek88)
+	// Ok(err)
+	// fmt.Printf("%v\n", dalek88)
 
 	// dalek99 := oschema.NewDocument("Dalek")
 	// dalek99.Field("name", "dalek99").

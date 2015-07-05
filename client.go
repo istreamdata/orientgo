@@ -1666,8 +1666,6 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	emb := `{"name": "Spotty", "age": 2, emb: {"@type": "d", "@class":"Cat", "name": "yowler", "age":13}}`
 	retval, docs, err = obinary.SQLCommand(dbc, "insert into Cat content "+emb)
 	Ok(err)
-	fmt.Printf("emb retval: %v\n", retval) // DEBUG
-	fmt.Printf("emb idocs: %v\n", docs)
 
 	Equals(1, len(docs))
 	Equals("Spotty", docs[0].GetField("name").Value)
@@ -2232,33 +2230,38 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
-	defer func() {
-		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.embrec")
-	}()
+	defer removeProperty(dbc, "Cat", "embrec")
 
 	// /* ---[ FieldWithType ]--- */
 	// str := "four, five, six, pick up sticks"
 	// bindata := []byte(str)
 
-	// cat := oschema.NewDocument("Cat")
-	// cat.Field("name", "little-jimmy").
-	// 	Field("age", 1).
-	// 	FieldWithType("bin", bindata, oschema.BINARY)
+	embcat := oschema.NewDocument("Cat")
+	embcat.Field("name", "MaryLulu").
+		Field("age", 47)
 
-	// err = obinary.CreateRecord(dbc, cat)
-	// Ok(err)
-	// Assert(cat.RID.ClusterID > 0, "RID should be filled in")
+	cat := oschema.NewDocument("Cat")
+	cat.Field("name", "Willard").
+		Field("age", 4).
+		FieldWithType("embrec", embcat, oschema.EMBEDDED)
 
-	// defer func() {
-	// 	obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
-	// }()
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
 
-	// docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
-	// Ok(err)
-	// Equals(1, len(docs))
+	Assert(int(embcat.RID.ClusterID) < int(0), "embedded RID should be NOT filled in")
+	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	// catFromQuery := docs[0]
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
 
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery := docs[0]
+
+	fmt.Printf("%v\n", catFromQuery)
 }
 
 func createRecordsWithBINARYType(dbc *obinary.DBClient) {
@@ -2297,7 +2300,7 @@ func createRecordsWithBINARYType(dbc *obinary.DBClient) {
 	Equals(str, string(catFromQuery.GetField("bin").Value.([]byte)))
 
 	/* ---[ Field No Type Specified ]--- */
-	binN := 65003 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
+	binN := 65000 // TODO: can't go much above ~650K bytes => why? is this an OrientDB limit?
 	// TODO: or do we need to do a second query -> determine how the Java client does this
 	bindata2 := make([]byte, binN)
 

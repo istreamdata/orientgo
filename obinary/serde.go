@@ -34,7 +34,7 @@ type ORecordSerializer interface {
 	//
 	// Serialize reads the ODocument and serializes to bytes into the bytes.Buffer.
 	//
-	Serialize(doc *oschema.ODocument) ([]byte, error)
+	Serialize(dbc *DBClient, doc *oschema.ODocument) ([]byte, error)
 
 	//
 	// SerializeClass gets the class from the ODocument and serializes it to bytes

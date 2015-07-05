@@ -25,10 +25,15 @@ import (
 )
 
 //
-// ORecordSerializerBinaryV0 implements the ORecordSerializerBinary
-// interface for version 0
+// ORecordSerializerV0 implements the ORecordSerializerBinary
+// interface for version 0.
 //
-type ORecordSerializerV0 struct{}
+// ORecordSerializerV0 is NOT thread safe.  Each DBClient should
+// keep its own private serializer object.
+//
+type ORecordSerializerV0 struct {
+	dbc *DBClient // set only temporarility while De/Serializing
+}
 
 //
 // The serialization version (the first byte of the serialized record) should
@@ -37,6 +42,21 @@ type ORecordSerializerV0 struct{}
 func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ByteBuf) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
+	}
+
+	// temporarily set state for the duration of this Deserialize call
+	// dbc is allowed to be nil for reentrant (recursive) calls -- in which
+	// case serde.dbc should already be set (not-nil)
+	if dbc != nil {
+		if serde.dbc != nil {
+			return errors.New("Attempted to set dbc again in Serialize when it is already set")
+		}
+		serde.dbc = dbc
+		defer func() {
+			serde.dbc = nil
+		}()
+	} else if serde.dbc == nil {
+		return errors.New("dbc *DBClient passed into Deserialize was null and dbc had not already been set in Serializer state")
 	}
 
 	classname, err := readClassname(buf)
@@ -51,12 +71,12 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 		return oerror.NewTrace(err)
 	}
 
-	refreshGlobalPropertiesIfRequired(dbc, header)
+	serde.refreshGlobalPropertiesIfRequired(header)
 
 	for i, prop := range header.properties {
 		var ofield *oschema.OField
 		if len(prop.name) == 0 {
-			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			globalProp, ok := serde.dbc.GetCurrDB().GlobalProperties[int(prop.id)]
 			if !ok {
 				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
 			}
@@ -76,7 +96,7 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
 			buf.Seek(uint(header.dataPtrs[i] - 1)) // -1 bcs the lead byte (serialization version) was stripped off
-			val, err := serde.readDataValue(dbc, buf, ofield.Typ)
+			val, err := serde.readDataValue(buf, ofield.Typ)
 			if err != nil {
 				return err
 			}
@@ -107,7 +127,22 @@ func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf 
 // with the OrientDB binary serialization spec and writes them to the
 // bytes.Buffer passed in.
 //
-func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument) ([]byte, error) {
+func (serde ORecordSerializerV0) Serialize(dbc *DBClient, doc *oschema.ODocument) ([]byte, error) {
+	// temporarily set state for the duration of this Serialize call
+	// dbc is allowed to be nil for reentrant (recursive) calls -- in which
+	// case serde.dbc should already be set (not-nil)
+	if dbc != nil {
+		if serde.dbc != nil {
+			return nil, errors.New("Attempted to set dbc again in Serialize when it is already set")
+		}
+		serde.dbc = dbc
+		defer func() {
+			serde.dbc = nil
+		}()
+	} else if serde.dbc == nil {
+		return nil, errors.New("dbc *DBClient passed into Serialize was null and dbc had not already been set in Serializer state")
+	}
+
 	// need to create a new buffer for the serialized record for ptr value calculations,
 	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
 	// that are NOT part of the serialized record
@@ -164,7 +199,24 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 
 	docFields := doc.GetFields()
 	for _, fld := range docFields {
-		// propertyName
+		// globalProp, ok := serde.dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+
+		// if (properties[i] != null) {
+		//   OVarIntSerializer.write(bytes, (properties[i].getId() + 1) * -1);
+		//   if (properties[i].getType() != OType.ANY)
+		//     pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE);
+		//   else
+		//     pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);
+		// } else {
+		//   writeString(bytes, entry.getKey());
+		//   pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);
+
+		// if ok {
+		// 	// if property is known in the global
+		// 	OVarIntSerializer.write(bytes, (properties[i].getId()+1)*-1)
+
+		// } else {
+		// property Name
 		err = varint.WriteString(wbuf, fld.Name)
 		if err != nil {
 			return oerror.NewTrace(err)
@@ -172,10 +224,14 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 		ptrPos = append(ptrPos, wbuf.Len())
 		wbuf.Skip(4)
 
+		// property Type
 		err = rw.WriteByte(wbuf, fld.Typ)
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
+		// }
+		// // /// END NEW
+
 	}
 	wbuf.WriteByte(0) // End of Header sentinel
 
@@ -255,20 +311,33 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 	case oschema.FLOAT:
 		err = rw.WriteFloat(buf, value.(float32))
 		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
+
 	case oschema.DOUBLE:
 		err = rw.WriteDouble(buf, value.(float64))
 		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
+
 	case oschema.DATETIME:
 		err = writeDateTime(buf, value)
 		ogl.Debugf("DEBUG DATETIME: -writeDataVal val: %v\n", value) // DEBUG
+
 	case oschema.DATE:
 		err = writeDate(buf, value)
 		ogl.Debugf("DEBUG DATE: -writeDataVal val: %v\n", value) // DEBUG
+
 	case oschema.BINARY:
 		err = varint.WriteBytes(buf, value.([]byte))
 		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
+
 	case oschema.EMBEDDED:
-		panic("ORecordSerializerV0#writeDataValue EMBEDDED NOT YET IMPLEMENTED")
+		fmt.Println("EMBEDDED >> BEFORE ")
+		var serializedDoc []byte
+		serializedDoc, err = serde.Serialize(nil, value.(*oschema.ODocument))
+		if err == nil {
+			fmt.Printf("EMBEDDED >> DURING serializedDoc: %v\n", serializedDoc)
+			err = rw.WriteBytes(buf, serializedDoc)
+		}
+		fmt.Println("EMBEDDED >> AFTER ")
+
 	case oschema.EMBEDDEDLIST:
 		// val, err = serde.readEmbeddedCollection(buf)
 		// ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
@@ -496,7 +565,7 @@ func readHeader(buf io.Reader) (header, error) {
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(buf *obuf.ByteBuf, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -545,17 +614,17 @@ func (serde ORecordSerializerV0) readDataValue(dbc *DBClient, buf *obuf.ByteBuf,
 		ogl.Debugf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDED:
 		doc := oschema.NewDocument("")
-		err = serde.Deserialize(dbc, doc, buf)
+		err = serde.Deserialize(nil, doc, buf)
 		val = interface{}(doc)
 		// ogl.Debugf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDLIST:
-		val, err = serde.readEmbeddedCollection(dbc, buf)
+		val, err = serde.readEmbeddedCollection(buf)
 		// ogl.Debugf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDSET:
-		val, err = serde.readEmbeddedCollection(dbc, buf) // TODO: may need to create a set type as well
+		val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
 		// ogl.Debugf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.EMBEDDEDMAP:
-		val, err = serde.readEmbeddedMap(dbc, buf)
+		val, err = serde.readEmbeddedMap(buf)
 		// ogl.Debugf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
 	case oschema.LINK:
 		// a link is two int64's (cluster:record) - we translate it here to a string RID
@@ -965,7 +1034,7 @@ func getDataType(val interface{}) byte {
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: change return type to (*oschema.OEmbeddedMap, error) {  ???
-func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *obuf.ByteBuf) (map[string]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ByteBuf) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1006,7 +1075,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *obuf.ByteBu
 
 	// read map values
 	for i := 0; i < nrecs; i++ {
-		val, err := serde.readDataValue(dbc, buf, valtypes[i])
+		val, err := serde.readDataValue(buf, valtypes[i])
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -1023,7 +1092,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(dbc *DBClient, buf *obuf.ByteBu
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *obuf.ByteBuf) ([]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ByteBuf) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1049,7 +1118,7 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *DBClient, buf *obuf
 			continue
 		}
 
-		val, err := serde.readDataValue(dbc, buf, itemtype)
+		val, err := serde.readDataValue(buf, itemtype)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
@@ -1076,24 +1145,24 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 // refreshGlobalPropertiesIfRequired iterates through all the fields
 // of the binserde header. If any of the fieldIds are NOT in the GlobalProperties
 // map of the current ODatabase object, then the GlobalProperties are
-// stale and need to be refresh (this likely means CREATE PROPERTY statements
+// stale and need to be refreshed (this likely means CREATE PROPERTY statements
 // were recently issued).
 //
 // If the GlobalProperties data is stale, then it must be refreshed, so
 // refreshGlobalProperties is called.
 //
-func refreshGlobalPropertiesIfRequired(dbc *DBClient, hdr header) error {
-	if dbc.GetCurrDB() == nil {
+func (serde ORecordSerializerV0) refreshGlobalPropertiesIfRequired(hdr header) error {
+	if serde.dbc.GetCurrDB() == nil {
 		return nil
 	}
-	if dbc.GetCurrDB().GlobalProperties == nil {
+	if serde.dbc.GetCurrDB().GlobalProperties == nil {
 		return nil
 	}
 	for _, prop := range hdr.properties {
 		if prop.name == nil {
-			_, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			_, ok := serde.dbc.GetCurrDB().GlobalProperties[int(prop.id)]
 			if !ok {
-				return refreshGlobalProperties(dbc)
+				return refreshGlobalProperties(serde.dbc)
 			}
 		}
 	}

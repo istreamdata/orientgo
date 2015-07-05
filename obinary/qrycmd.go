@@ -461,7 +461,7 @@ func serializeSimpleSQLParams(dbc *DBClient, params []string) ([]byte, error) {
 	// 	return nil, oerror.NewTrace(err)
 	// }
 	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
-	serializedBytes, err := serde.Serialize(doc)
+	serializedBytes, err := serde.Serialize(dbc, doc)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}

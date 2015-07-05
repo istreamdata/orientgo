@@ -38,7 +38,7 @@ func CreateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
 
 	// this writes the serialized record to dbc.buf
-	serializedBytes, err := serde.Serialize(doc)
+	serializedBytes, err := serde.Serialize(dbc, doc)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}

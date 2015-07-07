@@ -149,40 +149,35 @@ func (serde ORecordSerializerV0) Serialize(dbc *DBClient, doc *oschema.ODocument
 	serdebuf := obuf.NewWriteBuffer(80) // holds only the serialized value
 
 	// write the serialization version in so that the buffer size math works
-	// we will remove it at the end
 	err := rw.WriteByte(serdebuf, 0)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
-	err = varint.WriteString(serdebuf, doc.Classname)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-	ogl.Debugf("serdebuf A: %v\n", serdebuf.Bytes()) // DEBUG
-
-	ogl.Debugf("doc A: %v\n", doc) // DEBUG
-	err = serde.writeSerializedRecord(serdebuf, doc)
+	err = serde.serializeDocument(serdebuf, doc)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
 
 	return serdebuf.Bytes(), nil
+}
 
-	// // append the serialized record onto the primary buffer
-	// bs := serdebuf.Bytes()
-	// ogl.Debugf("serdebuf B: %v\n", bs) // DEBUG
-	// n, err := buf.Write(bs[1:])        // remove the version byte at the beginning
-	// if err != nil {
-	// 	return oerror.NewTrace(err)
-	// }
-	// if n != len(bs)-1 {
-	// 	_, file, line, _ := runtime.Caller(0)
-	// 	return fmt.Errorf("ERROR: file: %s: line %d: Incorrect number of bytes written to bytes buffer. Expected %d; Actual %d",
-	// 		file, line, len(bs)-1, n)
-	// }
+//
+// serializeDocument writes the classname and the serialized record
+// (header and data sections) of the ODocument to the obuf.WriteBuf.
+//
+// Because this method writes the classname but NOT the serialization
+// version, this method is safe for recursive calls for EMBEDDED types.
+//
+func (serde ORecordSerializerV0) serializeDocument(wbuf *obuf.WriteBuf, doc *oschema.ODocument) error {
+	err := varint.WriteString(wbuf, doc.Classname)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	ogl.Debugf("serdebuf A: %v\n", wbuf.Bytes()) // DEBUG
+	ogl.Debugf("doc A: %v\n", doc)               // DEBUG
 
-	// return nil
+	return serde.writeSerializedRecord(wbuf, doc)
 }
 
 func (serde ORecordSerializerV0) SerializeClass(doc *oschema.ODocument) ([]byte, error) {
@@ -197,10 +192,28 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 	nfields := len(doc.FieldNames())
 	ptrPos := make([]int, 0, nfields) // position in buf where data ptr int needs to be written
 
+	currDB := serde.dbc.GetCurrDB()
+	oclass, ok := currDB.Classes[doc.Classname]
+
 	docFields := doc.GetFields()
 	for _, fld := range docFields {
-		// globalProp, ok := serde.dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+		var oprop *oschema.OProperty
+		if ok {
+			oprop = oclass.Properties[fld.Name]
+		}
 
+		// DEBUG
+		ogl.Debugf("doc = %v\n", doc)
+		ogl.Debugf("oclass = %v\n", oclass)
+		ogl.Debugf("oprop = %v\n", oprop)
+		if oclass != nil {
+			ogl.Debugf("oclass.Properties = %v\n", oclass.Properties)
+		}
+		ogl.Debugf("globalProperties = %v\n", currDB.GlobalProperties)
+		ogl.Debugln("- ++++++++++++++++++ -")
+		// END DEBUG
+
+		// FROM THE JAVA CLIENT:
 		// if (properties[i] != null) {
 		//   OVarIntSerializer.write(bytes, (properties[i].getId() + 1) * -1);
 		//   if (properties[i].getType() != OType.ANY)
@@ -211,27 +224,29 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 		//   writeString(bytes, entry.getKey());
 		//   pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);
 
-		// if ok {
-		// 	// if property is known in the global
-		// 	OVarIntSerializer.write(bytes, (properties[i].getId()+1)*-1)
+		if oprop != nil {
+			// if property is known in the global properties, then
+			// just write its encoded id
+			varint.EncodeAndWriteVarInt32(wbuf, encodeFieldIdForHeader(oprop.ID))
+			ptrPos = append(ptrPos, wbuf.Len())
+			wbuf.Skip(4)
+			// Note: no need to write property type when writing property ID
 
-		// } else {
-		// property Name
-		err = varint.WriteString(wbuf, fld.Name)
-		if err != nil {
-			return oerror.NewTrace(err)
+		} else {
+			// property Name
+			err = varint.WriteString(wbuf, fld.Name)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
+			ptrPos = append(ptrPos, wbuf.Len())
+			wbuf.Skip(4)
+
+			// property Type
+			err = rw.WriteByte(wbuf, fld.Typ)
+			if err != nil {
+				return oerror.NewTrace(err)
+			}
 		}
-		ptrPos = append(ptrPos, wbuf.Len())
-		wbuf.Skip(4)
-
-		// property Type
-		err = rw.WriteByte(wbuf, fld.Typ)
-		if err != nil {
-			return oerror.NewTrace(err)
-		}
-		// }
-		// // /// END NEW
-
 	}
 	wbuf.WriteByte(0) // End of Header sentinel
 
@@ -253,32 +268,6 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 	return nil
 }
 
-func convertToInt32(value interface{}) (int32, error) {
-	v1, ok := value.(int32)
-	if ok {
-		return v1, nil
-	}
-	v2, ok := value.(int)
-	if ok {
-		return int32(v2), nil
-	}
-
-	return int32(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.INTEGER, ActualValue: value}
-}
-
-func convertToInt64(value interface{}) (int64, error) {
-	v1, ok := value.(int64)
-	if ok {
-		return v1, nil
-	}
-	v2, ok := value.(int)
-	if ok {
-		return int64(v2), nil
-	}
-
-	return int64(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.LONG, ActualValue: value}
-}
-
 //
 // writeDataValue is part of the Serialize functionality
 // TODO: change name to writeSingleValue ?
@@ -293,26 +282,33 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		ogl.Debugf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
 	case oschema.INTEGER:
 		var i32val int32
-		i32val, err = convertToInt32(value)
+		i32val, err = toInt32(value)
 		if err == nil {
 			err = varint.EncodeAndWriteVarInt32(buf, i32val)         // TODO: are serialized integers ALWAYS varint encoded?
 			ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", i32val) // DEBUG
 		}
 	case oschema.SHORT:
+		// TODO: needs toInt16 conversion fn
 		err = varint.EncodeAndWriteVarInt32(buf, int32(value.(int16)))
 		ogl.Debugf("DEBUG SHORT: -writeDataVal val: %v\n", value.(int16)) // DEBUG
+
 	case oschema.LONG:
 		var i64val int64
-		i64val, err = convertToInt64(value)
+		i64val, err = toInt64(value)
 		if err == nil {
 			err = varint.EncodeAndWriteVarInt64(buf, i64val)          // TODO: are serialized longs ALWAYS varint encoded?
 			ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", i64val) // DEBUG
 		}
 	case oschema.FLOAT:
-		err = rw.WriteFloat(buf, value.(float32))
-		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value.(float32)) // DEBUG
+		var f32 float32
+		f32, err = toFloat32(value)
+		if err == nil {
+			err = rw.WriteFloat(buf, f32)
+		}
+		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value) // DEBUG
 
 	case oschema.DOUBLE:
+		// TODO: needs toInt64 conversion fn
 		err = rw.WriteDouble(buf, value.(float64))
 		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
 
@@ -329,14 +325,8 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		ogl.Debugf("DEBUG BINARY: -writeDataVal val: %v\n", value.([]byte)) // DEBUG
 
 	case oschema.EMBEDDED:
-		fmt.Println("EMBEDDED >> BEFORE ")
-		var serializedDoc []byte
-		serializedDoc, err = serde.Serialize(nil, value.(*oschema.ODocument))
-		if err == nil {
-			fmt.Printf("EMBEDDED >> DURING serializedDoc: %v\n", serializedDoc)
-			err = rw.WriteBytes(buf, serializedDoc)
-		}
-		fmt.Println("EMBEDDED >> AFTER ")
+		err = serde.serializeDocument(buf, value.(*oschema.ODocument))
+		ogl.Debugf("DEBUG EMBEDDED: -writeDataVal val: %v\n", value) // DEBUG
 
 	case oschema.EMBEDDEDLIST:
 		// val, err = serde.readEmbeddedCollection(buf)
@@ -1128,17 +1118,55 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ByteBuf) ([]in
 	return ary, nil
 }
 
-func encodeFieldIdForHeader(id int32) []byte {
-	// TODO: impl me
-	// formula for encoding is:
-	// zigzagEncode( (propertyId+1) * -1 )
-	// and then turn in varint []byte
-	return nil
+func toFloat32(value interface{}) (float32, error) {
+	switch value.(type) {
+	case float32:
+		return value.(float32), nil
+	case float64:
+		return float32(value.(float64)), nil
+	case int:
+		return float32(value.(int)), nil
+	case int32:
+		return float32(value.(int32)), nil
+	case int64:
+		return float32(value.(int64)), nil
+	default:
+		return 0, oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.FLOAT, ActualValue: value}
+	}
+}
+
+func toInt32(value interface{}) (int32, error) {
+	v1, ok := value.(int32)
+	if ok {
+		return v1, nil
+	}
+	v2, ok := value.(int)
+	if ok {
+		return int32(v2), nil
+	}
+
+	return int32(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.INTEGER, ActualValue: value}
+}
+
+func toInt64(value interface{}) (int64, error) {
+	v1, ok := value.(int64)
+	if ok {
+		return v1, nil
+	}
+	v2, ok := value.(int)
+	if ok {
+		return int64(v2), nil
+	}
+
+	return int64(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.LONG, ActualValue: value}
+}
+
+func encodeFieldIdForHeader(id int32) int32 {
+	return (id + 1) * -1
 }
 
 func decodeFieldIdInHeader(decoded int32) int32 {
-	propertyId := (decoded * -1) - 1
-	return propertyId
+	return (decoded * -1) - 1
 }
 
 //

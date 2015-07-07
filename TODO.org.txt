@@ -86,3 +86,6 @@ Issues:
 
 New REQUEST_TYPES in latest version of binary protocol ...
 
+Multi-threading testing => properties look ups
+
+Handling of OType.ANY

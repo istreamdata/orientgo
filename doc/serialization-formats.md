@@ -137,12 +137,15 @@ Serialization of EMBEDDED
 8, 110, 97, 109, 101, 0, 0, 0, 66, 7,  6, 97, 103, 101, 0, 0, 0, 69, 1,  8, 99, 97, 115, 104, 0, 0, 0, 70, 4,  0,  4, 100, 100, 88, 66, 22, -21, -123]
 
 
- V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8   5   D   i    n    g    o
-[0, 10, 68, 97, 108, 101, 107, 8, 110, 97, 109, 101, 0, 0, 0, 23, 7, 95, 0, 0, 0, 30, 0,  12, 100, 97, 108, 101, 107, 56, 10, 68, 105, 110, 103, 111,
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  
+[0, 10, 68, 97, 108, 101, 107, 8, 110, 97, 109, 101, 0, 0, 0, 23, 7, 95, 0, 0, 0, 30, 0,  12, 100, 97, 108, 101, 107, 56, 
 
-4   n    a   m    e   <-- ptr --> TYP  3   a   g    e   <-- ptr --> TYP EOH  2   f    o    o  vint
-8, 110, 97, 109, 101, 0, 0, 0, 56, 7,  6, 97, 103, 101, 0, 0, 0, 60, 1,  0,  6, 102, 111, 111, 88]
+ 5   D   i    n    g    o   4   n    a   m    e   <-- ptr --> TYP  3   a   g    e   <-- ptr --> TYP EOH  2   f    o    o  vint
+10, 68, 105, 110, 103, 111, 8, 110, 97, 109, 101, 0, 0, 0, 56, 7,  6, 97, 103, 101, 0, 0, 0, 60, 1,  0,  6, 102, 111, 111, 88]
 
+
+      C  a  t
+[0 6 67 97 116 8 110 97 109 101 0 0 0 25 7 6 97 103 101 0 0 0 34 3 0 16 77 97 114 121 76 117 108 117 94]
 
 [0, 10, 68, 97, 108, 101, 107, 8, 110, 97, 109, 101, 0, 0, 0, 23, 7, 95, 0, 0, 0, 30, 0, 12, 100, 97, 108, 101, 107, 56, 10, 68, 105, 110, 103, 111, 8, 110, 97, 109, 101, 0, 0, 0, 56, 7, 6, 97, 103, 101, 0, 0, 0, 60, 1, 0, 6, 102, 111, 111, 88]
 
@@ -152,3 +155,67 @@ Serialization of EMBEDDED
 
 
 
+; ogonori full bytes
+createRecord bytes to server: [31 0 0 6 145 0 12 0 0 0 66 0 10 68 97 108 101 107 8 110 97 109 101 0 0 0 23 7 95 0 0 0 30 0 12 100 97 108 101 107 56 0 0 0 32 0 10 68 105 110 103 111 8 110 97 109 101 0 0 0 27 7 6 97 103 101 0 0 0 31 1 0 6 102 111 111 94 100 0]
+
+
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  ##############  
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  23  7  95  0  0  0  30  0   12  100  97  108  101  107  56  0  0  0  32  0
+[0  1    2   3   4    5    6   7   8    9   10   11 12 13 14  15  16 17  18 19 20 21  22  23  24   25  26   27   28   29  30 31 32 33  34  ]
+
+
+ 5   D   i    n    g    o   4   n    a   m    e   <-- ptr --> TYP  3   a   g    e   <-- ptr --> TYP EOH  2   f    o    o  vint
+10  68  105  110  103  111  8  110  97  109  101  0  0  0  27  7   6  97  103  101  0  0  0  31  1  0    6  102  111  111  88]
+                                                           ##                                ##
+
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8   
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  23  7  95  0  0  0  30  0   12  100  97  108  101  107  56  
+
+                            8  110  97  109  101  0  0  0  50  7   6  97  103  101  0  0  0  54  1   0   6  102  111  111  88]
+
+>>> curr
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  23  7  95  0  0  0  30  0   12  100  97  108  101  107  56  
+
+ 5   D   i    n    g    o   4   n    a   m    e   <-- ptr --> TYP  3   a   g    e   <-- ptr --> TYP EOH  3   f    o    o  vint
+10  68  105  110  103  111  8  110  97  109  101  0  0  0  56  7   6  97  103  101  0  0  0  60  1  0    6  102  111  111  88]
+>>> END CURR
+
+ 5   D   i    n    g    o   4   n    a   m    e   <-- ptr --> TYP  3   a   g    e   <-- ptr --> TYP EOH  3   f    o    o  vint
+10, 68, 105, 110, 103, 111, 8, 110, 97, 109, 101, 0, 0, 0, 56, 7,  6, 97, 103, 101, 0, 0, 0, 60, 1,  0,  6, 102, 111, 111, 88]
+
+
+
+  V    5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  ##############  
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  23  7  95  0  0  0  30  0   12  100  97  108  101  107  56  0  0  0  32  0
+                                                                                                                       *
+[0  1    2   3   4    5    6   7   8    9   10   11 12 13 14  15  16 17  18 19 20 21  22  23  24   25  26   27   28   29  30 31 32 33  34  ]
+
+
+
+
+
+2015-07-06 08:10:33:969 INFO  /127.0.0.1:45174 - Read byte: 31 [OChannelBinaryServer]
+2015-07-06 08:10:33:969 INFO  /127.0.0.1:45174 - Reading int (4 bytes)... [OChannelBinaryServer]
+2015-07-06 08:10:33:969 INFO  /127.0.0.1:45174 - Read int: 1679 [OChannelBinaryServer]
+2015-07-06 08:10:33:969 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Reading short (2 bytes)... [OChannelBinaryServer]
+2015-07-06 08:10:33:969 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Read short: 12 [OChannelBinaryServer]
+2015-07-06 08:10:33:969 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Read chunk lenght: 66 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Reading 66 bytes... [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Read 66 bytes: 
+Dalename_
+           dalek8 
+Dingnameagefoo^ [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Reading byte (1 byte)... [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Read byte: 100 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Reading byte (1 byte)... [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Read byte: 0 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing byte (1 byte): 0 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing int (4 bytes): 1679 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing short (2 bytes): 12 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing long (8 bytes): 9 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing int (4 bytes): 5 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Writing int (4 bytes): 0 [OChannelBinaryServer]
+2015-07-06 08:10:33:970 INFO  {db=ogonoriTest} /127.0.0.1:45174 - Flush [OChannelBinaryServer]
+2015-07-06 08:10:33:985 INFO  /127.0.0.1:45174 - Reading byte (1 byte)... [OChannelBinaryServer]

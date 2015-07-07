@@ -1656,7 +1656,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	tildeRID := docs[0].RID
 
-	/* ---[ Try EMBEDDED ]--- */
+	/* ---[ Test EMBEDDED ]--- */
 
 	sql = `CREATE PROPERTY Cat.embeddedCat EMBEDDED`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -1680,7 +1680,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("yowler", embCat.GetField("name").Value.(string))
 	Equals(int(13), toInt(embCat.GetField("age").Value))
 
-	/* ---[ Try LINKLIST ]--- */
+	/* ---[ Test LINKLIST ]--- */
 
 	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
 	retval, docs, err = obinary.SQLCommand(dbc, sql)
@@ -2226,15 +2226,13 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 }
 func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
-	sql := "CREATE PROPERTY Cat.embrec EMBEDDED"
+	sql := "CREATE PROPERTY Cat.embcat EMBEDDED"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
-	defer removeProperty(dbc, "Cat", "embrec")
+	defer removeProperty(dbc, "Cat", "embcat")
 
-	// /* ---[ FieldWithType ]--- */
-	// str := "four, five, six, pick up sticks"
-	// bindata := []byte(str)
+	/* ---[ FieldWithType ]--- */
 
 	embcat := oschema.NewDocument("Cat")
 	embcat.Field("name", "MaryLulu").
@@ -2243,7 +2241,10 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	cat := oschema.NewDocument("Cat")
 	cat.Field("name", "Willard").
 		Field("age", 4).
-		FieldWithType("embrec", embcat, oschema.EMBEDDED)
+		FieldWithType("embcat", embcat, oschema.EMBEDDED)
+
+	err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
+	Ok(err)
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
@@ -2260,8 +2261,94 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	Equals(1, len(docs))
 
 	catFromQuery := docs[0]
+	Equals("Willard", catFromQuery.GetField("name").Value.(string))
+	Equals(4, toInt(catFromQuery.GetField("age").Value))
+	Equals(byte(oschema.EMBEDDED), catFromQuery.GetField("embcat").Typ)
 
-	fmt.Printf("%v\n", catFromQuery)
+	embCatFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	Assert(embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
+	Assert(embCatFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
+	Assert(embCatFromQuery.Version < 0, "Version should be unset")
+	Equals(2, len(embCatFromQuery.FieldNames()))
+	Equals(47, toInt(embCatFromQuery.GetField("age").Value))
+	Equals("MaryLulu", embCatFromQuery.GetField("name").Value.(string))
+
+	/* ---[ Field No Type Specified ]--- */
+
+	embcat = oschema.NewDocument("Cat")
+	embcat.Field("name", "Tsunami").
+		Field("age", 33).
+		Field("purebreed", false)
+
+	cat = oschema.NewDocument("Cat")
+	cat.Field("name", "Cara").
+		Field("age", 3).
+		Field("embcat", embcat)
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	Assert(int(embcat.RID.ClusterID) < int(0), "embedded RID should be NOT filled in")
+	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery = docs[0]
+	Equals("Cara", catFromQuery.GetField("name").Value.(string))
+	Equals(3, toInt(catFromQuery.GetField("age").Value))
+	Equals(byte(oschema.EMBEDDED), catFromQuery.GetField("embcat").Typ)
+
+	embCatFromQuery = catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	Assert(embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
+	Assert(embCatFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
+	Assert(embCatFromQuery.Version < 0, "Version should be unset")
+	Equals("Cat", embCatFromQuery.Classname)
+	Equals(3, len(embCatFromQuery.FieldNames()))
+	Equals(33, toInt(embCatFromQuery.GetField("age").Value))
+	Equals("Tsunami", embCatFromQuery.GetField("name").Value.(string))
+	Equals(false, embCatFromQuery.GetField("purebreed").Value.(bool))
+
+	/* ---[ Embedded with New Classname (not in DB) ]--- */
+
+	moonpie := oschema.NewDocument("Moonpie")
+	moonpie.Field("sku", "AB425827ACX3").
+		Field("allnatural", false).
+		FieldWithType("oz", 6.5, oschema.FLOAT)
+
+	cat = oschema.NewDocument("Cat")
+	cat.Field("name", "LeCara").
+		Field("age", 7).
+		Field("embcat", moonpie)
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery = docs[0]
+	Equals("LeCara", catFromQuery.GetField("name").Value.(string))
+	Equals(7, toInt(catFromQuery.GetField("age").Value))
+	Equals(byte(oschema.EMBEDDED), catFromQuery.GetField("embcat").Typ)
+
+	moonpieFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	Assert(moonpieFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
+	Assert(moonpieFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
+	Assert(moonpieFromQuery.Version < 0, "Version should be unset")
+	Equals("", moonpieFromQuery.Classname) // it throws out the classname => TODO: check serialized binary on this
+	Equals(3, len(moonpieFromQuery.FieldNames()))
+	Equals("AB425827ACX3", moonpieFromQuery.GetField("sku").Value)
+	Equals(float32(6.5), moonpieFromQuery.GetField("oz").Value.(float32))
+	Equals(false, moonpieFromQuery.GetField("allnatural").Value.(bool))
 }
 
 func createRecordsWithBINARYType(dbc *obinary.DBClient) {
@@ -2747,17 +2834,35 @@ func explore() {
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	docs, err := obinary.SQLQuery(dbc, "select from Dingo", "")
+	err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
 	Ok(err)
-	fmt.Printf("%v\n", docs)
 
-	emb := `{name: "fergie", emb: {"@type": "d", "@class":"Cat", "name":"goonie", "age":3}}`
-	// emb := `{emb: {"@type": "d", "name":"gibbler", "age":13}}`
-	// emb := `{emb: {"@type":"b", "bytes":"silver"}}`
-	retval, idocs, err := obinary.SQLCommand(dbc, "insert into Dingo content "+emb)
+	dingo := oschema.NewDocument("Dingo")
+	dingo.FieldWithType("name", "foo", oschema.STRING).
+		FieldWithType("age", 44, oschema.INTEGER)
+
+	cat := oschema.NewDocument("Dalek")
+	cat.Field("name", "dalek8").
+		FieldWithType("sow", dingo, oschema.EMBEDDED)
+
+	// ogl.SetLevel(ogl.DEBUG)
+
+	fmt.Println(" CREATE with EMBCAT")
+	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-	fmt.Printf("emb retval: %v\n", retval)
-	fmt.Printf("emb idocs: %v\n", idocs)
+	Pause("DINGOb : ")
+
+	// docs, err := obinary.SQLQuery(dbc, "select from Dingo", "")
+	// Ok(err)
+	// fmt.Printf("%v\n", docs)
+
+	// emb := `{name: "fergie", emb: {"@type": "d", "@class":"Cat", "name":"goonie", "age":3}}`
+	// // emb := `{emb: {"@type": "d", "name":"gibbler", "age":13}}`
+	// // emb := `{emb: {"@type":"b", "bytes":"silver"}}`
+	// retval, idocs, err := obinary.SQLCommand(dbc, "insert into Dingo content "+emb)
+	// Ok(err)
+	// fmt.Printf("emb retval: %v\n", retval)
+	// fmt.Printf("emb idocs: %v\n", idocs)
 
 	// dalek77 := oschema.NewDocument("Dalek")
 	// dalek77.Field("name", "dalek77").Field("episode", 77).FieldWithType("miller-time", time.Now(), oschema.DATETIME)

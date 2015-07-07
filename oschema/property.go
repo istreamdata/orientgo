@@ -1,7 +1,7 @@
 package oschema
 
 //
-// OProperty roughly corresponds to OProperty in Java client.
+// OProperty roughly corresponds to OProperty in the Java client.
 // It represents a property of a class in OrientDB.
 // A property represents the metadata of a field. A field (OField)
 // is the actual data of a field in an ODocument.

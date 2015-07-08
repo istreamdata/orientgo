@@ -173,7 +173,7 @@ createRecord bytes to server: [31 0 0 6 145 0 12 0 0 0 66 0 10 68 97 108 101 107
 
                             8  110  97  109  101  0  0  0  50  7   6  97  103  101  0  0  0  54  1   0   6  102  111  111  88]
 
->>> curr
+>>> OLD curr
  V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  
 [0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  23  7  95  0  0  0  30  0   12  100  97  108  101  107  56  
 
@@ -192,7 +192,76 @@ createRecord bytes to server: [31 0 0 6 145 0 12 0 0 0 66 0 10 68 97 108 101 107
 [0  1    2   3   4    5    6   7   8    9   10   11 12 13 14  15  16 17  18 19 20 21  22  23  24   25  26   27   28   29  30 31 32 33  34  ]
 
 
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  ?  <-- ptr --> EOH   6   d    a   l    e    k    8  
+ V   5   D   a   l    e    k   4   n    a   m    e   <-- ptr --> TYP  3   s    o    w   <-- ptr --> TYP EOH   6   d    a   l    e    k    8  
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  27  7   6  115  111  119  0  0  0  34  9   0   12  100  97  108  101  107  56
 
+ 5   D   i    n    g    o   24   c   o    l    o    r    o    n    a   t    r     o   n   <-- ptr --> TYP
+10  68  105  110  103  111  24  99  111  108  111  114  111  110  97  116  114  111  110  0  0  0  76  7  
+
+11  c    o    u    p    o    n    V   a   l    u    e   <-- ptr --> TYP EOH  3   f    o    o  vint
+22  99  111  117  112  111  110  86  97  108  117  101  0  0  0  80  1  0    6  102  111  111  88]
+
+
+>>>> START CURR: ogonori
+[0  12  68  97  108  101  107  66  8  110  97  109  101  0  0  0  28  7  6  115  111  119  0  0  0  35  9  0  12  100  97  108  101  107  66  10  68  105  110  103  111  6  98  97  114  0  0  0  62  7  10  115  97  108  97  100  0  0  0  66  1  0  6  102  111  111  88]
+
+>> latest with NAME and TYPE for all!!
+[0  10  68  97  108  101  107  8  110  97  109  101  0  0  0  37  7  26  101  109  98  101  100  100  101  100  68  105  110  103  111  0  0  0  44  9  0  12  100  97  108  101  107  51  10  68  105  110  103  111  6  102  111  111  0  0  0  71  7  10  115  97  108  97  100  0  0  0  75  1  0  6  98  97  114  88]
+
+Read byte: 31 [OChannelBinaryServer]
+Reading int (4 bytes)... [OChannelBinaryServer]
+Read int: 1929 [OChannelBinaryServer]
+27.0.0.1:46537 - Reading short (2 bytes)... [OChannelBinaryServer]
+27.0.0.1:46537 - Read short: -1 [OChannelBinaryServer]
+27.0.0.1:46537 - Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+27.0.0.1:46537 - Read chunk lenght: 67 [OChannelBinaryServer]
+27.0.0.1:46537 - Reading 67 bytes... [OChannelBinaryServer]
+27.0.0.1:46537 - Read 67 bytes: 
+                                                                                 Daleknamesow#	
+                                                                                                        dalekB
+Dingobar>
+saladBfooX [OChannelBinaryServer]
+27.0.0.1:46537 - Reading byte (1 byte)... [OChannelBinaryServer]
+27.0.0.1:46537 - Read byte: 100 [OChannelBinaryServer]
+27.0.0.1:46537 - Reading byte (1 byte)... [OChannelBinaryServer]
+27.0.0.1:46537 - Read byte: 0 [OChannelBinaryServer]
+27.0.0.1:46537 - Writing byte (1 byte): 0 [OChannelBinaryServer]     <- OK/SUCCESS
+27.0.0.1:46537 - Writing int (4 bytes): 1929 [OChannelBinaryServer]  <- session-id
+27.0.0.1:46537 - Writing short (2 bytes): 3 [OChannelBinaryServer]   <- cluster-id
+27.0.0.1:46537 - Writing long (8 bytes): 2 [OChannelBinaryServer]    <- cluster-pos
+27.0.0.1:46537 - Writing int (4 bytes): 1 [OChannelBinaryServer]     <- version
+27.0.0.1:46537 - Writing int (4 bytes): 0 [OChannelBinaryServer]     <- count-of-collection-changes
+27.0.0.1:46537 - Flush [OChannelBinaryServer]
+>>>>>>> END CURR ogonori
+
+
+>>> JAVA
+Reading byte (1 byte)... [OChannelBinaryServer]
+Read byte: 31 [OChannelBinaryServer]
+Reading int (4 bytes)... [OChannelBinaryServer]
+Read int: 1931 [OChannelBinaryServer]
+27.0.0.1:46542 - Reading short (2 bytes)... [OChannelBinaryServer]
+27.0.0.1:46542 - Read short: -1 [OChannelBinaryServer]
+27.0.0.1:46542 - Reading chunk of bytes. Reading chunk length as int (4 bytes)... [OChannelBinaryServer]
+27.0.0.1:46542 - Read chunk lenght: 65 [OChannelBinaryServer]
+27.0.0.1:46542 - Reading 65 bytes... [OChannelBinaryServer]
+27.0.0.1:46542 - Read 65 bytes: 
+                                                                                 Daleknamesow#	
+                                                                                                        dalek8
+Dingobar<age@fooB [OChannelBinaryServer]
+Reading byte (1 byte)... [OChannelBinaryServer]
+Read byte: 100 [OChannelBinaryServer]
+Reading byte (1 byte)... [OChannelBinaryServer]
+Read byte: 0 [OChannelBinaryServer]
+Writing byte (1 byte): 0 [OChannelBinaryServer]
+Writing int (4 bytes): 1931 [OChannelBinaryServer]
+Writing short (2 bytes): 13 [OChannelBinaryServer]
+Writing long (8 bytes): 0 [OChannelBinaryServer]
+Writing int (4 bytes): 1 [OChannelBinaryServer]
+Writing int (4 bytes): 0 [OChannelBinaryServer]
+Flush [OChannelBinaryServer]
+>>>> END JAVA version
 
 
 2015-07-06 08:10:33:969 INFO  /127.0.0.1:45174 - Read byte: 31 [OChannelBinaryServer]

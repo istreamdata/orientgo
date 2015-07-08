@@ -202,24 +202,13 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 			oprop = oclass.Properties[fld.Name]
 		}
 
-		// DEBUG
-		ogl.Debugf("doc = %v\n", doc)
-		ogl.Debugf("oclass = %v\n", oclass)
-		ogl.Debugf("oprop = %v\n", oprop)
-		if oclass != nil {
-			ogl.Debugf("oclass.Properties = %v\n", oclass.Properties)
-		}
-		ogl.Debugf("globalProperties = %v\n", currDB.GlobalProperties)
-		ogl.Debugln("- ++++++++++++++++++ -")
-		// END DEBUG
-
 		// FROM THE JAVA CLIENT:
 		// if (properties[i] != null) {
 		//   OVarIntSerializer.write(bytes, (properties[i].getId() + 1) * -1);
 		//   if (properties[i].getType() != OType.ANY)
 		//     pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE);
 		//   else
-		//     pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);
+		//     pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);   // TODO: why does ANY required an additional byte?
 		// } else {
 		//   writeString(bytes, entry.getKey());
 		//   pos[i] = bytes.alloc(OIntegerSerializer.INT_SIZE + 1);

@@ -2243,8 +2243,8 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 		Field("age", 4).
 		FieldWithType("embcat", embcat, oschema.EMBEDDED)
 
-	err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
-	Ok(err)
+	// err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
+	// Ok(err)
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
@@ -2349,6 +2349,39 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	Equals("AB425827ACX3", moonpieFromQuery.GetField("sku").Value)
 	Equals(float32(6.5), moonpieFromQuery.GetField("oz").Value.(float32))
 	Equals(false, moonpieFromQuery.GetField("allnatural").Value.(bool))
+
+	noclass := oschema.NewDocument("")
+	noclass.Field("sku", "AB425827ACX3222").
+		Field("allnatural", true).
+		FieldWithType("oz", 6.5, oschema.DOUBLE)
+
+	cat = oschema.NewDocument("Cat")
+	cat.Field("name", "LeCarre").
+		Field("age", 87).
+		Field("embcat", noclass)
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	defer func() {
+		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+	}()
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+
+	catFromQuery = docs[0]
+	Equals("LeCarre", catFromQuery.GetField("name").Value.(string))
+	Equals(87, toInt(catFromQuery.GetField("age").Value))
+	Equals(byte(oschema.EMBEDDED), catFromQuery.GetField("embcat").Typ)
+
+	noclassFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	Equals("", noclassFromQuery.Classname) // it throws out the classname => TODO: check serialized binary on this
+	Equals(3, len(noclassFromQuery.FieldNames()))
+	Equals("AB425827ACX3222", noclassFromQuery.GetField("sku").Value)
+	Equals(float64(6.5), noclassFromQuery.GetField("oz").Value.(float64))
+	Equals(true, noclassFromQuery.GetField("allnatural").Value.(bool))
+
 }
 
 func createRecordsWithBINARYType(dbc *obinary.DBClient) {
@@ -2834,23 +2867,24 @@ func explore() {
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
+	_, _, err = obinary.SQLCommand(dbc, "Create class Dalek")
 	Ok(err)
 
+	// err = obinary.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
+	// Ok(err)
+
 	dingo := oschema.NewDocument("Dingo")
-	dingo.FieldWithType("name", "foo", oschema.STRING).
-		FieldWithType("age", 44, oschema.INTEGER)
+	dingo.FieldWithType("foo", "bar", oschema.STRING).
+		FieldWithType("salad", 44, oschema.INTEGER)
 
 	cat := oschema.NewDocument("Dalek")
-	cat.Field("name", "dalek8").
-		FieldWithType("sow", dingo, oschema.EMBEDDED)
+	cat.Field("name", "dalek3").
+		FieldWithType("embeddedDingo", dingo, oschema.EMBEDDED)
 
 	// ogl.SetLevel(ogl.DEBUG)
 
-	fmt.Println(" CREATE with EMBCAT")
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-	Pause("DINGOb : ")
 
 	// docs, err := obinary.SQLQuery(dbc, "select from Dingo", "")
 	// Ok(err)

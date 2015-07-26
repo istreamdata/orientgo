@@ -318,13 +318,13 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		ogl.Debugf("DEBUG EMBEDDED: -writeDataVal val: %v\n", value) // DEBUG
 
 	case oschema.EMBEDDEDLIST:
-		// val, err = serde.readEmbeddedCollection(buf)
-		// ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", val) // DEBUG
-		panic("ORecordSerializerV0#writeDataValue EMBEDDEDLIST NOT YET IMPLEMENTED")
+		err = serde.serializeEmbeddedCollection(buf, value.(oschema.OEmbeddedList))
+		ogl.Debugf("DEBUG EMBD-LIST: -writeDataVal val: %v\n", value) // DEBUG
+
 	case oschema.EMBEDDEDSET:
-		// val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
-		// ogl.Debugf("DEBUG EMBD-SET: -writeDataVal val: %v\n", val) // DEBUG
-		panic("ORecordSerializerV0#writeDataValue EMBEDDEDSET NOT YET IMPLEMENTED")
+		err = serde.serializeEmbeddedCollection(buf, value.(oschema.OEmbeddedList))
+		ogl.Debugf("DEBUG EMBD-SET: -writeDataVal val: %v\n", value) // DEBUG
+
 	case oschema.EMBEDDEDMAP:
 		err = serde.writeEmbeddedMap(buf, value.(oschema.OEmbeddedMap))
 		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(oschema.OEmbeddedMap))
@@ -1066,6 +1066,41 @@ func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ByteBuf) (map[string]
 }
 
 //
+// Serialization format for EMBEDDEDLIST and EMBEDDEDSET
+// +-------------+------------+-------------------+
+// |size:varInt  | type:Otype | items:item_data[] |
+// +-------------+------------+-------------------+
+//
+// The item_data data structure is:
+// +------------------+--------------+
+// | data_type:OType  | data:byte[]  |
+// +------------------+--------------+
+//
+func (serde ORecordSerializerV0) serializeEmbeddedCollection(buf *obuf.WriteBuf, ls oschema.OEmbeddedList) error {
+	err := varint.EncodeAndWriteVarInt32(buf, int32(ls.Len()))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	// following the lead of the Java driver, you don't specify the type of the list overall
+	// (I tried to and it doesn't work, at least with OrientDB-2.0.1)
+	err = rw.WriteByte(buf, oschema.ANY)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	for _, val := range ls.Values() {
+		buf.WriteByte(ls.Type())
+		err = serde.writeDataValue(buf, val, ls.Type())
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
+	return nil
+}
+
+//
 // readEmbeddedCollection handles both EMBEDDEDLIST and EMBEDDEDSET types.
 // Java client API:
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
@@ -1081,7 +1116,7 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ByteBuf) ([]in
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
-	if datatype != oschema.ANY {
+	if datatype != oschema.ANY { // OrientDB server always returns ANY
 		// NOTE: currently the Java client doesn't handle this case either, so safe for now
 		panic(fmt.Sprintf("ReadEmbeddedList got a datatype %v - currently that datatype is not supported", datatype))
 	}

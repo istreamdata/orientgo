@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"net/http"
@@ -23,7 +21,6 @@ import (
 
 	"github.com/quux00/ogonori/constants"
 	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/obinary/binserde/varint"
 	"github.com/quux00/ogonori/oerror"
 	"github.com/quux00/ogonori/ogl"
 	"github.com/quux00/ogonori/oschema"
@@ -1680,6 +1677,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("yowler", embCat.GetField("name").Value.(string))
 	Equals(int(13), toInt(embCat.GetField("age").Value))
 
+	_, _, err = obinary.SQLCommand(dbc, "delete from Cat where name = 'Spotty'")
+	Ok(err)
+
 	/* ---[ Test LINKLIST ]--- */
 
 	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
@@ -2224,13 +2224,178 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	/* ---[ Test EMBEDDEDRECORD Serialization ]--- */
 	createRecordsWithEmbeddedRecords(dbc)
 
+	/* ---[ Test EMBEDDEDLIST, EMBEDDEDSET Serialization ]--- */
+	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDLIST)
+	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDSET)
+
 }
+
+func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.ODataType) {
+	sql := "CREATE PROPERTY Cat.embstrings " + oschema.ODataTypeNameFor(embType) + " string"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	sql = "CREATE PROPERTY Cat.emblongs " + oschema.ODataTypeNameFor(embType) + " LONG"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	sql = "CREATE PROPERTY Cat.embcats " + oschema.ODataTypeNameFor(embType) + " Cat"
+	_, _, err = obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	// ------
+	// housekeeping
+
+	defer removeProperty(dbc, "Cat", "embstrings")
+	defer removeProperty(dbc, "Cat", "emblongs")
+	defer removeProperty(dbc, "Cat", "embcats")
+	ridsToDelete := make([]string, 0, 10)
+
+	defer func() {
+		for _, delrid := range ridsToDelete {
+			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
+			Ok(err)
+		}
+	}()
+
+	// ------
+
+	embStrings := []interface{}{"one", "two", "three"}
+	stringList := oschema.NewEmbeddedSlice(embStrings, oschema.STRING)
+
+	Equals(byte(oschema.STRING), byte(stringList.Type()))
+	Equals("two", stringList.Values()[1])
+
+	cat := oschema.NewDocument("Cat")
+	cat.Field("name", "Yugo").
+		Field("age", 33).
+		FieldWithType("embstrings", stringList, byte(embType)) // FIXME
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
+
+	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
+
+	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery := docs[0]
+	Equals(33, toInt(catFromQuery.GetField("age").Value))
+	embstringsFieldFromQuery := catFromQuery.GetField("embstrings")
+
+	Equals("embstrings", embstringsFieldFromQuery.Name)
+	Equals(byte(embType), embstringsFieldFromQuery.Typ)
+	embListFromQuery, ok := embstringsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	Equals(3, len(embListFromQuery))
+	Equals("one", embListFromQuery[0])
+	Equals("two", embListFromQuery[1])
+	Equals("three", embListFromQuery[2])
+
+	// ------
+
+	embLongs := []interface{}{int64(22), int64(4444), int64(constants.MaxInt64 - 12)}
+	int64List := oschema.NewEmbeddedSlice(embLongs, oschema.LONG)
+
+	Equals(byte(oschema.LONG), int64List.Type())
+	Equals(int64(22), int64List.Values()[0])
+
+	cat = oschema.NewDocument("Cat")
+	cat.Field("name", "Barry").
+		Field("age", 40).
+		FieldWithType("emblongs", int64List, byte(embType))
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
+
+	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+	Equals(40, toInt(catFromQuery.GetField("age").Value))
+	emblongsFieldFromQuery := catFromQuery.GetField("emblongs")
+
+	Equals("emblongs", emblongsFieldFromQuery.Name)
+	Equals(byte(embType), emblongsFieldFromQuery.Typ)
+	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	Equals(3, len(embListFromQuery))
+	Equals(int64(22), embListFromQuery[0])
+	Equals(int64(4444), embListFromQuery[1])
+	Equals(int64(constants.MaxInt64-12), embListFromQuery[2])
+
+	// ------
+
+	// how to insert into embcats from the OrientDB console:
+	// insert into Cat set name="Draydon", age=223, embcats=[{"@class":"Cat", "name": "geary", "age":33}, {"@class":"Cat", "name": "joan", "age": 44}]
+
+	embCat0 := oschema.NewDocument("Cat")
+	embCat0.Field("name", "Gordo").Field("age", 40)
+
+	embCat1 := oschema.NewDocument("Cat")
+	embCat1.Field("name", "Joan").Field("age", 14).Field("caretaker", "Marcia")
+
+	embCats := []interface{}{embCat0, embCat1}
+	embcatList := oschema.NewEmbeddedSlice(embCats, oschema.EMBEDDED)
+
+	cat = oschema.NewDocument("Cat")
+	cat.Field("name", "Draydon").
+		Field("age", 3).
+		FieldWithType("embcats", embcatList, byte(embType))
+
+	err = obinary.CreateRecord(dbc, cat)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
+
+	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+	Equals(3, toInt(catFromQuery.GetField("age").Value))
+	embcatsFieldFromQuery := catFromQuery.GetField("embcats")
+
+	Equals("embcats", embcatsFieldFromQuery.Name)
+	Equals(byte(embType), embcatsFieldFromQuery.Typ)
+	embListFromQuery, ok = embcatsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	Equals(2, len(embListFromQuery))
+	sort.Sort(ByEmbeddedCatName(embListFromQuery))
+
+	embCatDoc0, ok := embListFromQuery[0].(*oschema.ODocument)
+	Assert(ok, "Cast to *oschema.ODocument failed")
+	embCatDoc1, ok := embListFromQuery[1].(*oschema.ODocument)
+	Assert(ok, "Cast to *oschema.ODocument failed")
+
+	Equals("Gordo", embCatDoc0.GetField("name").Value)
+	Equals(40, toInt(embCatDoc0.GetField("age").Value))
+	Equals("Joan", embCatDoc1.GetField("name").Value)
+	Equals("Marcia", embCatDoc1.GetField("caretaker").Value)
+
+}
+
 func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.embcat EMBEDDED"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
 
 	defer removeProperty(dbc, "Cat", "embcat")
+
+	ridsToDelete := make([]string, 0, 10)
+	defer func() {
+		for _, delrid := range ridsToDelete {
+			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
+			Ok(err)
+		}
+	}()
 
 	/* ---[ FieldWithType ]--- */
 
@@ -2252,9 +2417,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	Assert(int(embcat.RID.ClusterID) < int(0), "embedded RID should be NOT filled in")
 	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
-	}()
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
 	docs, err := obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Ok(err)
@@ -2287,9 +2450,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
-	}()
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
 	Assert(int(embcat.RID.ClusterID) < int(0), "embedded RID should be NOT filled in")
 	Assert(cat.RID.ClusterID >= 0, "RID should be filled in")
@@ -2327,9 +2488,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
-	}()
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Ok(err)
@@ -2362,9 +2521,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-	defer func() {
-		obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
-	}()
+	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Ok(err)
@@ -2381,7 +2538,6 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	Equals("AB425827ACX3222", noclassFromQuery.GetField("sku").Value)
 	Equals(float64(6.5), noclassFromQuery.GetField("oz").Value.(float64))
 	Equals(true, noclassFromQuery.GetField("allnatural").Value.(bool))
-
 }
 
 func createRecordsWithBINARYType(dbc *obinary.DBClient) {
@@ -2768,6 +2924,23 @@ func (slnk ByRID) Less(i, j int) bool {
 }
 
 // ------
+// sort ODocuments by name field
+
+type ByEmbeddedCatName []interface{}
+
+func (a ByEmbeddedCatName) Len() int {
+	return len(a)
+}
+
+func (a ByEmbeddedCatName) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a ByEmbeddedCatName) Less(i, j int) bool {
+	return a[i].(*oschema.ODocument).GetField("name").Value.(string) < a[j].(*oschema.ODocument).GetField("name").Value.(string)
+}
+
+// ------
 
 func ogonoriTestAgainstOrientDBServer() {
 	var (
@@ -2833,12 +3006,14 @@ func ogonoriTestAgainstOrientDBServer() {
 	// databaseSqlPreparedStmtAPI(conxStr)
 
 	/* ---[ Graph DB ]--- */
-	// // graph database tests
+	// graph database tests
 	// ogl.SetLevel(ogl.WARN)
 	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
 	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
 	// ogl.SetLevel(ogl.NORMAL)
 	// graphCommandsSqlAPI(graphConxStr)
+
+	// ------
 
 	//
 	// experimenting with JSON functionality
@@ -2885,162 +3060,11 @@ func explore() {
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
-
-	// docs, err := obinary.SQLQuery(dbc, "select from Dingo", "")
-	// Ok(err)
-	// fmt.Printf("%v\n", docs)
-
-	// emb := `{name: "fergie", emb: {"@type": "d", "@class":"Cat", "name":"goonie", "age":3}}`
-	// // emb := `{emb: {"@type": "d", "name":"gibbler", "age":13}}`
-	// // emb := `{emb: {"@type":"b", "bytes":"silver"}}`
-	// retval, idocs, err := obinary.SQLCommand(dbc, "insert into Dingo content "+emb)
-	// Ok(err)
-	// fmt.Printf("emb retval: %v\n", retval)
-	// fmt.Printf("emb idocs: %v\n", idocs)
-
-	// dalek77 := oschema.NewDocument("Dalek")
-	// dalek77.Field("name", "dalek77").Field("episode", 77).FieldWithType("miller-time", time.Now(), oschema.DATETIME)
-	// fmt.Println("----------------------------")
-	// fmt.Printf("%v\n", dalek77)
-	// fmt.Println("----------------------------")
-	// err = obinary.CreateRecord(dbc, dalek77)
-	// Ok(err)
-	// fmt.Printf("%v\n", dalek77)
-
-	// const longForm = "Jan 2, 2006 at 3:04pm (MST)"
-	// tm88, _ := time.Parse(longForm, "Feb 3, 2013 at 7:54pm (PST)")
-	// tl88 := tm88.UnixNano() / (1000 * 1000)
-
-	// // ogl.SetLevel(ogl.DEBUG)
-
-	// dalek88 := oschema.NewDocument("Dalek")
-	// dalek88.Field("name", "dalek88").
-	// 	Field("episode", 88).
-	// 	FieldWithType("miller-time", int64(tl88), oschema.DATETIME).
-	// 	Field("mybyte", byte(0x07)).
-	// 	Field("myshort", int16(9993))
-	// fmt.Println("----------------------------")
-	// fmt.Printf("%v\n", dalek88)
-	// fmt.Println("----------------------------")
-	// err = obinary.CreateRecord(dbc, dalek88)
-	// Ok(err)
-	// fmt.Printf("%v\n", dalek88)
-
-	// dalek99 := oschema.NewDocument("Dalek")
-	// dalek99.Field("name", "dalek99").
-	// 	Field("episode", 99).
-	// 	FieldWithType("miller-time", time.Now(), oschema.DATETIME).
-	// 	FieldWithType("birthday", time.Now(), oschema.DATE).
-	// 	FieldWithType("mybyte", byte(6), oschema.BYTE).
-	// 	FieldWithType("myshort", int16(1010), oschema.SHORT)
-	// fmt.Println("----------------------------")
-	// fmt.Printf("%v\n", dalek99)
-	// fmt.Println("----------------------------")
-	// err = obinary.CreateRecord(dbc, dalek99)
-	// Ok(err)
-	// fmt.Printf("%v\n", dalek99)
 }
-
-// var testTable = []struct {
-//     input    []int
-//     expected int
-// }{
-//     {[]int{}, 1},
-//     {[]int{1}, 2},
-//     {[]int{5, 1, 4, 2}, 3},
-//     {[]int{1, 2, 4, 5, 6, 1, 4, 5, 2, 3}, 7},
-// }
 
 type testrange struct {
 	start int64
 	end   int64
-}
-
-func zigzagExhaustiveTest() {
-	runtime.GOMAXPROCS(8)
-
-	var wg sync.WaitGroup
-
-	fnRangeTester := func(fnum int, tr testrange, chfailures chan string) {
-		fmt.Printf("FN %d STARTED\n", fnum)
-		defer wg.Done()
-		buf := new(bytes.Buffer)
-		for i := tr.start; i != tr.end; i++ {
-			buf.Reset()
-
-			in := i
-			zzin := varint.ZigzagEncodeUInt64(in)
-			err := varint.VarintEncode(buf, zzin)
-			if err != nil {
-				chfailures <- fmt.Sprintf("Failed on %d: varintEncode err: %v", i, err)
-			}
-
-			zzout, err := varint.ReadVarIntToUint(buf) // TODO: rename VarIntDecode?
-			if err != nil {
-				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint err: %v", i, err)
-			}
-			if zzin != zzout {
-				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint zzin != zzout: %d != %d", i, zzin, zzout)
-			}
-
-			out := varint.ZigzagDecodeInt64(zzout)
-			if in != out {
-				chfailures <- fmt.Sprintf("Failed on %d: ReadVarIntToUint in != out: %d != %d", i, in, out)
-			}
-		}
-		fmt.Printf("FN %d is DONE\n", fnum)
-	}
-
-	ranges := []testrange{
-		{100000001, 150000001},
-		{200000001, 250000001},
-		{300000001, 350000000},
-		{400000001, 450000000},
-		{500000001, 550000000},
-		{600000001, 650000000},
-		{700000001, 750000000},
-		{800000001, 850000000},
-	}
-
-	// ranges := []testrange{
-	// 	{-9223372036854775808, -6917529027641081856},
-	// 	{-6917529027641081855, -4611686018427387904},
-	// 	{-4611686018427387903, -2305843009213693952},
-	// 	{-2305843009213693951, -1},
-	// 	{0, 2305843009213693952},
-	// 	{2305843009213693953, 4611686018427387904},
-	// 	{4611686018427387905, 6917529027641081855},
-	// 	{6917529027641081856, 9223372036854775807},
-	// }
-
-	// ranges := []testrange{
-	// 	{-9223372036854775808, -9223372036854775808 + 60000001},
-	// 	// {-9223372036854775808 + 50000001, -9223372036854775808 + 60000001},
-	// 	{2305843009213693953, 2305843009213693953 + 50000001},
-	// 	{9223372036854775807 - 50000001, 9223372036854775807},
-	// 	{2305843009213693953, 2305843009213693953 + 50000001},
-	// 	// {600000001, 650000000},
-	// 	// {700000001, 750000000},
-	// 	// {800000001, 850000000},
-	// }
-
-	wg.Add(len(ranges))
-	failchan := make(chan string, 10)
-
-	for i, trange := range ranges {
-		go fnRangeTester(i, trange, failchan)
-	}
-
-	go func() {
-		wg.Wait()
-		close(failchan)
-	}()
-
-	// main thread monitors for failures, waiting for the failchan to be closed
-	for failmsg := range failchan {
-		fmt.Println(failmsg)
-	}
-	fmt.Println("DONE")
 }
 
 //
@@ -3049,7 +3073,6 @@ func zigzagExhaustiveTest() {
 func main() {
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	var xplore = flag.Bool("x", false, "run explore fn")
-	var zigzag = flag.Bool("z", false, "zigzagExhaustiveTest")
 
 	flag.Parse()
 	if *cpuprofile != "" {
@@ -3064,8 +3087,6 @@ func main() {
 
 	if *xplore {
 		explore()
-	} else if *zigzag {
-		zigzagExhaustiveTest()
 	} else {
 		ogonoriTestAgainstOrientDBServer()
 	}

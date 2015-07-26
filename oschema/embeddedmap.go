@@ -36,7 +36,7 @@ type OEmbeddedMap interface {
 //
 // IMPORTANT NOTE: OEmbeddedArrayMap does not properly handle value changes
 // (keys mapping to new values).  They will be appended to the end and the
-// old values will not be removed.  This behavior will be reviewed later.
+// old values will not be removed.  TODO: This behavior will be reviewed later.
 //
 type OEmbeddedArrayMap struct {
 	keys  []string

@@ -22,6 +22,22 @@ The primary focus is of ogonori is to build a Go (golang) client supporting Orie
 *Documentation*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
 
 
+#### [Update: 26-July-2015]
+
+Sorry for a bit of a hiatus - I am in the midst of finding a new job so I've spent the last three weekends preparing for technical interviews.  
+
+
+* Serialization support is now well underway.
+* Have serialization implemented for most basic types (INTEGER, DOUBLE, STRING, BYTE, etc)
+* Have serialization implemented for DATE and DATETIME
+* Have serialization implemented for embedded types: Embedded Records, Embedded Maps, Embedded Lists (and Sets, which are just lists in ogonori)
+* Fixed defect in the varint encoder/decoder. It can now handle all 64 bit numbers (where the varint version expands to 9 or 10 bytes long).
+* Added `obuf.WriteBuf`, a seekable WriteBuffer, which makes serialization (especially recursive serialization) much cleaner than with `bytes.Buffer`.
+
+* **Note:** I have started to create a list of "Help Wanted" features in the GitHub Issues section.  If you want to contribute ogonori, please take a look at that.  As my job search winds down and I get back to ogonori, I will update that with more features/todos.
+
+
+<br>
 #### [Update: 29-May-2015]
 
 __Highlights__

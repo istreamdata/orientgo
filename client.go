@@ -2228,6 +2228,78 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDLIST)
 	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDSET)
 
+	/* ---[ Test Link Serialization ]--- */
+	createRecordsWithLinks(dbc)
+
+}
+
+func createRecordsWithLinks(dbc *obinary.DBClient) {
+	sql := "CREATE PROPERTY Cat.catlink LINK Cat"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer removeProperty(dbc, "Cat", "catlink")
+	ridsToDelete := make([]string, 0, 10)
+
+	defer func() {
+		for _, delrid := range ridsToDelete {
+			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
+			Ok(err)
+		}
+	}()
+
+	// ------
+
+	cat1 := oschema.NewDocument("Cat")
+	cat1.Field("name", "A1").
+		Field("age", 2).
+		Field("caretaker", "Jackie")
+
+	err = obinary.CreateRecord(dbc, cat1)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat1.RID.String())
+
+	cat2 := oschema.NewDocument("Cat")
+	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
+	cat2.Field("name", "A2").
+		Field("age", 3).
+		Field("caretaker", "Jimmy").
+		FieldWithType("catlink", linkToCat1, oschema.LINK)
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat2.RID.String())
+
+	/* ---[ try without FieldWithType ]--- */
+
+	cat3 := oschema.NewDocument("Cat")
+	linkToCat2 := &oschema.OLink{RID: cat2.RID, Record: cat2} // also, only use RID, not record
+	cat3.Field("name", "A3").
+		Field("age", 4).
+		Field("caretaker", "Ralston").
+		Field("catlink", linkToCat2)
+
+	err = obinary.CreateRecord(dbc, cat3)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat3.RID.String())
+
+	// test that they were inserted correctly and come back correctly
+
+	docs, err := obinary.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	Ok(err)
+	Equals(2, len(docs))
+
+	cat2FromQuery := docs[0]
+	Equals("A2", cat2FromQuery.GetField("name").Value)
+	Equals(3, toInt(cat2FromQuery.GetField("age").Value))
+	linkToCat1FromQuery := cat2FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	Equals(linkToCat1FromQuery.RID, cat1.RID)
+
+	cat3FromQuery := docs[1]
+	Equals("A3", cat3FromQuery.GetField("name").Value)
+	Equals(4, toInt(cat3FromQuery.GetField("age").Value))
+	linkToCat2FromQuery := cat3FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	Equals(linkToCat2FromQuery.RID, cat2.RID)
 }
 
 func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.ODataType) {
@@ -2268,8 +2340,13 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 
 	cat := oschema.NewDocument("Cat")
 	cat.Field("name", "Yugo").
-		Field("age", 33).
-		FieldWithType("embstrings", stringList, byte(embType)) // FIXME
+		Field("age", 33)
+
+	if embType == oschema.EMBEDDEDLIST {
+		cat.Field("embstrings", stringList)
+	} else {
+		cat.FieldWithType("embstrings", stringList, byte(embType))
+	}
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)
@@ -2346,8 +2423,13 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 
 	cat = oschema.NewDocument("Cat")
 	cat.Field("name", "Draydon").
-		Field("age", 3).
-		FieldWithType("embcats", embcatList, byte(embType))
+		Field("age", 3)
+
+	if embType == oschema.EMBEDDEDLIST {
+		cat.Field("embcats", embcatList)
+	} else {
+		cat.FieldWithType("embcats", embcatList, byte(embType))
+	}
 
 	err = obinary.CreateRecord(dbc, cat)
 	Ok(err)

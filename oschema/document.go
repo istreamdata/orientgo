@@ -170,7 +170,7 @@ func (doc *ODocument) SetDirty(b bool) {
 // The same *ODocument is returned to allow call chaining.
 //
 func (doc *ODocument) Field(name string, val interface{}) *ODocument {
-	// TODO: need to add more types: EMBEDDEDRECORD, EMBEDDEDLIST, LINK, etc. ...
+	// TODO: need to add more types: LINKSET, LINKLIST, LINKBAG, etc. ...
 	var ftype byte
 	switch val.(type) {
 	case string:
@@ -195,8 +195,12 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 		ftype = DOUBLE
 	case []byte:
 		ftype = BINARY
+	case OEmbeddedList:
+		ftype = EMBEDDEDLIST
 	case OEmbeddedMap:
 		ftype = EMBEDDEDMAP
+	case *OLink:
+		ftype = LINK
 		// TODO: more types need to be added
 	default:
 		ftype = ANY // TODO: no idea if this is correct

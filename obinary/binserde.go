@@ -266,9 +266,11 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 	case oschema.STRING:
 		err = varint.WriteString(buf, value.(string))
 		ogl.Debugf("DEBUG STR: -writeDataVal val: %v\n", value.(string)) // DEBUG
+
 	case oschema.BOOLEAN:
 		err = rw.WriteBool(buf, value.(bool))
 		ogl.Debugf("DEBUG BOOL: -writeDataVal val: %v\n", value.(bool)) // DEBUG
+
 	case oschema.INTEGER:
 		var i32val int32
 		i32val, err = toInt32(value)
@@ -276,6 +278,7 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 			err = varint.EncodeAndWriteVarInt32(buf, i32val)         // TODO: are serialized integers ALWAYS varint encoded?
 			ogl.Debugf("DEBUG INT: -writeDataVal val: %v\n", i32val) // DEBUG
 		}
+
 	case oschema.SHORT:
 		// TODO: needs toInt16 conversion fn
 		err = varint.EncodeAndWriteVarInt32(buf, int32(value.(int16)))
@@ -288,6 +291,7 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 			err = varint.EncodeAndWriteVarInt64(buf, i64val)          // TODO: are serialized longs ALWAYS varint encoded?
 			ogl.Debugf("DEBUG LONG: -writeDataVal val: %v\n", i64val) // DEBUG
 		}
+
 	case oschema.FLOAT:
 		var f32 float32
 		f32, err = toFloat32(value)
@@ -328,9 +332,11 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 	case oschema.EMBEDDEDMAP:
 		err = serde.writeEmbeddedMap(buf, value.(oschema.OEmbeddedMap))
 		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value.(oschema.OEmbeddedMap))
+
 	case oschema.LINK:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue LINK NOT YET IMPLEMENTED")
+		err = serde.writeLink(buf, value.(*oschema.OLink))
+		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value) // DEBUG
+
 	case oschema.LINKLIST:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue LINKLIST NOT YET IMPLEMENTED")
@@ -355,6 +361,34 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		// ANY and TRANSIENT are do nothing ops
 	}
 	return err
+}
+
+//
+// +-----------------+-----------------+
+// |clusterId:varint | recordId:varInt |
+// +-----------------+-----------------+
+//
+func (serde ORecordSerializerV0) writeLink(buf *obuf.WriteBuf, lnk *oschema.OLink) error {
+	err := varint.EncodeAndWriteVarInt32(buf, int32(lnk.RID.ClusterID))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	err = varint.EncodeAndWriteVarInt64(buf, lnk.RID.ClusterPos)
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+	return nil
+}
+
+//
+// +-------------+-------------------+
+// | size:varint | collection:LINK[] |
+// +-------------+-------------------+
+//
+func (serde ORecordSerializerV0) writeLinkList(buf *obuf.WriteBuf, lnk *oschema.OLink) error {
+	// TODO: impl me
+	return nil
 }
 
 //

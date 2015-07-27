@@ -13,8 +13,8 @@ import "fmt"
 // the ODocument that the RID points to.
 //
 type OLink struct {
-	RID    ORID
-	Record *ODocument
+	RID    ORID       // required
+	Record *ODocument // optional
 }
 
 func (lnk *OLink) String() string {

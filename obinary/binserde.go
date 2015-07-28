@@ -346,11 +346,13 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		ogl.Debugf("DEBUG LINKSET:  val %v\n", value) // DEBUG
 
 	case oschema.LINKMAP:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue LINKMAP NOT YET IMPLEMENTED")
+		err = serde.writeLinkMap(buf, value.(map[string]*oschema.OLink))
+		ogl.Debugf("DEBUG LINKMAP:  val %v\n", value) // DEBUG
+
 	case oschema.BYTE:
 		err = rw.WriteByte(buf, value.(byte))
 		ogl.Debugf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
+
 	case oschema.CUSTOM:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
@@ -397,6 +399,56 @@ func (serde ORecordSerializerV0) writeLinkList(buf *obuf.WriteBuf, lnks []*osche
 
 	for _, lnk := range lnks {
 		err = serde.writeLink(buf, lnk)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
+	return nil
+}
+
+//
+// The link map allow to have as key the types:
+// STRING,SHORT,INTEGER,LONG,BYTE,DATE,DECIMAL,DATETIME,DATA,FLOAT,DOUBLE
+// the serialization of the linkmap is a list of entry
+//
+// +----------------------------+
+// | values:link_map_entry[]    |
+// +----------------------------+
+//
+// link_map_entry structure
+//
+// +--------------+------------------+------------+
+// | keyType:byte | keyValue:byte[]  | link:LINK  |
+// +--------------+------------------+------------+
+//
+// keyType -  is the type of the key, can be only one of the listed type.
+// keyValue - the value of the key serialized with the serializer of the type
+// link -     the link value stored with the formant of a LINK
+//
+// TODO: right now only supporting string keys, but need to suppor the
+//       datatypes listed above (also for EmbeddedMaps)
+//
+func (serde ORecordSerializerV0) writeLinkMap(buf *obuf.WriteBuf, m map[string]*oschema.OLink) error {
+	// number of entries in the map
+	err := varint.EncodeAndWriteVarInt32(buf, int32(len(m)))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	for k, v := range m {
+		// keyType
+		err = rw.WriteByte(buf, byte(oschema.STRING))
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		// keyValue
+		err = varint.WriteString(buf, k)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+		// link
+		err = serde.writeLink(buf, v)
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
@@ -825,7 +877,7 @@ func (serde ORecordSerializerV0) readLinkMap(buf io.Reader) (map[string]*oschema
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		if datatype != byte(7) {
+		if datatype != byte(oschema.STRING) {
 			// FIXME: even though all keys are currently strings, it would be easy to allow other types
 			//        using serde.readDataValue(dbc, buf, serde)
 			return nil, fmt.Errorf("readLinkMap: datatype for key is NOT string but type: %v", datatype)

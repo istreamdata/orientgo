@@ -2233,13 +2233,79 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 	/* ---[ Test LinkList/LinkSet Serialization ]--- */
 	createRecordsWithLinkLists(dbc, oschema.LINKLIST)
-	createRecordsWithLinkLists(dbc, oschema.LINKSET)
+	// createRecordsWithLinkLists(dbc, oschema.LINKSET)
 
+	/* ---[ Test LinkMap Serialization ]--- */
 	createRecordsWithLinkMap(dbc)
 }
 
 func createRecordsWithLinkMap(dbc *obinary.DBClient) {
-	// ???????/
+	sql := `CREATE PROPERTY Cat.notes LINKMAP`
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer removeProperty(dbc, "Cat", "notes")
+	ridsToDelete := make([]string, 0, 4)
+
+	defer func() {
+		for _, delrid := range ridsToDelete {
+			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
+			Ok(err)
+		}
+	}()
+
+	cat1 := oschema.NewDocument("Cat")
+	cat1.Field("name", "A1").
+		Field("age", 1).
+		Field("caretaker", "Jackie")
+
+	err = obinary.CreateRecord(dbc, cat1)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat1.RID.String())
+
+	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
+	linkmap := map[string]*oschema.OLink{"bff": linkToCat1}
+
+	cat2 := oschema.NewDocument("Cat")
+	cat2.Field("name", "A2").
+		Field("age", 2).
+		Field("caretaker", "Ben").
+		FieldWithType("notes", linkmap, oschema.LINKMAP)
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat2.RID.String())
+
+	linkmap["7th-best-friend"] = &oschema.OLink{RID: cat2.RID}
+
+	cat3 := oschema.NewDocument("Cat")
+	cat3.Field("name", "A3").
+		Field("age", 3).
+		Field("caretaker", "Konrad").
+		FieldWithType("notes", linkmap, oschema.LINKMAP)
+
+	err = obinary.CreateRecord(dbc, cat3)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat3.RID.String())
+
+	docs, err := obinary.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	Ok(err)
+	Equals(2, len(docs))
+
+	cat2FromQuery := docs[0]
+	Equals("A2", cat2FromQuery.GetField("name").Value)
+	Equals(2, toInt(cat2FromQuery.GetField("age").Value))
+	notesFromQuery := cat2FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(1, len(notesFromQuery))
+	Equals(notesFromQuery["bff"].RID, cat1.RID)
+
+	cat3FromQuery := docs[1]
+	Equals("A3", cat3FromQuery.GetField("name").Value)
+	Equals(3, toInt(cat3FromQuery.GetField("age").Value))
+	notesFromQuery = cat3FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(2, len(notesFromQuery))
+	Equals(notesFromQuery["bff"].RID, cat1.RID)
+	Equals(notesFromQuery["7th-best-friend"].RID, cat2.RID)
 }
 
 func createRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataType) {

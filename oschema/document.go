@@ -201,6 +201,8 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 		ftype = EMBEDDEDMAP
 	case *OLink:
 		ftype = LINK
+	case []*OLink:
+		ftype = LINKLIST
 		// TODO: more types need to be added
 	default:
 		ftype = ANY // TODO: no idea if this is correct

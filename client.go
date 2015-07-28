@@ -2231,6 +2231,90 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	/* ---[ Test Link Serialization ]--- */
 	createRecordsWithLinks(dbc)
 
+	/* ---[ Test LinkList/LinkSet Serialization ]--- */
+	createRecordsWithLinkLists(dbc, oschema.LINKLIST)
+	createRecordsWithLinkLists(dbc, oschema.LINKSET)
+
+	createRecordsWithLinkMap(dbc)
+}
+
+func createRecordsWithLinkMap(dbc *obinary.DBClient) {
+	// ???????/
+}
+
+func createRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataType) {
+	sql := "CREATE PROPERTY Cat.catfriends " + oschema.ODataTypeNameFor(collType) + " Cat"
+	_, _, err := obinary.SQLCommand(dbc, sql)
+	Ok(err)
+
+	defer removeProperty(dbc, "Cat", "catfriends")
+	ridsToDelete := make([]string, 0, 4)
+
+	defer func() {
+		for _, delrid := range ridsToDelete {
+			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
+			Ok(err)
+		}
+	}()
+
+	cat1 := oschema.NewDocument("Cat")
+	cat1.Field("name", "A1").
+		Field("age", 1).
+		Field("caretaker", "Jackie")
+
+	err = obinary.CreateRecord(dbc, cat1)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat1.RID.String())
+
+	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
+
+	cat2 := oschema.NewDocument("Cat")
+	cat2.Field("name", "A2").
+		Field("age", 2).
+		Field("caretaker", "Ben").
+		FieldWithType("catfriends", []*oschema.OLink{linkToCat1}, byte(collType))
+
+	err = obinary.CreateRecord(dbc, cat2)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat2.RID.String())
+
+	linkToCat2 := &oschema.OLink{RID: cat2.RID}
+	twoCatLinks := []*oschema.OLink{linkToCat1, linkToCat2}
+
+	cat3 := oschema.NewDocument("Cat")
+	cat3.Field("name", "A3")
+
+	if collType == oschema.LINKSET {
+		cat3.FieldWithType("catfriends", twoCatLinks, byte(collType))
+	} else {
+		cat3.Field("catfriends", twoCatLinks)
+	}
+	cat3.Field("age", 3).
+		Field("caretaker", "Conrad")
+
+	err = obinary.CreateRecord(dbc, cat3)
+	Ok(err)
+	ridsToDelete = append(ridsToDelete, cat3.RID.String())
+
+	docs, err := obinary.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	Ok(err)
+	Equals(2, len(docs))
+
+	cat2FromQuery := docs[0]
+	Equals("A2", cat2FromQuery.GetField("name").Value)
+	Equals(2, toInt(cat2FromQuery.GetField("age").Value))
+	catFriendsFromQuery := cat2FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	Equals(1, len(catFriendsFromQuery))
+	Equals(catFriendsFromQuery[0].RID, cat1.RID)
+
+	cat3FromQuery := docs[1]
+	Equals("A3", cat3FromQuery.GetField("name").Value)
+	Equals(3, toInt(cat3FromQuery.GetField("age").Value))
+	catFriendsFromQuery = cat3FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	Equals(2, len(catFriendsFromQuery))
+	sort.Sort(ByRID(catFriendsFromQuery))
+	Equals(catFriendsFromQuery[0].RID, cat1.RID)
+	Equals(catFriendsFromQuery[1].RID, cat2.RID)
 }
 
 func createRecordsWithLinks(dbc *obinary.DBClient) {

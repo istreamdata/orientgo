@@ -335,14 +335,16 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 
 	case oschema.LINK:
 		err = serde.writeLink(buf, value.(*oschema.OLink))
-		ogl.Debugf("DEBUG EMBEDDEDMAP:  val %v\n", value) // DEBUG
+		ogl.Debugf("DEBUG LINK:  val %v\n", value) // DEBUG
 
 	case oschema.LINKLIST:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue LINKLIST NOT YET IMPLEMENTED")
+		err = serde.writeLinkList(buf, value.([]*oschema.OLink))
+		ogl.Debugf("DEBUG LINKLIST:  val %v\n", value) // DEBUG
+
 	case oschema.LINKSET:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue LINKSET NOT YET IMPLEMENTED")
+		err = serde.writeLinkList(buf, value.([]*oschema.OLink))
+		ogl.Debugf("DEBUG LINKSET:  val %v\n", value) // DEBUG
+
 	case oschema.LINKMAP:
 		// TODO: impl me
 		panic("ORecordSerializerV0#writeDataValue LINKMAP NOT YET IMPLEMENTED")
@@ -386,8 +388,20 @@ func (serde ORecordSerializerV0) writeLink(buf *obuf.WriteBuf, lnk *oschema.OLin
 // | size:varint | collection:LINK[] |
 // +-------------+-------------------+
 //
-func (serde ORecordSerializerV0) writeLinkList(buf *obuf.WriteBuf, lnk *oschema.OLink) error {
-	// TODO: impl me
+func (serde ORecordSerializerV0) writeLinkList(buf *obuf.WriteBuf, lnks []*oschema.OLink) error {
+	// number of entries in the list
+	err := varint.EncodeAndWriteVarInt32(buf, int32(len(lnks)))
+	if err != nil {
+		return oerror.NewTrace(err)
+	}
+
+	for _, lnk := range lnks {
+		err = serde.writeLink(buf, lnk)
+		if err != nil {
+			return oerror.NewTrace(err)
+		}
+	}
+
 	return nil
 }
 

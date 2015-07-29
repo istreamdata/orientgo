@@ -5,7 +5,7 @@ package obuf
 
 import "errors"
 
-// TODO: this be merged into obuf.ByteBuf?
+var ErrWrite error = errors.New("Unable to write all bytes")
 
 //
 // WriteBuf implements the Writer interface.
@@ -96,13 +96,10 @@ func (b *WriteBuf) Len() int {
 //
 // Capacity returns the number of bytes in the original byte slice
 // regardless of current write position.
-// TODO: is this method needed?
 //
 func (b *WriteBuf) Capacity() int {
 	return len(b.bs)
 }
-
-var ErrWrite error = errors.New("Unable to write all bytes")
 
 //
 // Write writes len(p) bytes from p to the underlying data stream. It

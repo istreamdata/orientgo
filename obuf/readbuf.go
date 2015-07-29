@@ -64,9 +64,8 @@ func (b *ReadBuf) Len() int {
 //
 // FullLen returns the number of bytes in the original byte slice
 // regardless of current read position.
-// TODO: is this method needed?
 //
-func (b *ReadBuf) FullLen() int {
+func (b *ReadBuf) Capacity() int {
 	return len(b.bs)
 }
 

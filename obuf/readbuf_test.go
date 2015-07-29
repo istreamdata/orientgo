@@ -79,7 +79,7 @@ func TestLenAndFullLen(t *testing.T) {
 	bs := []byte("hello there 123")
 	buf := NewReadBuffer(bs)
 	equals(t, len(bs), buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 
 	rdbs := make([]byte, 1)
 	n, err := buf.Read(rdbs)
@@ -87,12 +87,12 @@ func TestLenAndFullLen(t *testing.T) {
 	equals(t, string(rdbs[0:n]), "h")
 
 	equals(t, len(bs)-1, buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 
 	buf.Skip(2)
 
 	equals(t, len(bs)-3, buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 
 	rdbs = make([]byte, 2)
 	n, err = buf.Read(rdbs)
@@ -102,7 +102,7 @@ func TestLenAndFullLen(t *testing.T) {
 	buf.Seek(1)
 
 	equals(t, len(bs)-1, buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 
 	rdbs = make([]byte, 10)
 	n, err = buf.Read(rdbs)
@@ -110,11 +110,11 @@ func TestLenAndFullLen(t *testing.T) {
 	equals(t, string(rdbs[0:n]), "ello there")
 
 	equals(t, len(bs)-11, buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 
-	buf.Seek(uint(buf.FullLen()))
+	buf.Seek(uint(buf.Capacity()))
 	equals(t, 0, buf.Len())
-	equals(t, len(bs), buf.FullLen())
+	equals(t, len(bs), buf.Capacity())
 }
 
 func TestSeek(t *testing.T) {
@@ -141,12 +141,12 @@ func TestSeek(t *testing.T) {
 	ok(t, err)
 	equals(t, string(rdbs[0:n]), "here 1")
 
-	buf.Seek(uint(buf.FullLen() - 1))
+	buf.Seek(uint(buf.Capacity() - 1))
 	n, err = buf.Read(rdbs)
 	ok(t, err)
 	equals(t, string(rdbs[0:n]), "y")
 
-	buf.Seek(uint(buf.FullLen()))
+	buf.Seek(uint(buf.Capacity()))
 	_, err = buf.Read(rdbs)
 	assert(t, err == io.EOF, "should have EOF")
 }

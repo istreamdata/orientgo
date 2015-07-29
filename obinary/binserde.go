@@ -430,7 +430,7 @@ func (serde ORecordSerializerV0) writeLinkList(buf *obuf.WriteBuf, lnks []*osche
 // keyValue - the value of the key serialized with the serializer of the type
 // link -     the link value stored with the formant of a LINK
 //
-// TODO: right now only supporting string keys, but need to suppor the
+// TODO: right now only supporting string keys, but need to support the
 //       datatypes listed above (also for EmbeddedMaps)
 //
 func (serde ORecordSerializerV0) writeLinkMap(buf *obuf.WriteBuf, m map[string]*oschema.OLink) error {
@@ -465,7 +465,6 @@ func (serde ORecordSerializerV0) writeLinkMap(buf *obuf.WriteBuf, m map[string]*
 // writeEmbeddedMap serializes the EMBEDDEDMAP type. Currently, OrientDB only uses string
 // types for the map keys, so that is an assumption of this method as well.
 //
-// TODO: this may not need to be a method -> change to fn ?
 func (serde ORecordSerializerV0) writeEmbeddedMap(buf *obuf.WriteBuf, m oschema.OEmbeddedMap) error {
 	// number of entries in the map
 	err := varint.EncodeAndWriteVarInt32(buf, int32(m.Len()))
@@ -658,6 +657,7 @@ func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte)
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)
 		ogl.Debugf("DEBUG BOOL: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.INTEGER:
 		var i64 int64
 		i64, err = varint.ReadVarIntAndDecode64(buf)
@@ -665,6 +665,7 @@ func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte)
 			val = int32(i64)
 		}
 		ogl.Debugf("DEBUG INT: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.SHORT:
 		var i32 int32
 		i32, err = varint.ReadVarIntAndDecode32(buf)
@@ -672,65 +673,82 @@ func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte)
 			val = int16(i32)
 		}
 		ogl.Debugf("DEBUG SHORT: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.LONG:
 		val, err = varint.ReadVarIntAndDecode64(buf)
 		ogl.Debugf("DEBUG LONG: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.FLOAT:
 		val, err = rw.ReadFloat(buf)
 		ogl.Debugf("DEBUG FLOAT: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.DOUBLE:
 		val, err = rw.ReadDouble(buf)
 		ogl.Debugf("DEBUG DOUBLE: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.DATETIME:
 		// OrientDB DATETIME is precise to the second
 		val, err = serde.readDateTime(buf)
 		ogl.Debugf("DEBUG DATEIME: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.DATE:
 		// OrientDB DATE is precise to the day
 		val, err = serde.readDate(buf)
 		ogl.Debugf("DEBUG DATE: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.STRING:
 		val, err = varint.ReadString(buf)
 		ogl.Debugf("DEBUG STR: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.BINARY:
 		val, err = varint.ReadBytes(buf)
 		ogl.Debugf("DEBUG BINARY: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.EMBEDDED:
 		doc := oschema.NewDocument("")
 		err = serde.Deserialize(nil, doc, buf)
 		val = interface{}(doc)
 		// ogl.Debugf("DEBUG EMBEDDEDREC: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.EMBEDDEDLIST:
 		val, err = serde.readEmbeddedCollection(buf)
 		// ogl.Debugf("DEBUG EMBD-LIST: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.EMBEDDEDSET:
 		val, err = serde.readEmbeddedCollection(buf) // TODO: may need to create a set type as well
 		// ogl.Debugf("DEBUG EMBD-SET: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.EMBEDDEDMAP:
 		val, err = serde.readEmbeddedMap(buf)
 		// ogl.Debugf("DEBUG EMBD-MAP: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.LINK:
 		// a link is two int64's (cluster:record) - we translate it here to a string RID
 		val, err = serde.readLink(buf)
 		ogl.Debugf("DEBUG LINK: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.LINKLIST, oschema.LINKSET:
 		val, err = serde.readLinkList(buf)
 		ogl.Debugf("DEBUG LINK LIST/SET: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.LINKMAP:
 		val, err = serde.readLinkMap(buf)
 		ogl.Debugf("DEBUG LINKMap: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.BYTE:
 		val, err = rw.ReadByte(buf)
 		ogl.Debugf("DEBUG BYTE: +readDataVal val: %v\n", val) // DEBUG
+
+	case oschema.LINKBAG:
+		val, err = serde.readLinkBag(buf)
+		ogl.Debugf("DEBUG LINKBAG: +readDataVal val: %v\n", val) // DEBUG
+
 	case oschema.CUSTOM:
 		// TODO: impl me -> how? when is this used?
 		panic("ORecordSerializerV0#readDataValue CUSTOM NOT YET IMPLEMENTED")
 	case oschema.DECIMAL:
 		// TODO: impl me -> Java client uses BigDecimal for this
 		panic("ORecordSerializerV0#readDataValue DECIMAL NOT YET IMPLEMENTED")
-	case oschema.LINKBAG:
-		val, err = serde.readLinkBag(buf)
-		ogl.Debugf("DEBUG LINKBAG: +readDataVal val: %v\n", val) // DEBUG
 	default:
 		// ANY and TRANSIENT are do nothing ops
 	}

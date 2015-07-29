@@ -8,8 +8,8 @@ import "errors"
 // TODO: this be merged into obuf.ByteBuf?
 
 //
-// WriteBuf implements the Writer interface. It wraps
-// a bytes.Buffer but allows relative Skips (forward)
+// WriteBuf implements the Writer interface.
+// It is a Writer that allows relative Skips (forward)
 // and absolute Seeks (forward and backwards).
 //
 type WriteBuf struct {

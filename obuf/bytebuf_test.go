@@ -8,7 +8,7 @@ import (
 
 func TestRead(t *testing.T) {
 	bs := []byte("hello there")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	rdbs := make([]byte, 5)
 	n, err := buf.Read(rdbs)
 	ok(t, err)
@@ -28,7 +28,7 @@ func TestRead(t *testing.T) {
 
 func TestSkip(t *testing.T) {
 	bs := []byte("hello there 123")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	buf.Skip(2)
 	rdbs := make([]byte, 4)
 	n, err := buf.Read(rdbs)
@@ -45,7 +45,7 @@ func TestSkip(t *testing.T) {
 
 func TestUnreadByte(t *testing.T) {
 	bs := []byte("hello there 123")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	buf.Skip(2)
 	rdbs := make([]byte, 4)
 	n, err := buf.Read(rdbs)
@@ -77,7 +77,7 @@ func TestUnreadByte(t *testing.T) {
 
 func TestLenAndFullLen(t *testing.T) {
 	bs := []byte("hello there 123")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	equals(t, len(bs), buf.Len())
 	equals(t, len(bs), buf.FullLen())
 
@@ -120,7 +120,7 @@ func TestLenAndFullLen(t *testing.T) {
 func TestSeek(t *testing.T) {
 	//            0123456789012345678
 	bs := []byte("hello there 123 xxy")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	buf.Seek(5)
 	rdbs := make([]byte, 6)
 	n, err := buf.Read(rdbs)
@@ -162,7 +162,7 @@ func TestSeekBeyondRangeShouldPanic(t *testing.T) {
 
 	//            012345678901234
 	bs := []byte("hello there 123")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	buf.Seek(22)
 
 	assert(t, false, "should not get here")
@@ -171,7 +171,7 @@ func TestSeekBeyondRangeShouldPanic(t *testing.T) {
 func TestSkipBeyondRangeShouldNotPanicJustReturnEOFOnRead(t *testing.T) {
 	//            012345678901234
 	bs := []byte("hello there 123")
-	buf := NewBuffer(bs)
+	buf := NewReadBuffer(bs)
 	buf.Skip(22)
 
 	rdbs := make([]byte, 6)

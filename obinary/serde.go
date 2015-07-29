@@ -21,7 +21,7 @@ type ORecordSerializer interface {
 	// of the serialized record) should be stripped off (already read) from the
 	// io.Reader being passed in
 	//
-	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ByteBuf) error
+	Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ReadBuf) error
 
 	//
 	// Deserialize reads bytes from the io.Reader and updates the ODocument object

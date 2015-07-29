@@ -376,7 +376,7 @@ func RequestDBList(dbc *DBClient) (map[string]string, error) {
 	}
 
 	serde := dbc.RecordSerDes[int(responseBytes[0])]
-	buf := obuf.NewBuffer(responseBytes[1:])
+	buf := obuf.NewReadBuffer(responseBytes[1:])
 	doc := oschema.NewDocument("")
 	err = serde.Deserialize(dbc, doc, buf)
 	if err != nil {

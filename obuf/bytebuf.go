@@ -5,24 +5,22 @@ package obuf
 
 import "bytes"
 
-// TODO: should ByteBuf be an interface ??
-
 //
-// ByteBuf implements the Reader interface. It wraps
+// ReadBuf implements the Reader interface. It wraps
 // a bytes.Buffer but allows relative Skips (forward)
 // and absolute Seeks (forward and backwards).
 //
-type ByteBuf struct {
+type ReadBuf struct {
 	bs  []byte        // the full byte array
 	buf *bytes.Buffer // buffer walks over the bs slice
 }
 
 //
-// Constructor for creating a new ByteBuf.
+// Constructor for creating a new ReadBuf.
 // bs is the underlying byte array to read from.
 //
-func NewBuffer(bs []byte) *ByteBuf {
-	return &ByteBuf{
+func NewReadBuffer(bs []byte) *ReadBuf {
+	return &ReadBuf{
 		bs:  bs,
 		buf: bytes.NewBuffer(bs),
 	}
@@ -37,7 +35,7 @@ func NewBuffer(bs []byte) *ByteBuf {
 // method will NOT panic. Instead, the next read will just
 // return EOF.
 //
-func (b *ByteBuf) Skip(n uint) {
+func (b *ReadBuf) Skip(n uint) {
 	b.buf.Next(int(n))
 }
 
@@ -48,7 +46,7 @@ func (b *ByteBuf) Skip(n uint) {
 // If n is beyond the end of the underlying byte array, this
 // method will panic.
 //
-func (b *ByteBuf) Seek(n uint) {
+func (b *ReadBuf) Seek(n uint) {
 	nn := int(n)
 	if nn > len(b.bs) {
 		panic("Position beyond the end of the underlying byte slice")
@@ -59,7 +57,7 @@ func (b *ByteBuf) Seek(n uint) {
 //
 // Len returns the number of bytes of the unread portion of the slice
 //
-func (b *ByteBuf) Len() int {
+func (b *ReadBuf) Len() int {
 	return b.buf.Len()
 }
 
@@ -68,7 +66,7 @@ func (b *ByteBuf) Len() int {
 // regardless of current read position.
 // TODO: is this method needed?
 //
-func (b *ByteBuf) FullLen() int {
+func (b *ReadBuf) FullLen() int {
 	return len(b.bs)
 }
 
@@ -78,7 +76,7 @@ func (b *ByteBuf) FullLen() int {
 // has no data to return, err is io.EOF (unless len(p) is zero); otherwise
 // it is nil.
 //
-func (b *ByteBuf) Read(p []byte) (n int, err error) {
+func (b *ReadBuf) Read(p []byte) (n int, err error) {
 	return b.buf.Read(p)
 }
 
@@ -87,6 +85,6 @@ func (b *ByteBuf) Read(p []byte) (n int, err error) {
 // operation. If write has happened since the last read, UnreadByte
 // returns an error.
 //
-func (b *ByteBuf) UnreadByte() error {
+func (b *ReadBuf) UnreadByte() error {
 	return b.buf.UnreadByte()
 }

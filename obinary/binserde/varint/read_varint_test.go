@@ -25,7 +25,7 @@ func TestIsFinalVarIntByte(t *testing.T) {
 
 func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 	bs := []byte{0x39}
-	buf := obuf.NewBuffer(bs)
+	buf := obuf.NewReadBuffer(bs)
 	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
@@ -43,7 +43,7 @@ func TestReadVarInt1ByteRandomInputA(t *testing.T) {
 
 func TestReadVarInt1ByteAllZeros(t *testing.T) {
 	bs := []byte{0x0}
-	buf := obuf.NewBuffer(bs)
+	buf := obuf.NewReadBuffer(bs)
 	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 
@@ -171,7 +171,7 @@ func TestReadVarInt3BytesAllZeros(t *testing.T) {
 
 func TestReadVarInt4BytesRandomInputA(t *testing.T) {
 	bs := []byte{0x8f, 0x8f, 0x8f, 0x70}
-	buf := obuf.NewBuffer(bs)
+	buf := obuf.NewReadBuffer(bs)
 	actualUint, err := ReadVarIntToUint(buf)
 	ok(t, err)
 

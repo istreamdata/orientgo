@@ -29,7 +29,9 @@ import (
 
 //
 // This is a "functional" tester class against a live OrientDB 2.x server
-// I'm using while developing the ogonori OrientDB Go client.
+// I'm using while developing the ogonori OrientDB Go client.  There is
+// "HELP WANTED" issue on GitHub to split this into a more managable piece
+// of code.
 //
 // How to run:
 // OPTION 1: Set schema and data up before hand and only run data statements, not DDL

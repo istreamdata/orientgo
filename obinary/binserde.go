@@ -39,7 +39,7 @@ type ORecordSerializerV0 struct {
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the io.Reader being passed in.
 //
-func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ByteBuf) (err error) {
+func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocument, buf *obuf.ReadBuf) (err error) {
 	if doc == nil {
 		return errors.New("ODocument reference passed into ORecordSerializerBinaryV0.Deserialize was null")
 	}
@@ -301,8 +301,11 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		ogl.Debugf("DEBUG FLOAT: -writeDataVal val: %v\n", value) // DEBUG
 
 	case oschema.DOUBLE:
-		// TODO: needs toInt64 conversion fn
-		err = rw.WriteDouble(buf, value.(float64))
+		var f64 float64
+		f64, err = toFloat64(value)
+		if err == nil {
+			err = rw.WriteDouble(buf, f64)
+		}
 		ogl.Debugf("DEBUG DOUBLE: -writeDataVal val: %v\n", value.(float64)) // DEBUG
 
 	case oschema.DATETIME:
@@ -353,12 +356,13 @@ func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interf
 		err = rw.WriteByte(buf, value.(byte))
 		ogl.Debugf("DEBUG BYTE: -writeDataVal val: %v\n", value.(byte)) // DEBUG
 
-	case oschema.CUSTOM:
-		// TODO: impl me
-		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
 	case oschema.DECIMAL:
 		// TODO: impl me -> Java client uses BigDecimal for this
 		panic("ORecordSerializerV0#writeDataValue DECIMAL NOT YET IMPLEMENTED")
+
+	case oschema.CUSTOM:
+		// TODO: impl me
+		panic("ORecordSerializerV0#writeDataValue CUSTOM NOT YET IMPLEMENTED")
 	case oschema.LINKBAG:
 		panic("ORecordSerializerV0#writeDataValue LINKBAG NOT YET IMPLEMENTED")
 	default:
@@ -644,7 +648,7 @@ func readHeader(buf io.Reader) (header, error) {
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(buf *obuf.ByteBuf, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -950,8 +954,8 @@ func readEmbeddedLinkBag(rdr io.Reader) (*oschema.OLinkBag, error) {
 			buf := rdr.(*bytes.Buffer)
 			buf.UnreadByte()
 
-		case *obuf.ByteBuf:
-			buf := rdr.(*obuf.ByteBuf)
+		case *obuf.ReadBuf:
+			buf := rdr.(*obuf.ReadBuf)
 			buf.UnreadByte()
 
 		default:
@@ -1113,7 +1117,7 @@ func getDataType(val interface{}) byte {
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: change return type to (*oschema.OEmbeddedMap, error) {  ???
-func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ByteBuf) (map[string]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ReadBuf) (map[string]interface{}, error) {
 	numRecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1206,7 +1210,7 @@ func (serde ORecordSerializerV0) serializeEmbeddedCollection(buf *obuf.WriteBuf,
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
 //
-func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ByteBuf) ([]interface{}, error) {
+func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ReadBuf) ([]interface{}, error) {
 	nrecs, err := varint.ReadVarIntAndDecode32(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
@@ -1254,6 +1258,23 @@ func toFloat32(value interface{}) (float32, error) {
 		return float32(value.(int32)), nil
 	case int64:
 		return float32(value.(int64)), nil
+	default:
+		return 0, oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.FLOAT, ActualValue: value}
+	}
+}
+
+func toFloat64(value interface{}) (float64, error) {
+	switch value.(type) {
+	case float64:
+		return value.(float64), nil
+	case float32:
+		return float64(value.(float32)), nil
+	case int:
+		return float64(value.(int)), nil
+	case int32:
+		return float64(value.(int32)), nil
+	case int64:
+		return float64(value.(int64)), nil
 	default:
 		return 0, oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.FLOAT, ActualValue: value}
 	}

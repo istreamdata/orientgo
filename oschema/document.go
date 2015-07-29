@@ -171,7 +171,7 @@ func (doc *ODocument) SetDirty(b bool) {
 //
 func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 	// TODO: need to add more types: LINKSET, LINKLIST, LINKBAG, etc. ...
-	var ftype byte
+	var ftype ODataType
 	switch val.(type) {
 	case string:
 		ftype = STRING
@@ -217,7 +217,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
 // The same *ODocument is returned to allow call chaining.
 //
-func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType byte) *ODocument {
+func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType ODataType) *ODocument {
 	fld := &OField{
 		Name:  name,
 		Value: val,

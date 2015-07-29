@@ -16,18 +16,18 @@ func TestEmbeddedMapLookup(t *testing.T) {
 
 	v, typ := em.Get("wibble")
 	equals(t, "wobble", v)
-	equals(t, byte(STRING), typ)
+	equals(t, STRING, typ)
 
 	v, typ = em.Get("one")
 	equals(t, int32(1), v)
-	equals(t, byte(INTEGER), typ)
+	equals(t, INTEGER, typ)
 
 	v = em.Value("foo")
 	equals(t, "bar", v)
 
 	v, typ = em.Get("NOT THERE")
 	equals(t, nil, v)
-	equals(t, byte(UNKNOWN), typ)
+	equals(t, UNKNOWN, typ)
 }
 
 func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
@@ -45,10 +45,10 @@ func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
 	equals(t, int32(1), vals[2])
 	equals(t, int16(2), vals[3])
 
-	equals(t, byte(STRING), types[0])
-	equals(t, byte(STRING), types[1])
-	equals(t, byte(INTEGER), types[2])
-	equals(t, byte(SHORT), types[3])
+	equals(t, STRING, types[0])
+	equals(t, STRING, types[1])
+	equals(t, INTEGER, types[2])
+	equals(t, SHORT, types[3])
 
 	em.Put("ogonori?", true, BOOLEAN)
 	em.Put("last", []byte("slice"), BINARY)
@@ -59,6 +59,6 @@ func TestEmbeddedMapInsertOrderRetained(t *testing.T) {
 	equals(t, "last", keys[5])
 	equals(t, true, vals[4])
 	equals(t, []byte("slice"), vals[5])
-	equals(t, byte(BOOLEAN), types[4])
-	equals(t, byte(BINARY), types[5])
+	equals(t, BOOLEAN, types[4])
+	equals(t, BINARY, types[5])
 }

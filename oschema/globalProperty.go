@@ -10,7 +10,7 @@ package oschema
 type OGlobalProperty struct {
 	Id   int32
 	Name string
-	Type byte // datatype: from the constants list in oschema/field.go
+	Type ODataType
 }
 
 //
@@ -20,7 +20,7 @@ func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
 	// set defaults
 	id := int32(-1)
 	name := ""
-	typ := byte(ANY) // TODO: this may not be the right choice - might need to create UNKNOWN ?
+	typ := ANY // TODO: this may not be the right choice - might need to create UNKNOWN ?
 
 	if fld := doc.GetField("id"); fld != nil {
 		id = fld.Value.(int32)
@@ -35,7 +35,7 @@ func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
 	return OGlobalProperty{id, name, typ}
 }
 
-func typeFromString(typ string) byte {
+func typeFromString(typ string) ODataType {
 	switch typ {
 	case "BOOLEAN":
 		return BOOLEAN

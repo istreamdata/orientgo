@@ -9,8 +9,8 @@ type OEmbeddedList interface {
 	Len() int
 	Get(idx int) interface{}
 	Add(val interface{})
-	// Add(val interface{}, typ byte) // TODO: we could allow for mixed type lists -> useful?
-	Type() byte
+	// Add(val interface{}, typ ODataType) // TODO: we could allow for mixed type lists -> useful?
+	Type() ODataType
 	Values() []interface{}
 }
 
@@ -25,10 +25,10 @@ type OEmbeddedStringList struct { // FIXME: not yet used -> remove ??
 
 type OEmbeddedSlice struct {
 	slice []interface{}
-	typ   byte
+	typ   ODataType
 }
 
-func NewEmbeddedSlice(v []interface{}, typ byte) OEmbeddedList {
+func NewEmbeddedSlice(v []interface{}, typ ODataType) OEmbeddedList {
 	return &OEmbeddedSlice{slice: v, typ: typ}
 }
 
@@ -44,7 +44,7 @@ func (es *OEmbeddedSlice) Add(val interface{}) {
 	es.slice = append(es.slice, val)
 }
 
-func (es *OEmbeddedSlice) Type() byte {
+func (es *OEmbeddedSlice) Type() ODataType {
 	return es.typ
 }
 

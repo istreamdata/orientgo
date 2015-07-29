@@ -231,7 +231,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 			wbuf.Skip(4)
 
 			// property Type
-			err = rw.WriteByte(wbuf, fld.Typ)
+			err = rw.WriteByte(wbuf, byte(fld.Typ))
 			if err != nil {
 				return oerror.NewTrace(err)
 			}
@@ -261,7 +261,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 // writeDataValue is part of the Serialize functionality
 // TODO: change name to writeSingleValue ?
 //
-func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interface{}, datatype byte) (err error) {
+func (serde ORecordSerializerV0) writeDataValue(buf *obuf.WriteBuf, value interface{}, datatype oschema.ODataType) (err error) {
 	switch datatype {
 	case oschema.STRING:
 		err = varint.WriteString(buf, value.(string))
@@ -499,7 +499,7 @@ func (serde ORecordSerializerV0) writeEmbeddedMap(buf *obuf.WriteBuf, m oschema.
 			dataType = getDataType(vals[i]) // TODO: not sure this is necessary
 		}
 		// write data type of the data
-		err = rw.WriteByte(buf, dataType)
+		err = rw.WriteByte(buf, byte(dataType))
 		if err != nil {
 			return oerror.NewTrace(err)
 		}
@@ -530,7 +530,7 @@ func (serde ORecordSerializerV0) writeEmbeddedMap(buf *obuf.WriteBuf, m oschema.
 type headerProperty struct {
 	id   int32
 	name []byte
-	typ  byte
+	typ  oschema.ODataType
 }
 
 //
@@ -620,7 +620,7 @@ func readHeader(buf io.Reader) (header, error) {
 				return header{}, oerror.IncorrectNetworkRead{Expected: 1, Actual: n}
 			}
 
-			hdrProp := headerProperty{name: data, typ: bsDataType[0]}
+			hdrProp := headerProperty{name: data, typ: oschema.ODataType(bsDataType[0])}
 			hdr.properties = append(hdr.properties, hdrProp)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 
@@ -647,7 +647,7 @@ func readHeader(buf io.Reader) (header, error) {
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
 //
-func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte) (interface{}, error) {
+func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype oschema.ODataType) (interface{}, error) {
 	var (
 		val interface{}
 		err error
@@ -1084,7 +1084,7 @@ func (serde ORecordSerializerV0) readLink(buf io.Reader) (*oschema.OLink, error)
 	return &oschema.OLink{RID: orid}, nil
 }
 
-func getDataType(val interface{}) byte {
+func getDataType(val interface{}) oschema.ODataType {
 	// TODO: not added:
 	// DATETIME
 	// DATE
@@ -1146,7 +1146,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ReadBuf) (map[string]
 	// data structures for reading the map header section, which gives key names and
 	// value types (and value ptrs, but I don't need those for the way I parse the data)
 	keynames := make([]string, nrecs)
-	valtypes := make([]byte, nrecs)
+	valtypes := make([]oschema.ODataType, nrecs)
 
 	// read map headers
 	for i := 0; i < nrecs; i++ {
@@ -1154,7 +1154,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ReadBuf) (map[string]
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
-		if keytype != oschema.STRING {
+		if keytype != byte(oschema.STRING) {
 			panic(fmt.Sprintf("ReadEmbeddedMap got a key datatype %v - but it should be 7 (string)", keytype))
 		}
 		keynames[i], err = varint.ReadString(buf)
@@ -1167,10 +1167,11 @@ func (serde ORecordSerializerV0) readEmbeddedMap(buf *obuf.ReadBuf) (map[string]
 			return nil, oerror.NewTrace(err)
 		}
 
-		valtypes[i], err = rw.ReadByte(buf)
+		b, err := rw.ReadByte(buf)
 		if err != nil {
 			return nil, oerror.NewTrace(err)
 		}
+		valtypes[i] = oschema.ODataType(b)
 	}
 
 	// read map values
@@ -1205,13 +1206,13 @@ func (serde ORecordSerializerV0) serializeEmbeddedCollection(buf *obuf.WriteBuf,
 
 	// following the lead of the Java driver, you don't specify the type of the list overall
 	// (I tried to and it doesn't work, at least with OrientDB-2.0.1)
-	err = rw.WriteByte(buf, oschema.ANY)
+	err = rw.WriteByte(buf, byte(oschema.ANY))
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
 
 	for _, val := range ls.Values() {
-		buf.WriteByte(ls.Type())
+		buf.WriteByte(byte(ls.Type()))
 		err = serde.writeDataValue(buf, val, ls.Type())
 		if err != nil {
 			return oerror.NewTrace(err)
@@ -1237,7 +1238,7 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ReadBuf) ([]in
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
-	if datatype != oschema.ANY { // OrientDB server always returns ANY
+	if datatype != byte(oschema.ANY) { // OrientDB server always returns ANY
 		// NOTE: currently the Java client doesn't handle this case either, so safe for now
 		panic(fmt.Sprintf("ReadEmbeddedList got a datatype %v - currently that datatype is not supported", datatype))
 	}
@@ -1247,7 +1248,11 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(buf *obuf.ReadBuf) ([]in
 	// loop over all recs
 	for i := range ary {
 		// if type is ANY (unknown), then the next byte specifies the type of record to follow
-		itemtype, err := rw.ReadByte(buf)
+		b, err := rw.ReadByte(buf)
+		if err != nil {
+			return nil, oerror.NewTrace(err)
+		}
+		itemtype := oschema.ODataType(b)
 		if itemtype == oschema.ANY {
 			ary[i] = nil // this is what the Java client does
 			continue

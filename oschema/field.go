@@ -10,31 +10,31 @@ type ODataType byte
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
 // TODO: change to type ODataType
 const (
-	BOOLEAN      = 0
-	INTEGER      = 1
-	SHORT        = 2
-	LONG         = 3
-	FLOAT        = 4
-	DOUBLE       = 5
-	DATETIME     = 6
-	STRING       = 7
-	BINARY       = 8 // means []byte
-	EMBEDDED     = 9 // was: EMBEDDEDRECORD
-	EMBEDDEDLIST = 10
-	EMBEDDEDSET  = 11
-	EMBEDDEDMAP  = 12
-	LINK         = 13
-	LINKLIST     = 14
-	LINKSET      = 15
-	LINKMAP      = 16
-	BYTE         = 17
-	TRANSIENT    = 18
-	DATE         = 19
-	CUSTOM       = 20
-	DECIMAL      = 21
-	LINKBAG      = 22
-	ANY          = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
-	UNKNOWN      = 255 // my addition
+	BOOLEAN      ODataType = 0
+	INTEGER      ODataType = 1
+	SHORT        ODataType = 2
+	LONG         ODataType = 3
+	FLOAT        ODataType = 4
+	DOUBLE       ODataType = 5
+	DATETIME     ODataType = 6
+	STRING       ODataType = 7
+	BINARY       ODataType = 8 // means []byte
+	EMBEDDED     ODataType = 9 // was: EMBEDDEDRECORD
+	EMBEDDEDLIST ODataType = 10
+	EMBEDDEDSET  ODataType = 11
+	EMBEDDEDMAP  ODataType = 12
+	LINK         ODataType = 13
+	LINKLIST     ODataType = 14
+	LINKSET      ODataType = 15
+	LINKMAP      ODataType = 16
+	BYTE         ODataType = 17
+	TRANSIENT    ODataType = 18
+	DATE         ODataType = 19
+	CUSTOM       ODataType = 20
+	DECIMAL      ODataType = 21
+	LINKBAG      ODataType = 22
+	ANY          ODataType = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
+	UNKNOWN      ODataType = 255 // my addition
 )
 
 func ODataTypeNameFor(dt ODataType) string {
@@ -97,7 +97,7 @@ func ODataTypeNameFor(dt ODataType) string {
 type OField struct {
 	Id    int32 // TODO: is the size specified in OrientDB docs?
 	Name  string
-	Typ   byte // corresponds to one of the type constants above
+	Typ   ODataType
 	Value interface{}
 }
 

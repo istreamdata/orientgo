@@ -18,14 +18,14 @@ import (
 //
 type OEmbeddedMap interface {
 	Len() int
-	Get(key string) (val interface{}, typ byte)
-	Put(key string, val interface{}, typ byte)
+	Get(key string) (val interface{}, typ ODataType)
+	Put(key string, val interface{}, typ ODataType)
 	Value(key string) interface{}
 
 	Keys() []string
 	Values() []interface{}
-	Types() []byte
-	All() (keys []string, vals []interface{}, types []byte)
+	Types() []ODataType
+	All() (keys []string, vals []interface{}, types []ODataType)
 }
 
 //
@@ -41,7 +41,7 @@ type OEmbeddedMap interface {
 type OEmbeddedArrayMap struct {
 	keys  []string
 	vals  []interface{}
-	types []byte // TODO: change to oschema.DataType
+	types []ODataType
 }
 
 //
@@ -58,7 +58,7 @@ func NewEmbeddedMapWithCapacity(cap int) OEmbeddedMap {
 	return &OEmbeddedArrayMap{
 		keys:  make([]string, 0, cap),
 		vals:  make([]interface{}, 0, cap),
-		types: make([]byte, 0, cap),
+		types: make([]ODataType, 0, cap),
 	}
 }
 
@@ -66,7 +66,7 @@ func (em *OEmbeddedArrayMap) Len() int {
 	return len(em.keys)
 }
 
-func (em *OEmbeddedArrayMap) Put(key string, val interface{}, typ byte) {
+func (em *OEmbeddedArrayMap) Put(key string, val interface{}, typ ODataType) {
 	em.keys = append(em.keys, key)
 	em.vals = append(em.vals, val)
 	em.types = append(em.types, typ)
@@ -77,7 +77,7 @@ func (em *OEmbeddedArrayMap) Value(key string) interface{} {
 	return v
 }
 
-func (em *OEmbeddedArrayMap) Get(key string) (interface{}, byte) {
+func (em *OEmbeddedArrayMap) Get(key string) (interface{}, ODataType) {
 	for i, s := range em.keys {
 		if s == key {
 			return em.vals[i], em.types[i]
@@ -94,11 +94,11 @@ func (em *OEmbeddedArrayMap) Values() []interface{} {
 	return em.vals
 }
 
-func (em *OEmbeddedArrayMap) Types() []byte {
+func (em *OEmbeddedArrayMap) Types() []ODataType {
 	return em.types
 }
 
-func (em *OEmbeddedArrayMap) All() (keys []string, vals []interface{}, types []byte) {
+func (em *OEmbeddedArrayMap) All() (keys []string, vals []interface{}, types []ODataType) {
 	return em.Keys(), em.Values(), em.Types()
 }
 

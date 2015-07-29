@@ -83,20 +83,20 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 			ofield = &oschema.OField{
 				Id:   prop.id,
 				Name: globalProp.Name,
-				Typ:  globalProp.Type,
+				Type: globalProp.Type,
 			}
 
 		} else {
 			ofield = &oschema.OField{
 				Id:   int32(-1),
 				Name: string(prop.name),
-				Typ:  prop.typ,
+				Type: prop.typ,
 			}
 		}
 		// if data ptr is 0 (NULL), then it has no entry/value in the serialized record
 		if header.dataPtrs[i] != 0 {
 			buf.Seek(uint(header.dataPtrs[i] - 1)) // -1 bcs the lead byte (serialization version) was stripped off
-			val, err := serde.readDataValue(buf, ofield.Typ)
+			val, err := serde.readDataValue(buf, ofield.Type)
 			if err != nil {
 				return err
 			}
@@ -231,7 +231,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 			wbuf.Skip(4)
 
 			// property Type
-			err = rw.WriteByte(wbuf, byte(fld.Typ))
+			err = rw.WriteByte(wbuf, byte(fld.Type))
 			if err != nil {
 				return oerror.NewTrace(err)
 			}
@@ -248,7 +248,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 			return oerror.NewTrace(err)
 		}
 		wbuf.Seek(uint(currPos))
-		err = serde.writeDataValue(wbuf, fld.Value, fld.Typ)
+		err = serde.writeDataValue(wbuf, fld.Value, fld.Type)
 		if err != nil {
 			return oerror.NewTrace(err)
 		}

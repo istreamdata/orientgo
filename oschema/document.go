@@ -221,7 +221,7 @@ func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType ODat
 	fld := &OField{
 		Name:  name,
 		Value: val,
-		Typ:   fieldType,
+		Type:  fieldType,
 	}
 
 	if fieldType == DATE {

@@ -1271,9 +1271,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
-	Equals(oschema.STRING, nameField.Typ)
-	Equals(oschema.STRING, caretakerField.Typ)
-	Equals(oschema.INTEGER, ageField.Typ)
+	Equals(oschema.STRING, nameField.Type)
+	Equals(oschema.STRING, caretakerField.Type)
+	Equals(oschema.INTEGER, ageField.Type)
 	Equals("Linus", nameField.Value)
 	Equals(int32(15), ageField.Value)
 	Equals("Michael", caretakerField.Value)
@@ -1298,9 +1298,9 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
 	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
-	Equals(oschema.STRING, nameField.Typ)
-	Equals(oschema.INTEGER, ageField.Typ)
-	Equals(oschema.STRING, caretakerField.Typ)
+	Equals(oschema.STRING, nameField.Type)
+	Equals(oschema.INTEGER, ageField.Type)
+	Equals(oschema.STRING, caretakerField.Type)
 	Equals("Linus", nameField.Value)
 	Equals(int32(15), ageField.Value)
 	Equals("Michael", caretakerField.Value)
@@ -1334,7 +1334,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Keiko", keiko.GetField("name").Value)
 	Equals(int32(10), keiko.GetField("age").Value)
 	Equals("Anna", keiko.GetField("caretaker").Value)
-	Equals(oschema.STRING, keiko.GetField("caretaker").Typ)
+	Equals(oschema.STRING, keiko.GetField("caretaker").Type)
 	Assert(keiko.Version > int32(0), "Version should be greater than zero")
 	Assert(keiko.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
 
@@ -1347,8 +1347,8 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Zed", zed.GetField("name").Value)
 	Equals(int32(3), zed.GetField("age").Value)
 	Equals("Shaw", zed.GetField("caretaker").Value)
-	Equals(oschema.STRING, zed.GetField("caretaker").Typ)
-	Equals(oschema.INTEGER, zed.GetField("age").Typ)
+	Equals(oschema.STRING, zed.GetField("caretaker").Type)
+	Equals(oschema.INTEGER, zed.GetField("age").Type)
 	Assert(zed.Version > int32(0), "Version should be greater than zero")
 	Assert(zed.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
 
@@ -1669,7 +1669,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Spotty", docs[0].GetField("name").Value)
 	Equals(2, int(docs[0].GetField("age").Value.(int32)))
-	Equals(oschema.EMBEDDED, docs[0].GetField("emb").Typ)
+	Equals(oschema.EMBEDDED, docs[0].GetField("emb").Type)
 
 	embCat := docs[0].GetField("emb").Value.(*oschema.ODocument)
 	Equals("Cat", embCat.Classname)
@@ -2514,7 +2514,7 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 	embstringsFieldFromQuery := catFromQuery.GetField("embstrings")
 
 	Equals("embstrings", embstringsFieldFromQuery.Name)
-	Equals(embType, embstringsFieldFromQuery.Typ)
+	Equals(embType, embstringsFieldFromQuery.Type)
 	embListFromQuery, ok := embstringsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
@@ -2550,7 +2550,7 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 	emblongsFieldFromQuery := catFromQuery.GetField("emblongs")
 
 	Equals("emblongs", emblongsFieldFromQuery.Name)
-	Equals(embType, emblongsFieldFromQuery.Typ)
+	Equals(embType, emblongsFieldFromQuery.Type)
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
@@ -2597,7 +2597,7 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 	embcatsFieldFromQuery := catFromQuery.GetField("embcats")
 
 	Equals("embcats", embcatsFieldFromQuery.Name)
-	Equals(embType, embcatsFieldFromQuery.Typ)
+	Equals(embType, embcatsFieldFromQuery.Type)
 	embListFromQuery, ok = embcatsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
@@ -2660,7 +2660,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	catFromQuery := docs[0]
 	Equals("Willard", catFromQuery.GetField("name").Value.(string))
 	Equals(4, toInt(catFromQuery.GetField("age").Value))
-	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Typ)
+	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
 	embCatFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
 	Assert(embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
@@ -2696,7 +2696,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	catFromQuery = docs[0]
 	Equals("Cara", catFromQuery.GetField("name").Value.(string))
 	Equals(3, toInt(catFromQuery.GetField("age").Value))
-	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Typ)
+	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
 	embCatFromQuery = catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
 	Assert(embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
@@ -2731,7 +2731,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	catFromQuery = docs[0]
 	Equals("LeCara", catFromQuery.GetField("name").Value.(string))
 	Equals(7, toInt(catFromQuery.GetField("age").Value))
-	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Typ)
+	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
 	moonpieFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
 	Assert(moonpieFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
@@ -2764,7 +2764,7 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	catFromQuery = docs[0]
 	Equals("LeCarre", catFromQuery.GetField("name").Value.(string))
 	Equals(87, toInt(catFromQuery.GetField("age").Value))
-	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Typ)
+	Equals(oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
 	noclassFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
 	Equals("", noclassFromQuery.Classname) // it throws out the classname

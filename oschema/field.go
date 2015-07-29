@@ -97,7 +97,7 @@ func ODataTypeNameFor(dt ODataType) string {
 type OField struct {
 	Id    int32 // TODO: is the size specified in OrientDB docs?
 	Name  string
-	Typ   ODataType
+	Type  ODataType
 	Value interface{}
 }
 
@@ -113,5 +113,5 @@ func (fld *OField) ToJSON() ([]byte, error) {
 //
 func (fld *OField) String() string {
 	return fmt.Sprintf("OField<id: %d; name: %s; datatype: %d; value: %v>",
-		fld.Id, fld.Name, fld.Typ, fld.Value)
+		fld.Id, fld.Name, fld.Type, fld.Value)
 }

@@ -652,7 +652,6 @@ func (serde ORecordSerializerV0) readDataValue(buf *obuf.ReadBuf, datatype byte)
 		val interface{}
 		err error
 	)
-	// TODO: many cases unimplemented
 	switch datatype {
 	case oschema.BOOLEAN:
 		val, err = rw.ReadBool(buf)

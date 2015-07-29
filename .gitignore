@@ -16,3 +16,4 @@ obinary/binserdeORIG
 *.prof
 doc/pprof*
 *pprof
+currTODO.txt

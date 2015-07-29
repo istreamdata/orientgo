@@ -2235,7 +2235,7 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 	/* ---[ Test LinkList/LinkSet Serialization ]--- */
 	createRecordsWithLinkLists(dbc, oschema.LINKLIST)
-	// createRecordsWithLinkLists(dbc, oschema.LINKSET)
+	createRecordsWithLinkLists(dbc, oschema.LINKSET)
 
 	/* ---[ Test LinkMap Serialization ]--- */
 	createRecordsWithLinkMap(dbc)

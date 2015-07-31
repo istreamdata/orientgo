@@ -16,6 +16,17 @@ const (
 )
 
 var level = NORMAL
+var errMsgFmt string
+
+func init() {
+	if runtime.GOOS == "windows" {
+		errMsgFmt = "%s: %s:%d: %s\n"
+
+		// LEFT OFF
+	} else {
+		errMsgFmt = "\033[31m%s: %s:%d: %s\033[39m\n"
+	}
+}
 
 func SetLevel(lvl Level) {
 	level = lvl
@@ -51,26 +62,22 @@ func Println(a ...interface{}) {
 
 func Warn(warnMsg string) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mWARN: %s:%d: "+warnMsg+"\033[39m\n",
-		append([]interface{}{filepath.Base(file), line})...)
+	fmt.Printf(errMsgFmt, "WARN", filepath.Base(file), line, warnMsg)
 }
 
 func Warnf(format string, a ...interface{}) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mWARN: %s:%d: "+fmt.Sprintf(format, a...)+"\033[39m\n",
-		append([]interface{}{filepath.Base(file), line})...)
+	fmt.Printf(errMsgFmt, "WARN", filepath.Base(file), line, fmt.Sprintf(format, a...))
 }
 
 func Fatal(msg string) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mFATAL: %s:%d: "+msg+"\033[39m\n\n",
-		append([]interface{}{filepath.Base(file), line})...)
+	fmt.Printf(errMsgFmt, "FATAL", filepath.Base(file), line, msg)
 	os.Exit(1)
 }
 
 func Fatale(err error) {
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("\033[31mFATAL: %s:%d: "+err.Error()+"\033[39m\n\n",
-		append([]interface{}{filepath.Base(file), line})...)
+	fmt.Printf(errMsgFmt, "FATAL", filepath.Base(file), line, err.Error())
 	os.Exit(1)
 }

@@ -48,7 +48,8 @@ func (dbc *DBClient) GetSessionID() int32 {
 func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	// binary port range is: 2424-2430
 	if opts.ServerHost == "" {
-		opts.ServerHost = "0.0.0.0"
+		opts.ServerHost = "127.0.0.1"
+		// opts.ServerHost = "0.0.0.0"
 	}
 	if opts.ServerPort == "" {
 		opts.ServerPort = "2424"
@@ -89,7 +90,6 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	serdeV0 = &ORecordSerializerV0{}
 	if svrProtocolNum < MinBinarySerializerVersion {
 		serializerType = CsvSerialization
-		// TODO: change serializer to ORecordSerializerCsvVxxx once that is built
 		panic(fmt.Sprintf("Server Binary Protocol Version (%v) is less than the Min Binary Serializer Version supported by this driver (%v)",
 			svrProtocolNum, MinBinarySerializerVersion))
 	}

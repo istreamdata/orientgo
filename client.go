@@ -54,12 +54,11 @@ import (
 //   to test the data statements only
 //
 
-// EDIT THESE to match your setup
-const (
-	OgonoriDocDB   = "ogonoriTest"
-	OgonoriGraphDB = "ogonoriGraphTest"
-	adminUser      = "root"
-	adminPassw     = "jiffylube"
+// Flags -
+var (
+	dbUser, dbPass, dbDocumentName, dbGraphName string
+
+	equalsFmt, okFmt, assertFmt, fatalFmt string
 )
 
 // Do not edit these
@@ -67,12 +66,15 @@ const (
 	FetchPlanFollowAllLinks = "*:-1"
 )
 
-var equalsFmt, okFmt, assertFmt, fatalFmt string
-
 //
 // initialize formatting strings for "assert" methods
 //
 func init() {
+	flag.StringVar(&dbUser, "dbuser", "root", "OrientDB root user name")
+	flag.StringVar(&dbPass, "dbpass", "jiffylube", "OrientDB root user pass")
+	flag.StringVar(&dbDocumentName, "dbdocumentname", "ogonoriTest", "OrientDB document DB tests")
+	flag.StringVar(&dbGraphName, "dbgraphname", "ogonoriGraphTest", "OrientDB graph DB tests")
+
 	if runtime.GOOS == "windows" {
 		equalsFmt = "%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\n\n"
 		okFmt = "FATAL: %s:%d: %v\n\n"
@@ -129,10 +131,10 @@ func Pause(msg string) {
 	}
 }
 
-func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fullTest bool) {
+func createOgonoriTestDB(dbc *obinary.DBClient, dbUser, dbPass string, fullTest bool) {
 	ogl.Println("-------- Create OgonoriTest DB --------\n")
 
-	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	err := obinary.ConnectToServer(dbc, dbUser, dbPass)
 	Ok(err)
 
 	Assert(dbc.GetSessionID() >= int32(0), "sessionid")
@@ -146,7 +148,7 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	Assert(strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
-	dbexists, err := obinary.DatabaseExists(dbc, OgonoriDocDB, constants.Persistent)
+	dbexists, err := obinary.DatabaseExists(dbc, dbDocumentName, constants.Persistent)
 	Ok(err)
 
 	if dbexists {
@@ -154,16 +156,16 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 			return
 		}
 
-		err = obinary.DropDatabase(dbc, OgonoriDocDB, constants.DocumentDB)
+		err = obinary.DropDatabase(dbc, dbDocumentName, constants.DocumentDB)
 		Ok(err)
 	}
 
-	// err = obinary.CreateDatabase(dbc, OgonoriDocDB, constants.DocumentDbType, constants.Volatile)
-	err = obinary.CreateDatabase(dbc, OgonoriDocDB, constants.DocumentDB, constants.Persistent)
+	// err = obinary.CreateDatabase(dbc, dbDocumentName, constants.DocumentDbType, constants.Volatile)
+	err = obinary.CreateDatabase(dbc, dbDocumentName, constants.DocumentDB, constants.Persistent)
 	Ok(err)
-	dbexists, err = obinary.DatabaseExists(dbc, OgonoriDocDB, constants.Persistent)
+	dbexists, err = obinary.DatabaseExists(dbc, dbDocumentName, constants.Persistent)
 	Ok(err)
-	Assert(dbexists, OgonoriDocDB+" should now exists after creating it")
+	Assert(dbexists, dbDocumentName+" should now exists after creating it")
 
 	seedInitialData(dbc)
 
@@ -174,14 +176,14 @@ func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fu
 	// 	Fatal(err)
 	// }
 	// fmt.Printf("%v\n", mapDBs)
-	// ogonoriTestPath, ok := mapDBs[OgonoriDocDB]
-	// Assert(ok, OgonoriDocDB+" not in DB list")
+	// ogonoriTestPath, ok := mapDBs[dbDocumentName]
+	// Assert(ok, dbDocumentName+" not in DB list")
 	// Assert(strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 }
 
 func seedInitialData(dbc *obinary.DBClient) {
 	fmt.Println("OpenDatabase (seed round)")
-	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 
 	defer obinary.CloseDatabase(dbc)
@@ -252,7 +254,7 @@ func cleanUp(dbc *obinary.DBClient, fullTest bool) {
 
 func dropDatabase(dbc *obinary.DBClient, dbname string, dbtype constants.DatabaseType) {
 	_ = obinary.CloseDatabase(dbc)
-	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	err := obinary.ConnectToServer(dbc, dbUser, dbPass)
 	Ok(err)
 
 	err = obinary.DropDatabase(dbc, dbname, dbtype)
@@ -269,11 +271,11 @@ func dropDatabase(dbc *obinary.DBClient, dbname string, dbtype constants.Databas
 
 func cleanUpDocDB(dbc *obinary.DBClient, fullTest bool) {
 	if fullTest {
-		dropDatabase(dbc, OgonoriDocDB, constants.DocumentDB)
+		dropDatabase(dbc, dbDocumentName, constants.DocumentDB)
 
 	} else {
 		_ = obinary.CloseDatabase(dbc)
-		err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+		err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 		if err != nil {
 			ogl.Warn(err.Error())
 			return
@@ -289,11 +291,11 @@ func cleanUpDocDB(dbc *obinary.DBClient, fullTest bool) {
 
 func cleanUpGraphDB(dbc *obinary.DBClient, fullTest bool) {
 	if fullTest {
-		dropDatabase(dbc, OgonoriGraphDB, constants.GraphDB)
+		dropDatabase(dbc, dbGraphName, constants.GraphDB)
 
 	} else {
 		_ = obinary.CloseDatabase(dbc)
-		err := obinary.OpenDatabase(dbc, OgonoriGraphDB, constants.GraphDB, "admin", "admin")
+		err := obinary.OpenDatabase(dbc, dbGraphName, constants.GraphDB, "admin", "admin")
 		if err != nil {
 			ogl.Warn(err.Error())
 			return
@@ -735,7 +737,7 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	ogl.Debugln("\n-------- CLUSTER commands --------\n")
 
-	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -800,23 +802,23 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 func createOgonoriGraphDb(dbc *obinary.DBClient) {
 	ogl.Println("- - - - - - CREATE GRAPHDB - - - - - - -")
 
-	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
+	err := obinary.ConnectToServer(dbc, dbUser, dbPass)
 	Ok(err)
 
 	Assert(dbc.GetSessionID() >= int32(0), "sessionid")
 	Assert(dbc.GetCurrDB() == nil, "currDB should be nil")
 
-	dbexists, err := obinary.DatabaseExists(dbc, OgonoriGraphDB, constants.Persistent)
+	dbexists, err := obinary.DatabaseExists(dbc, dbGraphName, constants.Persistent)
 	Ok(err)
 	if dbexists {
-		dropDatabase(dbc, OgonoriGraphDB, constants.GraphDB)
+		dropDatabase(dbc, dbGraphName, constants.GraphDB)
 	}
 
-	err = obinary.CreateDatabase(dbc, OgonoriGraphDB, constants.GraphDB, constants.Persistent)
+	err = obinary.CreateDatabase(dbc, dbGraphName, constants.GraphDB, constants.Persistent)
 	Ok(err)
-	dbexists, err = obinary.DatabaseExists(dbc, OgonoriGraphDB, constants.Persistent)
+	dbexists, err = obinary.DatabaseExists(dbc, dbGraphName, constants.Persistent)
 	Ok(err)
-	Assert(dbexists, OgonoriGraphDB+" should now exists after creating it")
+	Assert(dbexists, dbGraphName+" should now exists after creating it")
 }
 
 func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
@@ -827,13 +829,11 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 		err    error
 	)
 
-	if fullTest {
-		createOgonoriGraphDb(dbc)
-	}
+	createOgonoriGraphDb(dbc)
 
 	ogl.Println("- - - - - - GRAPH COMMANDS - - - - - - -")
 
-	err = obinary.OpenDatabase(dbc, OgonoriGraphDB, constants.GraphDB, "admin", "admin")
+	err = obinary.OpenDatabase(dbc, dbGraphName, constants.GraphDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -1264,7 +1264,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	var sql string
 	var retval string
 
-	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -2180,7 +2180,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 }
 
 func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
-	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
@@ -3260,7 +3260,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	}()
 
 	/* ---[ Use "native" API ]--- */
-	createOgonoriTestDB(dbc, adminUser, adminPassw, testType != "dataOnly")
+	createOgonoriTestDB(dbc, dbUser, dbPass, testType != "dataOnly")
 	defer cleanUp(dbc, testType == "full")
 
 	// document database tests
@@ -3276,7 +3276,7 @@ func ogonoriTestAgainstOrientDBServer() {
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/" + OgonoriDocDB
+	conxStr := "admin@admin:localhost/" + dbDocumentName
 	databaseSqlAPI(conxStr)
 	databaseSqlPreparedStmtAPI(conxStr)
 
@@ -3284,7 +3284,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	// graph database tests
 	ogl.SetLevel(ogl.WARN)
 	graphCommandsNativeAPI(dbc, testType != "dataOnly")
-	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	graphConxStr := "admin@admin:localhost/" + dbGraphName
 	ogl.SetLevel(ogl.NORMAL)
 	graphCommandsSqlAPI(graphConxStr)
 

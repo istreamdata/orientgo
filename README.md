@@ -2,6 +2,8 @@
 
 **Ogonori** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
+[![Build Status](https://travis-ci.org/quux00/ogonori.svg?branch=master)](https://travis-ci.org/quux00/ogonori)
+
 <br/>
 # Status
 

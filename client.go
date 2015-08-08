@@ -109,6 +109,7 @@ func Equals(exp, act interface{}) {
 //
 func Ok(err error) {
 	if err != nil {
+		fmt.Println(err)
 		_, file, line, _ := runtime.Caller(1)
 		fmt.Printf(okFmt, filepath.Base(file), line, err.Error())
 		ogl.SetLevel(ogl.WARN)

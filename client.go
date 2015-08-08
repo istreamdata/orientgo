@@ -2155,16 +2155,49 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 }
 
-func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
+func updateRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	// doc := oschema.NewDocument("Dalek")
-	// doc.Field("name", "dalekFive").FieldWithType("episode", int32(13), oschema.INTEGER)
-	// err = obinary.CreateRecord(dbc, doc)
-	// Ok(err)
-	// ogl.Warnf("DOC after CREATE: %v\n", doc)
+	winston := oschema.NewDocument("Cat")
+	winston.Field("name", "Winston").
+		Field("caretaker", "Churchill").
+		FieldWithType("age", 7, oschema.INTEGER)
+	Equals(-1, int(winston.RID.ClusterID))
+	Equals(-1, int(winston.RID.ClusterPos))
+	Equals(-1, int(winston.Version))
+	err = obinary.CreateRecord(dbc, winston)
+	Ok(err)
+	Assert(int(winston.RID.ClusterID) > -1, "RID should be filled in")
+	Assert(int(winston.RID.ClusterPos) > -1, "RID should be filled in")
+	Assert(int(winston.Version) > -1, "Version should be filled in")
+
+	versionBefore := winston.Version
+
+	winston.Field("caretaker", "Lolly")
+	err = obinary.UpdateRecord(dbc, winston)
+	Ok(err)
+	Assert(versionBefore < winston.Version, "version should have incremented")
+
+	// Pause("GGG: ")
+
+	docs, err := obinary.SQLQuery(dbc, "select * from Cat where @rid="+winston.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+
+	// cat2FromQuery := docs[0]
+	// Equals("A2", cat2FromQuery.GetField("name").Value)
+	// Equals(3, toInt(cat2FromQuery.GetField("age").Value))
+	// linkToCat1FromQuery := cat2FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	// Equals(linkToCat1FromQuery.RID, cat1.RID)
+
+}
+
+func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
+	err := obinary.OpenDatabase(dbc, OgonoriDocDB, constants.DocumentDB, "admin", "admin")
+	Ok(err)
+	defer obinary.CloseDatabase(dbc)
 
 	winston := oschema.NewDocument("Cat")
 	winston.Field("name", "Winston").
@@ -3232,20 +3265,21 @@ func ogonoriTestAgainstOrientDBServer() {
 
 	// create new records from low-level create API (not SQL)
 	createRecordsViaNativeAPI(dbc)
+	updateRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
-	ogl.SetLevel(ogl.WARN)
-	conxStr := "admin@admin:localhost/" + OgonoriDocDB
-	databaseSqlAPI(conxStr)
-	databaseSqlPreparedStmtAPI(conxStr)
+	// ogl.SetLevel(ogl.WARN)
+	// conxStr := "admin@admin:localhost/" + OgonoriDocDB
+	// databaseSqlAPI(conxStr)
+	// databaseSqlPreparedStmtAPI(conxStr)
 
 	/* ---[ Graph DB ]--- */
 	// graph database tests
-	ogl.SetLevel(ogl.WARN)
-	graphCommandsNativeAPI(dbc, testType != "dataOnly")
-	graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
-	ogl.SetLevel(ogl.NORMAL)
-	graphCommandsSqlAPI(graphConxStr)
+	// ogl.SetLevel(ogl.WARN)
+	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
+	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
+	// ogl.SetLevel(ogl.NORMAL)
+	// graphCommandsSqlAPI(graphConxStr)
 
 	// ------
 

@@ -9,7 +9,9 @@ import (
 )
 
 //
-// Does REQUEST_RECORD_CREATE binary OrientDB cmd
+// Use this to create a new record in the OrientDB database
+// you are currently connected to.
+// Does REQUEST_RECORD_CREATE OrientDB cmd (binary network protocol).
 //
 func CreateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 	dbc.buf.Reset()

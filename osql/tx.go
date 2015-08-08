@@ -16,7 +16,7 @@ type ogonoriTx struct {
 
 func (tx *ogonoriTx) Commit() error {
 	if tx.conn == nil {
-		return oerror.ErrInvalidConn{"ogonoriConn not initialized in ogonoriTx#Commit"}
+		return oerror.ErrInvalidConn{Msg: "ogonoriConn not initialized in ogonoriTx#Commit"}
 	}
 
 	return nil
@@ -24,7 +24,7 @@ func (tx *ogonoriTx) Commit() error {
 
 func (tx *ogonoriTx) Rollback() error {
 	if tx.conn == nil {
-		return oerror.ErrInvalidConn{"ogonoriConn not initialized in ogonoriTx#Rollback"}
+		return oerror.ErrInvalidConn{Msg: "ogonoriConn not initialized in ogonoriTx#Rollback"}
 	}
 
 	return nil

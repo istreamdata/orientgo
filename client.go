@@ -86,6 +86,11 @@ func init() {
 	}
 }
 
+//
+// Equals compares two values for equality (DeepEquals).
+// If they are not equal, an error message is printed
+// and the function panics.  Use only in test scenarios.
+//
 func Equals(exp, act interface{}) {
 	if !reflect.DeepEqual(exp, act) {
 		_, file, line, _ := runtime.Caller(1)
@@ -95,6 +100,11 @@ func Equals(exp, act interface{}) {
 	}
 }
 
+//
+// Ok checks whether an error is null. If the error is
+// not null, an error message is printed and the function
+// panics.  Use only in test scenarios.
+//
 func Ok(err error) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
@@ -104,6 +114,11 @@ func Ok(err error) {
 	}
 }
 
+//
+// Assert checks that some boolean is true. If the bool is
+// not true, then an error message is printed and the function
+// panics.  Use only in test scenarios.
+//
 func Assert(b bool, msg string) {
 	if !b {
 		_, file, line, _ := runtime.Caller(1)
@@ -113,6 +128,10 @@ func Assert(b bool, msg string) {
 	}
 }
 
+//
+// Fatal prints the error passed in and panics.
+// Use only in test scenarios.
+//
 func Fatal(err error) {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Printf(fatalFmt, filepath.Base(file), line, err.Error())
@@ -120,6 +139,11 @@ func Fatal(err error) {
 	panic(err)
 }
 
+//
+// Pause prints msg to the console and waits for
+// the user to type some input to continue.
+// Use only for debugging.
+//
 func Pause(msg string) {
 	fmt.Print(msg, "[Press Enter to Continue]: ")
 	var s string
@@ -130,7 +154,7 @@ func Pause(msg string) {
 }
 
 func createOgonoriTestDB(dbc *obinary.DBClient, adminUser, adminPassw string, fullTest bool) {
-	ogl.Println("-------- Create OgonoriTest DB --------\n")
+	ogl.Printf("%s\n\n", "-------- Create OgonoriTest DB --------")
 
 	err := obinary.ConnectToServer(dbc, adminUser, adminPassw)
 	Ok(err)
@@ -307,7 +331,7 @@ func cleanUpGraphDB(dbc *obinary.DBClient, fullTest bool) {
 	}
 }
 
-func graphCommandsSqlAPI(conxStr string) {
+func graphCommandsSQLAPI(conxStr string) {
 	db, err := sql.Open("ogonori", conxStr)
 	Ok(err)
 	defer db.Close()
@@ -321,10 +345,10 @@ func graphCommandsSqlAPI(conxStr string) {
 
 	nrows, _ := res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
-	lastId, _ := res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastId)
+	lastID, _ := res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
-	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 	createVtxSQL := `CREATE VERTEX Person SET firstName = 'Terry', lastName = 'Bradshaw'`
 	res, err = db.Exec(createVtxSQL)
@@ -332,10 +356,10 @@ func graphCommandsSqlAPI(conxStr string) {
 
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
-	lastId, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastId)
+	lastID, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
-	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 	sql := `CREATE EDGE Friend FROM
             (SELECT FROM Person where firstName = 'Joe' AND lastName = 'Namath')
@@ -345,10 +369,10 @@ func graphCommandsSqlAPI(conxStr string) {
 	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
-	lastId, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastId)
+	lastID, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
-	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 	sql = `select from Friend order by @rid desc LIMIT 1`
 	rows, err := db.Query(sql)
@@ -387,15 +411,15 @@ func graphCommandsSqlAPI(conxStr string) {
 
 	// nrows, _ = res.RowsAffected()
 	// ogl.Printf("nrows: %v\n", nrows)
-	// lastId, _ = res.LastInsertId()
-	// ogl.Printf("last insert id: %v\n", lastId)
+	// lastID, _ = res.LastInsertId()
+	// ogl.Printf("last insert id: %v\n", lastID)
 	// Equals(int64(1), nrows)
-	// Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	// Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 }
 
-func databaseSqlAPI(conxStr string) {
-	fmt.Println("\n-------- Using database/sql API --------\n")
+func databaseSQLAPI(conxStr string) {
+	ogl.Printf("\n%s\n\n", "-------- Using database/sql API --------")
 
 	/* ---[ OPEN ]--- */
 	db, err := sql.Open("ogonori", conxStr)
@@ -423,10 +447,10 @@ func databaseSqlAPI(conxStr string) {
 
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
-	lastId, _ := res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastId)
+	lastID, _ := res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
-	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 	/* ---[ INSERT #2 ]--- */
 	// insert with no params
@@ -436,10 +460,10 @@ func databaseSqlAPI(conxStr string) {
 	Ok(err)
 	nrows, _ = res.RowsAffected()
 	ogl.Printf("nrows: %v\n", nrows)
-	lastId, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastId)
+	lastID, _ = res.LastInsertId()
+	ogl.Printf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
-	Assert(lastId > int64(0), fmt.Sprintf("LastInsertId: %v", lastId))
+	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
 	/* ---[ QUERY #1: QueryRow ]--- */
 	// it is safe to query properties -> not sure how to return docs yet
@@ -600,7 +624,7 @@ func databaseSqlAPI(conxStr string) {
 }
 
 func databaseSqlPreparedStmtAPI(conxStr string) {
-	ogl.Println("\n-------- Using database/sql PreparedStatement API --------\n")
+	ogl.Printf("\n%s\n\n", "-------- Using database/sql PreparedStatement API --------")
 
 	db, err := sql.Open("ogonori", conxStr)
 	Ok(err)
@@ -695,9 +719,9 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 	nrows, err := result.RowsAffected()
 	Ok(err)
 	Equals(1, int(nrows))
-	insertId, err := result.LastInsertId()
+	insertID, err := result.LastInsertId()
 	Ok(err)
-	Assert(int(insertId) >= 0, "insertId was: "+strconv.Itoa(int(insertId)))
+	Assert(int(insertID) >= 0, "insertId was: "+strconv.Itoa(int(insertID)))
 
 	// use again
 	result, err = cmdStmt.Exec(2, "Jimmy", "John")
@@ -705,9 +729,9 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 	nrows, err = result.RowsAffected()
 	Ok(err)
 	Equals(1, int(nrows))
-	insertId2, err := result.LastInsertId()
+	insertID2, err := result.LastInsertId()
 	Ok(err)
-	Assert(insertId != insertId2, "insertId was: "+strconv.Itoa(int(insertId)))
+	Assert(insertID != insertID2, "insertID was: "+strconv.Itoa(int(insertID)))
 
 	row := db.QueryRow("select count(*) from Cat")
 	var cnt int64
@@ -726,9 +750,9 @@ func databaseSqlPreparedStmtAPI(conxStr string) {
 	nrows, err = result.RowsAffected()
 	Ok(err)
 	Equals(2, int(nrows))
-	insertId3, err := result.LastInsertId()
+	insertID3, err := result.LastInsertId()
 	Ok(err)
-	Assert(int(insertId3) < 0, "should have negative insertId for a DELETE")
+	Assert(int(insertID3) < 0, "should have negative insertId for a DELETE")
 
 }
 
@@ -775,11 +799,11 @@ func dbClusterCommandsNativeAPI(dbc *obinary.DBClient) {
 	ogl.Printf("DROP CLUSTER CatAmerica: retval: %v; docs: %v\n", retval, docs)
 
 	ogl.Debugln("\n-------- CLUSTER Direct commands (not SQL) --------\n")
-	clusterId, err := obinary.AddCluster(dbc, "bigapple")
+	clusterID, err := obinary.AddCluster(dbc, "bigapple")
 	if err != nil {
 		Fatal(err)
 	}
-	Assert(clusterId > 0, "clusterId should be bigger than zero")
+	Assert(clusterID > 0, "clusterID should be bigger than zero")
 
 	cnt, err := obinary.FetchClusterCount(dbc, "bigapple")
 	if err != nil {
@@ -1259,7 +1283,7 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc *obinary.DBClient, a
 }
 
 func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
-	ogl.Println("\n-------- database-level commands --------\n")
+	ogl.Printf("\n%s\n\n", "-------- database-level commands --------")
 
 	var sql string
 	var retval string
@@ -1291,7 +1315,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	caretakerField := docs[0].GetField("caretaker")
 	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
-	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
+	Assert(nameField.ID != caretakerField.ID, "IDs should not match")
 	Equals(oschema.STRING, nameField.Type)
 	Equals(oschema.STRING, caretakerField.Type)
 	Equals(oschema.INTEGER, ageField.Type)
@@ -1318,7 +1342,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	caretakerField = docByRID.GetField("caretaker")
 	Assert(caretakerField != nil, "should be a 'caretaker' field")
 
-	Assert(nameField.Id != caretakerField.Id, "Ids should not match")
+	Assert(nameField.ID != caretakerField.ID, "IDs should not match")
 	Equals(oschema.STRING, nameField.Type)
 	Equals(oschema.INTEGER, ageField.Type)
 	Equals(oschema.STRING, caretakerField.Type)
@@ -3311,7 +3335,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	// ogl.SetLevel(ogl.WARN)
 	// conxStr := "admin@admin:localhost/" + OgonoriDocDB
-	// databaseSqlAPI(conxStr)
+	// databaseSQLAPI(conxStr)
 	// databaseSqlPreparedStmtAPI(conxStr)
 
 	/* ---[ Graph DB ]--- */
@@ -3320,7 +3344,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	// graphCommandsNativeAPI(dbc, testType != "dataOnly")
 	// graphConxStr := "admin@admin:localhost/" + OgonoriGraphDB
 	// ogl.SetLevel(ogl.NORMAL)
-	// graphCommandsSqlAPI(graphConxStr)
+	// graphCommandsSQLAPI(graphConxStr)
 
 	// ------
 

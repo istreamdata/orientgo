@@ -130,7 +130,7 @@ func (doc *ODocument) GetFields() []*OField {
 //
 func (doc *ODocument) GetFieldById(id int32) *OField {
 	for _, fld := range doc.Fields {
-		if fld.Id == id {
+		if fld.ID == id {
 			return fld
 		}
 	}

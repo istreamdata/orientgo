@@ -95,7 +95,7 @@ func ODataTypeNameFor(dt ODataType) string {
 // OField is a generic data holder that goes in ODocuments.
 //
 type OField struct {
-	Id    int32 // TODO: is the size specified in OrientDB docs?
+	ID    int32 // TODO: is the size specified in OrientDB docs?
 	Name  string
 	Type  ODataType
 	Value interface{}
@@ -113,5 +113,5 @@ func (fld *OField) ToJSON() ([]byte, error) {
 //
 func (fld *OField) String() string {
 	return fmt.Sprintf("OField<id: %d; name: %s; datatype: %d; value: %v>",
-		fld.Id, fld.Name, fld.Type, fld.Value)
+		fld.ID, fld.Name, fld.Type, fld.Value)
 }

@@ -32,7 +32,7 @@ func (st *ogonoriStmt) NumInput() int {
 func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 	ogl.Debugln("** ogonoriStmt.Exec")
 	if st.conn == nil || st.conn.dbc == nil {
-		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriStmt#Exec"}
+		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Exec"}
 	}
 
 	return doExec(st.conn.dbc, st.query, args)
@@ -44,7 +44,7 @@ func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 func (st *ogonoriStmt) Query(args []driver.Value) (driver.Rows, error) {
 	ogl.Debugln("** ogonoriStmt.Query")
 	if st.conn == nil || st.conn.dbc == nil {
-		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriStmt#Query"}
+		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Query"}
 	}
 
 	return doQuery(st.conn.dbc, st.query, args)

@@ -45,7 +45,8 @@ func (d *OgonoriDriver) Open(dsn string) (driver.Conn, error) {
 	ogl.Println("** OgonoriDriver#Open")
 
 	uname, passw, host, port, dbname, err := parseDsn(dsn)
-	dbc, err := obinary.NewDBClient(obinary.ClientOptions{host, port})
+	clientOpts := obinary.ClientOptions{ServerHost: host, ServerPort: port}
+	dbc, err := obinary.NewDBClient(clientOpts)
 	if err != nil {
 		return nil, err
 	}

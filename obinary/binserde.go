@@ -81,14 +81,14 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 				panic(oerror.ErrStaleGlobalProperties) // TODO: should return this instead
 			}
 			ofield = &oschema.OField{
-				Id:   prop.id,
+				ID:   prop.id,
 				Name: globalProp.Name,
 				Type: globalProp.Type,
 			}
 
 		} else {
 			ofield = &oschema.OField{
-				Id:   int32(-1),
+				ID:   int32(-1),
 				Name: string(prop.name),
 				Type: prop.typ,
 			}

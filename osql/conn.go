@@ -39,7 +39,7 @@ func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, er
 	ogl.Println("** ogoConn.Exec")
 
 	if c.dbc == nil {
-		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriConn#Exec"}
+		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriConn#Exec"}
 	}
 	return doExec(c.dbc, query, args)
 }
@@ -83,7 +83,7 @@ func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, err
 	ogl.Println("** ogoConn.Query")
 
 	if c.dbc == nil {
-		return nil, oerror.ErrInvalidConn{"obinary.DBClient not initialized in ogonoriConn#Exec"}
+		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriConn#Exec"}
 	}
 	return doQuery(c.dbc, query, args)
 }

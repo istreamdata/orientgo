@@ -21,7 +21,16 @@ The primary focus is of ogonori is to build a Go (golang) client supporting Orie
 
 *Documentation*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
 
+<br>
+#### [Update: 07-Aug-2015]
 
+* Serialization for most datatypes is done - only DECIMAL and CUSTOM remain - there are Help Wanted Issues for those.
+* I have now tested up the 2.0 series on Windows and tests should pass there.  I develop on Linux.  I would love to have someone run the tests on Mac OS X.
+* I have started to add support for Updates of records (`REQUEST_RECORD_UPDATE` in binary protocol speak) - these are not well tested and what I'm working on currently
+* [ernestas-poskus](https://github.com/ernestas-poskus) is adding travis support and refactoring client.go (yay!), so that should be improved soon.
+
+
+<br>
 #### [Update: 26-July-2015]
 
 Sorry for a bit of a hiatus - I am in the midst of finding a new job so I've spent the last three weekends preparing for technical interviews.  

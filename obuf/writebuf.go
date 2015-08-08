@@ -131,10 +131,10 @@ func (b *WriteBuf) Write(p []byte) (n int, err error) {
 //
 // WriteByte writes a single byte to the underlying byte slice.
 // If the byte slice is not large enough a new one will be allocated.
-// No error is returned, since no error is possible in this operation
-// (other than running out of memory entirely).
+// nil error is always returned, since no error is possible in this operation,
+// so error can be safely ignored from this method.
 //
-func (wb *WriteBuf) WriteByte(b byte) {
+func (wb *WriteBuf) WriteByte(b byte) error {
 	// usually end >= off, but after a Seek, off > end
 	cursor := max(wb.end, wb.off)
 	if wb.Capacity()-cursor < 1 {
@@ -145,6 +145,7 @@ func (wb *WriteBuf) WriteByte(b byte) {
 	if wb.off > wb.end {
 		wb.end = wb.off
 	}
+	return nil
 }
 
 //

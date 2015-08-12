@@ -84,6 +84,8 @@ func TestConcurrentClients() {
 }
 
 func doQueriesAndInsertions(wg *sync.WaitGroup, dbc *obinary.DBClient, id int) {
+	defer wg.Done()
+
 	rnd := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	nreps := 1000
 	ridsToDelete := make([]string, 0, nreps)
@@ -121,6 +123,4 @@ func doQueriesAndInsertions(wg *sync.WaitGroup, dbc *obinary.DBClient, id int) {
 	docs, err := obinary.SQLQuery(dbc, sql, "")
 	Ok(err)
 	Equals(toInt(docs[0].GetField("count").Value), 0)
-
-	wg.Done()
 }

@@ -3417,6 +3417,7 @@ type testrange struct {
 func main() {
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	var xplore = flag.Bool("x", false, "run explore fn")
+	var conc = flag.Bool("c", false, "run concurrent client tests")
 
 	flag.Parse()
 	if *cpuprofile != "" {
@@ -3431,6 +3432,8 @@ func main() {
 
 	if *xplore {
 		explore()
+	} else if *conc {
+		TestConcurrentClients()
 	} else {
 		ogonoriTestAgainstOrientDBServer()
 	}

@@ -163,6 +163,10 @@ func (doc *ODocument) SetDirty(b bool) {
 	doc.dirty = b
 }
 
+func (doc *ODocument) IsDirty() bool {
+	return doc.dirty
+}
+
 //
 // Field is used to add a new field to a document. This will usually be done just
 // before calling Save and sending it to the database.  The field type will be inferred

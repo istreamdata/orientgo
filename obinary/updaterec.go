@@ -101,5 +101,8 @@ func UpdateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 		panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 	}
 
+	doc.SetDirty(false)
+	// TODO: this SetDirty false needs to cascade to all embedded ODocuments !
+
 	return nil
 }

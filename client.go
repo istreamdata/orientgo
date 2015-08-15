@@ -54,10 +54,12 @@ import (
 //   to test the data statements only
 //
 
-// Flags -
+// Flags - specify these on the cmd line to change from the defaults
 var (
 	dbUser, dbPass, dbDocumentName, dbGraphName string
+)
 
+var (
 	equalsFmt, okFmt, assertFmt, fatalFmt string
 )
 
@@ -2204,18 +2206,12 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(0, len(docs))
 }
 
-func updateRecordsViaNativeAPI(dbc *obinary.DBClient) {
+func createAndUpdateRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 	defer obinary.CloseDatabase(dbc)
 
-	ridsToDelete := make([]string, 0, 4)
-	defer func() {
-		for _, delrid := range ridsToDelete {
-			_, _, err = obinary.SQLCommand(dbc, "DELETE FROM Cat WHERE @rid="+delrid)
-			Ok(err)
-		}
-	}()
+	/* ---[ creation ]--- */
 
 	winston := oschema.NewDocument("Cat")
 	winston.Field("name", "Winston").
@@ -2226,50 +2222,30 @@ func updateRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	Equals(-1, int(winston.Version))
 	err = obinary.CreateRecord(dbc, winston)
 	Ok(err)
-	ridsToDelete = append(ridsToDelete, winston.RID.String())
-
 	Assert(int(winston.RID.ClusterID) > -1, "RID should be filled in")
 	Assert(int(winston.RID.ClusterPos) > -1, "RID should be filled in")
 	Assert(int(winston.Version) > -1, "Version should be filled in")
 
+	/* ---[ update STRING and INTEGER field ]--- */
+
 	versionBefore := winston.Version
 
-	winston.Field("caretaker", "Lolly")
-	err = obinary.UpdateRecord(dbc, winston)
+	winston.Field("caretaker", "Lolly")      // this updates the field locally
+	winston.Field("age", 8)                  // this updates the field locally
+	err = obinary.UpdateRecord(dbc, winston) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < winston.Version, "version should have incremented")
-
-	// Pause("GGG: ")
 
 	docs, err := obinary.SQLQuery(dbc, "select * from Cat where @rid="+winston.RID.String(), "")
 	Ok(err)
 	Equals(1, len(docs))
 
-	// cat2FromQuery := docs[0]
-	// Equals("A2", cat2FromQuery.GetField("name").Value)
-	// Equals(3, toInt(cat2FromQuery.GetField("age").Value))
-	// linkToCat1FromQuery := cat2FromQuery.GetField("catlink").Value.(*oschema.OLink)
-	// Equals(linkToCat1FromQuery.RID, cat1.RID)
+	winstonFromQuery := docs[0]
+	Equals("Winston", winstonFromQuery.GetField("name").Value)
+	Equals(8, toInt(winstonFromQuery.GetField("age").Value))
+	Equals("Lolly", winstonFromQuery.GetField("caretaker").Value)
 
-}
-
-func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
-	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
-	Ok(err)
-	defer obinary.CloseDatabase(dbc)
-
-	winston := oschema.NewDocument("Cat")
-	winston.Field("name", "Winston").
-		Field("caretaker", "Churchill").
-		FieldWithType("age", 7, oschema.INTEGER)
-	Equals(-1, int(winston.RID.ClusterID))
-	Equals(-1, int(winston.RID.ClusterPos))
-	Equals(-1, int(winston.Version))
-	err = obinary.CreateRecord(dbc, winston)
-	Ok(err)
-	Assert(int(winston.RID.ClusterID) > -1, "RID should be filled in")
-	Assert(int(winston.RID.ClusterPos) > -1, "RID should be filled in")
-	Assert(int(winston.Version) > -1, "Version should be filled in")
+	/* ---[ next creation ]--- */
 
 	daemon := oschema.NewDocument("Cat")
 	daemon.Field("name", "Daemon").Field("caretaker", "Matt").Field("age", 4)
@@ -2298,42 +2274,42 @@ func createRecordsViaNativeAPI(dbc *obinary.DBClient) {
 	Ok(err)
 
 	/* ---[ Test DATE Serialization ]--- */
-	createRecordsWithDate(dbc)
+	createAndUpdateRecordsWithDate(dbc)
 
 	/* ---[ Test DATETIME Serialization ]--- */
-	createRecordsWithDateTime(dbc)
+	createAndUpdateRecordsWithDateTime(dbc)
 
 	// test inserting wrong values for date and datetime
 	testCreationOfMismatchedTypesAndValues(dbc)
 
 	/* ---[ Test Boolean, Byte and Short Serialization ]--- */
-	createRecordsWithBooleanByteAndShort(dbc)
+	createAndUpdateRecordsWithBooleanByteAndShort(dbc)
 
 	/* ---[ Test Int, Long, Float and Double Serialization ]--- */
-	createRecordsWithIntLongFloatAndDouble(dbc)
+	createAndUpdateRecordsWithIntLongFloatAndDouble(dbc)
 
 	/* ---[ Test BINARY Serialization ]--- */
-	createRecordsWithBINARYType(dbc)
+	createAndUpdateRecordsWithBINARYType(dbc)
 
 	/* ---[ Test EMBEDDEDRECORD Serialization ]--- */
-	createRecordsWithEmbeddedRecords(dbc)
+	createAndUpdateRecordsWithEmbeddedRecords(dbc)
 
 	/* ---[ Test EMBEDDEDLIST, EMBEDDEDSET Serialization ]--- */
-	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDLIST)
-	createRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDSET)
+	createAndUpdateRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDLIST)
+	createAndUpdateRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDSET)
 
 	/* ---[ Test Link Serialization ]--- */
-	createRecordsWithLinks(dbc)
+	createAndUpdateRecordsWithLinks(dbc)
 
 	/* ---[ Test LinkList/LinkSet Serialization ]--- */
-	createRecordsWithLinkLists(dbc, oschema.LINKLIST)
-	// createRecordsWithLinkLists(dbc, oschema.LINKSET)
+	createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKLIST)
+	// createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKSET)
 
 	/* ---[ Test LinkMap Serialization ]--- */
-	createRecordsWithLinkMap(dbc)
+	createAndUpdateRecordsWithLinkMap(dbc)
 }
 
-func createRecordsWithLinkMap(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithLinkMap(dbc *obinary.DBClient) {
 	sql := `CREATE PROPERTY Cat.notes LINKMAP`
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2402,7 +2378,7 @@ func createRecordsWithLinkMap(dbc *obinary.DBClient) {
 	Equals(notesFromQuery["7th-best-friend"].RID, cat2.RID)
 }
 
-func createRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataType) {
+func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataType) {
 	sql := "CREATE PROPERTY Cat.catfriends " + oschema.ODataTypeNameFor(collType) + " Cat"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2477,7 +2453,7 @@ func createRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataTyp
 	Equals(catFriendsFromQuery[1].RID, cat2.RID)
 }
 
-func createRecordsWithLinks(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithLinks(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.catlink LINK Cat"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2546,7 +2522,7 @@ func createRecordsWithLinks(dbc *obinary.DBClient) {
 	Equals(linkToCat2FromQuery.RID, cat2.RID)
 }
 
-func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.ODataType) {
+func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.ODataType) {
 	sql := "CREATE PROPERTY Cat.embstrings " + oschema.ODataTypeNameFor(embType) + " string"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2709,7 +2685,7 @@ func createRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.OData
 
 }
 
-func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.embcat EMBEDDED"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2865,9 +2841,36 @@ func createRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 	Equals("AB425827ACX3222", noclassFromQuery.GetField("sku").Value)
 	Equals(float64(6.5), noclassFromQuery.GetField("oz").Value.(float64))
 	Equals(true, noclassFromQuery.GetField("allnatural").Value.(bool))
+
+	/* ---[ update ]--- */
+
+	versionBefore := cat.Version
+
+	moonshine := oschema.NewDocument("")
+	moonshine.Field("sku", "123").
+		Field("allnatural", true).
+		FieldWithType("oz", 99.092, oschema.FLOAT)
+
+	cat.FieldWithType("embcat", moonshine, oschema.EMBEDDED) // updates the field locally
+	Equals(true, cat.IsDirty())
+
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+	Equals(false, cat.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+
+	mshineFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	Equals("123", mshineFromQuery.GetField("sku").Value)
+	Equals(true, mshineFromQuery.GetField("allnatural").Value)
+	Equals(float32(99.092), mshineFromQuery.GetField("oz").Value)
 }
 
-func createRecordsWithBINARYType(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithBINARYType(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.bin BINARY"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -2932,9 +2935,25 @@ func createRecordsWithBINARYType(dbc *obinary.DBClient) {
 	cat2FromQuery := docs[0]
 
 	Equals(bindata2, cat2FromQuery.GetField("bin").Value.([]byte))
+
+	/* ---[ update ]--- */
+
+	versionBefore := cat.Version
+
+	newbindata := []byte("Now Gluten Free!")
+	cat.FieldWithType("bin", newbindata, oschema.BINARY)
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+	Equals(newbindata, catFromQuery.GetField("bin").Value)
 }
 
-func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.ii INTEGER"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -3033,6 +3052,28 @@ func createRecordsWithIntLongFloatAndDouble(dbc *obinary.DBClient) {
 	Equals(toInt(cat2.GetField("lg").Value), toInt(cat2FromQuery.GetField("lg").Value))
 	Equals(cat2.GetField("ff").Value, cat2FromQuery.GetField("ff").Value)
 	Equals(cat2.GetField("dd").Value, cat2FromQuery.GetField("dd").Value)
+
+	/* ---[ update ]--- */
+
+	cat2.Field("ii", int32(1)).
+		Field("lg", int64(2)).
+		Field("ff", float32(3.3)).
+		Field("dd", float64(4.444))
+
+	versionBefore := cat2.Version
+
+	err = obinary.UpdateRecord(dbc, cat2) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat2.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	cat2FromQuery = docs[0]
+	Equals(int32(1), cat2FromQuery.GetField("ii").Value)
+	Equals(int64(2), cat2FromQuery.GetField("lg").Value)
+	Equals(float32(3.3), cat2FromQuery.GetField("ff").Value)
+	Equals(float64(4.444), cat2FromQuery.GetField("dd").Value)
 }
 
 func toInt(value interface{}) int {
@@ -3047,7 +3088,7 @@ func toInt(value interface{}) int {
 	panic(fmt.Sprintf("Value %v cannot be cast to int", value))
 }
 
-func createRecordsWithBooleanByteAndShort(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.x BOOLEAN"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -3121,6 +3162,26 @@ func createRecordsWithBooleanByteAndShort(dbc *obinary.DBClient) {
 	Equals(cat2.GetField("y").Value.(byte), cat2FromQuery.GetField("y").Value.(byte))
 	Equals(cat2.GetField("z").Value.(int16), cat2FromQuery.GetField("z").Value.(int16))
 
+	/* ---[ update ]--- */
+
+	versionBefore := cat.Version
+
+	cat.Field("x", true)
+	cat.Field("y", byte(19))
+	cat.Field("z", int16(6789))
+
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+	Equals(true, catFromQuery.GetField("x").Value)
+	Equals(byte(19), catFromQuery.GetField("y").Value)
+	Equals(int16(6789), catFromQuery.GetField("z").Value)
+
 }
 
 func testCreationOfMismatchedTypesAndValues(dbc *obinary.DBClient) {
@@ -3148,7 +3209,7 @@ func testCreationOfMismatchedTypesAndValues(dbc *obinary.DBClient) {
 	Equals(0, len(docs))
 }
 
-func createRecordsWithDateTime(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithDateTime(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.ddd DATETIME"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -3156,6 +3217,8 @@ func createRecordsWithDateTime(dbc *obinary.DBClient) {
 	defer func() {
 		obinary.SQLCommand(dbc, "DROP PROPERTY Cat.ddd")
 	}()
+
+	/* ---[ creation ]--- */
 
 	now := time.Now()
 	simba := oschema.NewDocument("Cat")
@@ -3178,9 +3241,26 @@ func createRecordsWithDateTime(dbc *obinary.DBClient) {
 	simbaFromQuery := docs[0]
 	Equals(simba.RID, simbaFromQuery.RID)
 	Equals(simba.GetField("ddd").Value, simbaFromQuery.GetField("ddd").Value)
+
+	/* ---[ update ]--- */
+
+	versionBefore := simba.Version
+
+	twoDaysAgo := now.AddDate(0, 0, -2)
+
+	simba.FieldWithType("ddd", twoDaysAgo, oschema.DATETIME) // updates the field locally
+	err = obinary.UpdateRecord(dbc, simba)                   // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < simba.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	simbaFromQuery = docs[0]
+	Equals(twoDaysAgo.Unix(), simbaFromQuery.GetField("ddd").Value.(time.Time).Unix())
 }
 
-func createRecordsWithDate(dbc *obinary.DBClient) {
+func createAndUpdateRecordsWithDate(dbc *obinary.DBClient) {
 	sql := "CREATE PROPERTY Cat.bday DATE"
 	_, _, err := obinary.SQLCommand(dbc, sql)
 	Ok(err)
@@ -3216,6 +3296,23 @@ func createRecordsWithDate(dbc *obinary.DBClient) {
 	jjFromQuery := docs[0]
 	Equals(jj.RID, jjFromQuery.RID)
 	Equals(1932, jjFromQuery.GetField("bday").Value.(time.Time).Year())
+
+	/* ---[ update ]--- */
+
+	versionBefore := jj.Version
+
+	oneYearLater := bdayTm.AddDate(1, 0, 0)
+
+	jj.FieldWithType("bday", oneYearLater, oschema.DATE) // updates the field locally
+	err = obinary.UpdateRecord(dbc, jj)                  // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < jj.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	jjFromQuery = docs[0]
+	Equals(1933, jjFromQuery.GetField("bday").Value.(time.Time).Year())
 }
 
 // ------
@@ -3340,8 +3437,7 @@ func ogonoriTestAgainstOrientDBServer() {
 	}
 
 	// create new records from low-level create API (not SQL)
-	createRecordsViaNativeAPI(dbc)
-	updateRecordsViaNativeAPI(dbc)
+	createAndUpdateRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)

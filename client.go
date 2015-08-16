@@ -209,7 +209,6 @@ func createOgonoriTestDB(dbc *obinary.DBClient, dbUser, dbPass string, fullTest 
 }
 
 func seedInitialData(dbc *obinary.DBClient) {
-	fmt.Println("OpenDatabase (seed round)")
 	err := obinary.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
 	Ok(err)
 
@@ -349,9 +348,9 @@ func graphCommandsSQLAPI(conxStr string) {
 	Ok(err)
 
 	nrows, _ := res.RowsAffected()
-	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Debugf("nrows: %v\n", nrows)
 	lastID, _ := res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastID)
+	ogl.Debugf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
 	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -360,9 +359,9 @@ func graphCommandsSQLAPI(conxStr string) {
 	Ok(err)
 
 	nrows, _ = res.RowsAffected()
-	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Debugf("nrows: %v\n", nrows)
 	lastID, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastID)
+	ogl.Debugf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
 	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -373,9 +372,9 @@ func graphCommandsSQLAPI(conxStr string) {
 	res, err = db.Exec(sql)
 	Ok(err)
 	nrows, _ = res.RowsAffected()
-	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Debugf("nrows: %v\n", nrows)
 	lastID, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastID)
+	ogl.Debugf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
 	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -395,7 +394,7 @@ func graphCommandsSQLAPI(conxStr string) {
 	friendOutLink := rowdocs[0].GetField("out").Value.(*oschema.OLink)
 	Assert(friendOutLink.Record == nil, "should be nil")
 
-	ogl.Printf("friendOutLink: %v\n", friendOutLink)
+	ogl.Debugf("friendOutLink: %v\n", friendOutLink)
 
 	// REMOVE THE STUFF BELOW since can't specify fetchPlain in SQL (??? => ask on user group)'
 	// sql = `select from Friend order by @rid desc LIMIT 1 fetchPlan=*:-1`
@@ -415,9 +414,9 @@ func graphCommandsSQLAPI(conxStr string) {
 	// // Assert(friendOutLink.Record != nil, "should NOT be nil") // FAILS: looks like you cannot put a fetchplain in an SQL query itself?
 
 	// nrows, _ = res.RowsAffected()
-	// ogl.Printf("nrows: %v\n", nrows)
+	// ogl.Debugf("nrows: %v\n", nrows)
 	// lastID, _ = res.LastInsertId()
-	// ogl.Printf("last insert id: %v\n", lastID)
+	// ogl.Debugf("last insert id: %v\n", lastID)
 	// Equals(int64(1), nrows)
 	// Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -451,9 +450,9 @@ func databaseSQLAPI(conxStr string) {
 	Ok(err)
 
 	nrows, _ = res.RowsAffected()
-	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Debugf("nrows: %v\n", nrows)
 	lastID, _ := res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastID)
+	ogl.Debugf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
 	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -464,9 +463,9 @@ func databaseSQLAPI(conxStr string) {
 	res, err = db.Exec(insertSQL, "Filo", 4, "Greek")
 	Ok(err)
 	nrows, _ = res.RowsAffected()
-	ogl.Printf("nrows: %v\n", nrows)
+	ogl.Debugf("nrows: %v\n", nrows)
 	lastID, _ = res.LastInsertId()
-	ogl.Printf("last insert id: %v\n", lastID)
+	ogl.Debugf("last insert id: %v\n", lastID)
 	Equals(int64(1), nrows)
 	Assert(lastID > int64(0), fmt.Sprintf("LastInsertId: %v", lastID))
 
@@ -2303,7 +2302,7 @@ func createAndUpdateRecordsViaNativeAPI(dbc *obinary.DBClient) {
 
 	/* ---[ Test LinkList/LinkSet Serialization ]--- */
 	createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKLIST)
-	// createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKSET)
+	// createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKSET)  // TODO: get this working
 
 	/* ---[ Test LinkMap Serialization ]--- */
 	createAndUpdateRecordsWithLinkMap(dbc)
@@ -2376,6 +2375,35 @@ func createAndUpdateRecordsWithLinkMap(dbc *obinary.DBClient) {
 	Equals(2, len(notesFromQuery))
 	Equals(notesFromQuery["bff"].RID, cat1.RID)
 	Equals(notesFromQuery["7th-best-friend"].RID, cat2.RID)
+
+	///////////////////////
+
+	/* ---[ update ]--- */
+
+	versionBefore := cat3.Version
+
+	// add to cat3's linkmap
+
+	cat3map := cat3.GetField("notes").Value.(map[string]*oschema.OLink)
+	cat3map["new1"] = &oschema.OLink{RID: cat2.RID}
+	cat3map["new2"] = &oschema.OLink{RID: cat2.RID}
+
+	err = obinary.UpdateRecord(dbc, cat3) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat3.Version, "version should have incremented")
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	cat3FromQuery = docs[0]
+
+	Equals("A3", cat3FromQuery.GetField("name").Value)
+	cat3MapFromQuery := cat3FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	Equals(4, len(cat3MapFromQuery))
+	Equals(cat3MapFromQuery["bff"].RID, cat1.RID)
+	Equals(cat3MapFromQuery["7th-best-friend"].RID, cat2.RID)
+	Equals(cat3MapFromQuery["new1"].RID, cat2.RID)
+	Equals(cat3MapFromQuery["new2"].RID, cat2.RID)
 }
 
 func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema.ODataType) {
@@ -2451,6 +2479,36 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema
 	sort.Sort(ByRID(catFriendsFromQuery))
 	Equals(catFriendsFromQuery[0].RID, cat1.RID)
 	Equals(catFriendsFromQuery[1].RID, cat2.RID)
+
+	/* ---[ update ]--- */
+
+	versionBefore := cat3.Version
+
+	// cat2 ("A2") currently has linklist to cat1 ("A2")
+	// -> change this to a linklist to cat1 and cat3
+
+	linkToCat3 := &oschema.OLink{RID: cat3.RID}
+	linksCat1and3 := []*oschema.OLink{linkToCat1, linkToCat3}
+
+	cat2.Field("catfriends", linksCat1and3) // updates the field locally
+	Equals(true, cat3.IsDirty())
+
+	err = obinary.UpdateRecord(dbc, cat2) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat2.Version, "version should have incremented")
+	Equals(false, cat2.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	cat2FromQuery = docs[0]
+
+	Equals("A2", cat2FromQuery.GetField("name").Value)
+	catFriendsFromQuery = cat2FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	Equals(2, len(catFriendsFromQuery))
+	sort.Sort(ByRID(catFriendsFromQuery))
+	Equals(catFriendsFromQuery[0].RID, cat1.RID)
+	Equals(catFriendsFromQuery[1].RID, cat3.RID)
 }
 
 func createAndUpdateRecordsWithLinks(dbc *obinary.DBClient) {
@@ -2520,6 +2578,31 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.DBClient) {
 	Equals(4, toInt(cat3FromQuery.GetField("age").Value))
 	linkToCat2FromQuery := cat3FromQuery.GetField("catlink").Value.(*oschema.OLink)
 	Equals(linkToCat2FromQuery.RID, cat2.RID)
+
+	/* ---[ update ]--- */
+
+	versionBefore := cat3.Version
+
+	// cat3 ("A3") currently has link to cat2 ("A2")
+	// -> change this to a link to cat1 ("A1")
+
+	cat3.Field("catlink", linkToCat1) // updates the field locally
+	Equals(true, cat3.IsDirty())
+
+	err = obinary.UpdateRecord(dbc, cat3) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat3.Version, "version should have incremented")
+	Equals(false, cat3.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	cat3FromQuery = docs[0]
+
+	Equals("A3", cat3FromQuery.GetField("name").Value)
+	Equals(4, toInt(cat3FromQuery.GetField("age").Value))
+	linkToCat1FromQuery = cat3FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	Equals(linkToCat1FromQuery.RID, cat1.RID)
 }
 
 func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType oschema.ODataType) {
@@ -2623,6 +2706,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
+	sort.Sort(ByLongVal(embListFromQuery))
 	Equals(3, len(embListFromQuery))
 	Equals(int64(22), embListFromQuery[0])
 	Equals(int64(4444), embListFromQuery[1])
@@ -2682,6 +2766,110 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	Equals(40, toInt(embCatDoc0.GetField("age").Value))
 	Equals("Joan", embCatDoc1.GetField("name").Value)
 	Equals("Marcia", embCatDoc1.GetField("caretaker").Value)
+
+	/* ---[ update ]--- */
+
+	// update embedded string list
+	versionBefore := cat.Version
+
+	newEmbStrings := []interface{}{"A", "BB", "CCCC"}
+	newStringList := oschema.NewEmbeddedSlice(newEmbStrings, oschema.STRING)
+	cat.FieldWithType("embstrings", newStringList, embType) // updates the field locally
+	Equals(true, cat.IsDirty())
+
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+	Equals(false, cat.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+
+	embstringsFieldFromQuery = catFromQuery.GetField("embstrings")
+
+	Equals("embstrings", embstringsFieldFromQuery.Name)
+	Equals(embType, embstringsFieldFromQuery.Type)
+	embListFromQuery, ok = embstringsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	sort.Sort(ByStringVal(embListFromQuery))
+	Equals(3, len(embListFromQuery))
+	Equals("A", embListFromQuery[0])
+	Equals("BB", embListFromQuery[1])
+	Equals("CCCC", embListFromQuery[2])
+
+	// update embedded long list + embedded Cats
+
+	newEmbLongs := []interface{}{int64(18), int64(1234567890)}
+	newInt64List := oschema.NewEmbeddedSlice(newEmbLongs, oschema.LONG)
+
+	Equals(false, cat.IsDirty())
+	cat.FieldWithType("emblongs", newInt64List, embType)
+	Equals(true, cat.IsDirty())
+
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+	Equals(false, cat.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+
+	emblongsFieldFromQuery = catFromQuery.GetField("emblongs")
+
+	Equals("emblongs", emblongsFieldFromQuery.Name)
+	Equals(embType, emblongsFieldFromQuery.Type)
+	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	sort.Sort(ByLongVal(embListFromQuery))
+	Equals(2, len(embListFromQuery))
+	Equals(int64(18), embListFromQuery[0])
+	Equals(int64(1234567890), embListFromQuery[1])
+
+	// add another cat to the embedded cat list
+	embCat2 := oschema.NewDocument("Cat")
+	embCat2.Field("name", "Mickey").Field("age", 1)
+
+	cat.GetField("embcats").Value.(oschema.OEmbeddedList).Add(embCat2)
+
+	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
+	Ok(err)
+	Assert(versionBefore < cat.Version, "version should have incremented")
+	Equals(false, cat.IsDirty())
+
+	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	Ok(err)
+	Equals(1, len(docs))
+	catFromQuery = docs[0]
+
+	embCatsFieldFromQuery := catFromQuery.GetField("embcats")
+
+	Equals("embcats", embCatsFieldFromQuery.Name)
+	Equals(embType, embCatsFieldFromQuery.Type)
+	embListFromQuery, ok = embCatsFieldFromQuery.Value.([]interface{})
+	Assert(ok, "Cast to oschema.[]interface{} failed")
+
+	Equals(3, len(embListFromQuery))
+	sort.Sort(ByEmbeddedCatName(embListFromQuery))
+
+	embCatDoc0, ok = embListFromQuery[0].(*oschema.ODocument)
+	Assert(ok, "Cast to *oschema.ODocument failed")
+	embCatDoc1, ok = embListFromQuery[1].(*oschema.ODocument)
+	Assert(ok, "Cast to *oschema.ODocument failed")
+	embCatDoc2, ok := embListFromQuery[2].(*oschema.ODocument)
+	Assert(ok, "Cast to *oschema.ODocument failed")
+
+	Equals("Gordo", embCatDoc0.GetField("name").Value)
+	Equals(40, toInt(embCatDoc0.GetField("age").Value))
+	Equals("Joan", embCatDoc1.GetField("name").Value)
+	Equals("Marcia", embCatDoc1.GetField("caretaker").Value)
+	Equals("Mickey", embCatDoc2.GetField("name").Value)
+	Equals(1, toInt(embCatDoc2.GetField("age").Value))
 
 }
 
@@ -3378,6 +3566,22 @@ func (sv ByStringVal) Swap(i, j int) {
 
 func (sv ByStringVal) Less(i, j int) bool {
 	return sv[i].(string) < sv[j].(string)
+}
+
+// ------
+
+type ByLongVal []interface{}
+
+func (sv ByLongVal) Len() int {
+	return len(sv)
+}
+
+func (sv ByLongVal) Swap(i, j int) {
+	sv[i], sv[j] = sv[j], sv[i]
+}
+
+func (sv ByLongVal) Less(i, j int) bool {
+	return sv[i].(int64) < sv[j].(int64)
 }
 
 // ------

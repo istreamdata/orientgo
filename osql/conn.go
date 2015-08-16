@@ -25,18 +25,18 @@ type ogonoriConn struct {
 }
 
 func (c *ogonoriConn) Prepare(query string) (driver.Stmt, error) {
-	ogl.Println("** ogoConn.Prepare")
+	ogl.Debugln("** ogoConn.Prepare")
 
 	return &ogonoriStmt{conn: c, query: query}, nil
 }
 
 func (c *ogonoriConn) Begin() (driver.Tx, error) {
-	ogl.Println("** ogoConn.Begin")
+	ogl.Debugln("** ogoConn.Begin")
 	return nil, nil
 }
 
 func (c *ogonoriConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	ogl.Println("** ogoConn.Exec")
+	ogl.Debugln("** ogoConn.Exec")
 
 	if c.dbc == nil {
 		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriConn#Exec"}
@@ -80,7 +80,7 @@ func len64(docs []*oschema.ODocument) int64 {
 }
 
 func (c *ogonoriConn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	ogl.Println("** ogoConn.Query")
+	ogl.Debugln("** ogoConn.Query")
 
 	if c.dbc == nil {
 		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriConn#Exec"}
@@ -97,12 +97,12 @@ func doQuery(dbc *obinary.DBClient, query string, args []driver.Value) (driver.R
 	strargs := valuesToStrings(args)
 	fetchPlan := ""
 	docs, err = obinary.SQLQuery(dbc, query, fetchPlan, strargs...)
-	ogl.Printf("oC.Q:  %v\n", docs)
+	ogl.Debugf("oC.Q:  %v\n", docs)
 	return NewRows(docs), err
 }
 
 func (c *ogonoriConn) Close() error {
-	ogl.Println("** ogoConn.Close")
+	ogl.Debugln("** ogoConn.Close")
 	// Close() must be idempotent
 	if c.dbc != nil {
 		err := obinary.CloseDatabase(c.dbc)

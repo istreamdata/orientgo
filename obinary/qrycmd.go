@@ -300,7 +300,7 @@ func SQLCommand(dbc *DBClient, sql string, params ...string) (retval string, doc
 			}
 
 		} else if resultType == 'l' { // collection of records
-			ogl.Println("... resultType l")
+			ogl.Debugln("... resultType l")
 			collectionDocs, err := readResultSet(dbc)
 			if err != nil {
 				return "", nil, oerror.NewTrace(err)

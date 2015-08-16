@@ -42,7 +42,7 @@ func init() {
 //   uname@passw:ip-or-host/dbname  (default port of 2424 is used)
 //
 func (d *OgonoriDriver) Open(dsn string) (driver.Conn, error) {
-	ogl.Println("** OgonoriDriver#Open")
+	ogl.Debugln("** OgonoriDriver#Open")
 
 	uname, passw, host, port, dbname, err := parseDsn(dsn)
 	clientOpts := obinary.ClientOptions{ServerHost: host, ServerPort: port}

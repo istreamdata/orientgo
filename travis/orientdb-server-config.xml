@@ -1,39 +1,39 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <orient-server>
-    <handlers>
-        <handler class="com.orientechnologies.orient.server.handler.OServerSideScriptInterpreter">
+  <handlers>
+    <handler class="com.orientechnologies.orient.server.handler.OServerSideScriptInterpreter">
+      <parameters>
+        <parameter name="enabled" value="true" />
+      </parameters>
+    </handler>
+  </handlers>
+  <network>
+    <protocols>
+      <protocol name="http" implementation="com.orientechnologies.orient.server.network.protocol.http.ONetworkProtocolHttpDb"/>
+    </protocols>
+    <listeners>
+      <listener ip-address="127.0.0.1" port-range="2424" protocol="http">
+        <commands>
+          <command
+              pattern="GET|www GET|studio/ GET| GET|*.htm GET|*.html GET|*.xml GET|*.jpeg GET|*.jpg GET|*.png GET|*.gif GET|*.js GET|*.css GET|*.swf GET|*.ico GET|*.txt"
+              implementation="com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent">
             <parameters>
-                <parameter name="enabled" value="true" />
+              <entry name="http.cache:*.htm *.html" value="Cache-Control: no-cache, no-store, max-age=0, must-revalidate\r\nPragma: no-cache" />
+              <entry name="http.cache:default" value="Cache-Control: max-age=120" />
             </parameters>
-        </handler>
-    </handlers>
-    <network>
-        <protocols>
-            <protocol name="http" implementation="com.orientechnologies.orient.server.network.protocol.http.ONetworkProtocolHttpDb"/>
-        </protocols>
-        <listeners>
-            <listener ip-address="127.0.0.1" port-range="2424" protocol="http">
-                <commands>
-                    <command
-                        pattern="GET|www GET|studio/ GET| GET|*.htm GET|*.html GET|*.xml GET|*.jpeg GET|*.jpg GET|*.png GET|*.gif GET|*.js GET|*.css GET|*.swf GET|*.ico GET|*.txt"
-                        implementation="com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent">
-                        <parameters>
-                            <entry name="http.cache:*.htm *.html" value="Cache-Control: no-cache, no-store, max-age=0, must-revalidate\r\nPragma: no-cache" />
-                            <entry name="http.cache:default" value="Cache-Control: max-age=120" />
-                        </parameters>
-                    </command>
-                </commands>
-            </listener>
-        </listeners>
-    </network>
-    <storages>
-        <storage name="temp" path="memory:temp" userName="admin" userPassword="admin" loaded-at-startup="true"/>
-    </storages>
-    <users>
-        <user resources="*" password="jiffylube" name="root"/>
-        <user name="admin" password="admin" resources="*"/>
-    </users>
-    <properties>
-        <entry name="log.console.level" value="off"/>
-    </properties>
+          </command>
+        </commands>
+      </listener>
+    </listeners>
+  </network>
+  <storages>
+    <storage name="temp" path="memory:temp" userName="admin" userPassword="admin" loaded-at-startup="true"/>
+  </storages>
+  <users>
+    <user name="root"  password="jiffylube" resources="*" />
+    <user name="admin" password="admin"     resources="*"/>
+  </users>
+  <properties>
+    <entry name="log.console.level" value="off"/>
+  </properties>
 </orient-server>

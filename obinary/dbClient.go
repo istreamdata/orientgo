@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/quux00/ogonori/oerror"
 )
 
 //
@@ -57,20 +59,20 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	conx, err := net.Dial("tcp", hostport)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", err)
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	// after connecting the OrientDB server sends back 2 bytes - its binary protocol version
 	readbuf := make([]byte, 2)
 	n, err := conx.Read(readbuf)
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	buf := new(bytes.Buffer)
 	_, err = buf.Write(readbuf[0:n])
 	if err != nil {
-		return nil, err
+		return nil, oerror.NewTrace(err)
 	}
 
 	var (

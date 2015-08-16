@@ -35,7 +35,7 @@ func UpdateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 	}
 
 	// update-content flag
-	err = rw.WriteBool(dbc.buf, true) // TODO: need to check doc.dirty flag
+	err = rw.WriteBool(dbc.buf, true)
 	if err != nil {
 		return oerror.NewTrace(err)
 	}
@@ -100,9 +100,6 @@ func UpdateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 		// [(uuid-most-sig-bits:long)(uuid-least-sig-bits:long)(updated-file-id:long)(updated-page-index:long)(updated-page-offset:int)]
 		panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 	}
-
-	doc.SetDirty(false)
-	// TODO: this SetDirty false needs to cascade to all embedded ODocuments !
 
 	return nil
 }

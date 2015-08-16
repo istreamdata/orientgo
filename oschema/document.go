@@ -21,9 +21,6 @@ type ODocument struct {
 	Fields     map[string]*OField // key: property-name
 	// TODO: may want a mapping of ids => OField
 	Classname string // TODO: probably needs to change *OClass (once that is built)
-
-	// private fields
-	dirty bool // TODO: probably need to track which fields are dirty
 }
 
 //
@@ -155,16 +152,7 @@ func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 	ogl.Debugf("ODocument.AddField field== %v\n", field) // DEBUG
 	doc.Fields[name] = field
 	doc.entryOrder = append(doc.entryOrder, name)
-	doc.dirty = true
 	return doc
-}
-
-func (doc *ODocument) SetDirty(b bool) {
-	doc.dirty = b
-}
-
-func (doc *ODocument) IsDirty() bool {
-	return doc.dirty
 }
 
 //

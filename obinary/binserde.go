@@ -105,7 +105,6 @@ func (serde ORecordSerializerV0) Deserialize(dbc *DBClient, doc *oschema.ODocume
 
 		doc.AddField(ofield.Name, ofield)
 	}
-	doc.SetDirty(false)
 
 	return nil
 }

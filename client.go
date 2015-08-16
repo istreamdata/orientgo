@@ -2491,12 +2491,10 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema
 	linksCat1and3 := []*oschema.OLink{linkToCat1, linkToCat3}
 
 	cat2.Field("catfriends", linksCat1and3) // updates the field locally
-	Equals(true, cat3.IsDirty())
 
 	err = obinary.UpdateRecord(dbc, cat2) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat2.Version, "version should have incremented")
-	Equals(false, cat2.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
 	Ok(err)
@@ -2587,12 +2585,10 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.DBClient) {
 	// -> change this to a link to cat1 ("A1")
 
 	cat3.Field("catlink", linkToCat1) // updates the field locally
-	Equals(true, cat3.IsDirty())
 
 	err = obinary.UpdateRecord(dbc, cat3) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat3.Version, "version should have incremented")
-	Equals(false, cat3.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
 	Ok(err)
@@ -2775,12 +2771,10 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	newEmbStrings := []interface{}{"A", "BB", "CCCC"}
 	newStringList := oschema.NewEmbeddedSlice(newEmbStrings, oschema.STRING)
 	cat.FieldWithType("embstrings", newStringList, embType) // updates the field locally
-	Equals(true, cat.IsDirty())
 
 	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat.Version, "version should have incremented")
-	Equals(false, cat.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Ok(err)
@@ -2805,14 +2799,11 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	newEmbLongs := []interface{}{int64(18), int64(1234567890)}
 	newInt64List := oschema.NewEmbeddedSlice(newEmbLongs, oschema.LONG)
 
-	Equals(false, cat.IsDirty())
 	cat.FieldWithType("emblongs", newInt64List, embType)
-	Equals(true, cat.IsDirty())
 
 	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat.Version, "version should have incremented")
-	Equals(false, cat.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Ok(err)
@@ -2840,7 +2831,6 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat.Version, "version should have incremented")
-	Equals(false, cat.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Ok(err)
@@ -3040,12 +3030,10 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.DBClient) {
 		FieldWithType("oz", 99.092, oschema.FLOAT)
 
 	cat.FieldWithType("embcat", moonshine, oschema.EMBEDDED) // updates the field locally
-	Equals(true, cat.IsDirty())
 
 	err = obinary.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Ok(err)
 	Assert(versionBefore < cat.Version, "version should have incremented")
-	Equals(false, cat.IsDirty())
 
 	docs, err = obinary.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Ok(err)

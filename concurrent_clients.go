@@ -15,7 +15,7 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-func TestConcurrentClients() {
+func testConcurrentClients() {
 	var (
 		dbc1, dbc2, dbc3, dbc4 *obinary.DBClient
 		err                    error

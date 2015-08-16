@@ -29,7 +29,7 @@ func CreateRecord(dbc *DBClient, doc *oschema.ODocument) error {
 	oclass, ok := dbc.currDB.Classes[doc.Classname]
 	if ok {
 		// TODO: need way to allow user to specify a non-default cluster
-		clusterID = int16(oclass.DefaultClusterId)
+		clusterID = int16(oclass.DefaultClusterID)
 	}
 
 	err = rw.WriteShort(dbc.buf, clusterID)

@@ -1065,7 +1065,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.(*oschema.OLinkBag).Links[0]
 
 	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
-	sort.Sort(ByRID(zekesOutFriendEdges))
+	sort.Sort(byRID(zekesOutFriendEdges))
 	// I know that zeke -> paul edge was the last one created, so it will be the second
 	// in Zeke's LinkBag list
 	Equals(paulsInFriendEdge.RID, zekesOutFriendEdges[1].RID)
@@ -1079,7 +1079,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	abbieBothLinks := docs[0].GetField("both").Value.([]*oschema.OLink)
 	Equals(2, len(abbieBothLinks))
-	sort.Sort(ByRID(abbieBothLinks))
+	sort.Sort(byRID(abbieBothLinks))
 	Equals(zekeRID, abbieBothLinks[0].RID)
 	Equals(jimRID, abbieBothLinks[1].RID)
 
@@ -1749,7 +1749,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals("Felix", docs[0].GetField("name").Value)
 	Equals(6, int(docs[0].GetField("age").Value.(int32)))
 	buddies := docs[0].GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(buddies))
+	sort.Sort(byRID(buddies))
 	Equals(2, len(buddies))
 	Equals(linusRID, buddies[0].RID)
 	Equals(keikoRID, buddies[1].RID)
@@ -1862,13 +1862,13 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	germaineRID := docs[0].RID
 
 	buddyList := docs[0].GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(buddyList))
+	sort.Sort(byRID(buddyList))
 	Equals(2, len(buddies))
 	Equals(linusRID, buddyList[0].RID)
 	Equals(keikoRID, buddyList[1].RID)
 
 	buddySet := docs[0].GetField("buddySet").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(buddySet))
+	sort.Sort(byRID(buddySet))
 	Equals(2, len(buddySet))
 	Equals(linusRID, buddySet[0].RID)
 	Equals(felixRID, buddySet[1].RID)
@@ -1908,7 +1908,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	// test Germaine's buddySet (LINKSET)
 	germaineBuddySet := docs[1].GetField("buddySet").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(germaineBuddySet))
+	sort.Sort(byRID(germaineBuddySet))
 	Equals("Linus", germaineBuddySet[0].Record.GetField("name").Value)
 	Equals("Felix", germaineBuddySet[1].Record.GetField("name").Value)
 	Assert(germaineBuddySet[1].RID.ClusterID != -1, "RID should be filled in")
@@ -1916,14 +1916,14 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// Felix Document has references, so those should also be filled in
 	felixDoc := germaineBuddySet[1].Record
 	felixBuddiesList := felixDoc.GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(felixBuddiesList))
+	sort.Sort(byRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	Assert(felixBuddiesList[0].Record != nil, "Felix links should be filled in")
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
 
 	// test Germaine's buddies (LINKLIST)
 	germaineBuddyList := docs[1].GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(germaineBuddyList))
+	sort.Sort(byRID(germaineBuddyList))
 	Equals("Linus", germaineBuddyList[0].Record.GetField("name").Value)
 	Equals("Keiko", germaineBuddyList[1].Record.GetField("name").Value)
 	Assert(germaineBuddyList[0].RID.ClusterID != -1, "RID should be filled in")
@@ -1984,7 +1984,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	// now check that Felix buddies were pulled in too
 	felixDoc = linusBuddy.Record
 	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(felixBuddiesList))
+	sort.Sort(byRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
 	Equals("Keiko", felixBuddiesList[1].Record.GetField("name").Value)
@@ -2001,7 +2001,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 
 	Assert(docs[1].GetField("buddy") == nil, "Felix should have no 'buddy'")
 	felixBuddiesList = docs[1].GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(felixBuddiesList))
+	sort.Sort(byRID(felixBuddiesList))
 	Equals("Linus", felixBuddiesList[0].Record.GetField("name").Value)
 	Equals("Keiko", felixBuddiesList[1].Record.GetField("name").Value)
 	Equals("Anna", felixBuddiesList[1].Record.GetField("caretaker").Value)
@@ -2018,7 +2018,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	felixDoc = docs[0]
 	Equals("Felix", felixDoc.GetField("name").Value)
 	felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(felixBuddiesList))
+	sort.Sort(byRID(felixBuddiesList))
 	Equals(2, len(felixBuddiesList))
 	felixBuddy0 := felixBuddiesList[0]
 	Assert(felixBuddy0.RID.ClusterID != -1, "RID should be filled in")
@@ -2119,7 +2119,7 @@ func dbCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Equals(1, len(docs))
 	Equals("Felix", docs[0].GetField("name").Value)
 	buddies = docs[0].GetField("buddies").Value.([]*oschema.OLink)
-	sort.Sort(ByRID(buddies))
+	sort.Sort(byRID(buddies))
 	Equals(2, len(buddies))
 	linusDoc := buddies[0].Record
 	Assert(linusDoc != nil, "first level should be filled in")
@@ -2476,7 +2476,7 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema
 	Equals(3, toInt(cat3FromQuery.GetField("age").Value))
 	catFriendsFromQuery = cat3FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
 	Equals(2, len(catFriendsFromQuery))
-	sort.Sort(ByRID(catFriendsFromQuery))
+	sort.Sort(byRID(catFriendsFromQuery))
 	Equals(catFriendsFromQuery[0].RID, cat1.RID)
 	Equals(catFriendsFromQuery[1].RID, cat2.RID)
 
@@ -2506,7 +2506,7 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.DBClient, collType oschema
 	Equals("A2", cat2FromQuery.GetField("name").Value)
 	catFriendsFromQuery = cat2FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
 	Equals(2, len(catFriendsFromQuery))
-	sort.Sort(ByRID(catFriendsFromQuery))
+	sort.Sort(byRID(catFriendsFromQuery))
 	Equals(catFriendsFromQuery[0].RID, cat1.RID)
 	Equals(catFriendsFromQuery[1].RID, cat3.RID)
 }
@@ -2669,7 +2669,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	embListFromQuery, ok := embstringsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
-	sort.Sort(ByStringVal(embListFromQuery))
+	sort.Sort(byStringVal(embListFromQuery))
 	Equals(3, len(embListFromQuery))
 	Equals("one", embListFromQuery[0])
 	Equals("three", embListFromQuery[1])
@@ -2706,7 +2706,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
-	sort.Sort(ByLongVal(embListFromQuery))
+	sort.Sort(byLongVal(embListFromQuery))
 	Equals(3, len(embListFromQuery))
 	Equals(int64(22), embListFromQuery[0])
 	Equals(int64(4444), embListFromQuery[1])
@@ -2755,7 +2755,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
 	Equals(2, len(embListFromQuery))
-	sort.Sort(ByEmbeddedCatName(embListFromQuery))
+	sort.Sort(byEmbeddedCatName(embListFromQuery))
 
 	embCatDoc0, ok := embListFromQuery[0].(*oschema.ODocument)
 	Assert(ok, "Cast to *oschema.ODocument failed")
@@ -2794,7 +2794,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	embListFromQuery, ok = embstringsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
-	sort.Sort(ByStringVal(embListFromQuery))
+	sort.Sort(byStringVal(embListFromQuery))
 	Equals(3, len(embListFromQuery))
 	Equals("A", embListFromQuery[0])
 	Equals("BB", embListFromQuery[1])
@@ -2826,7 +2826,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
-	sort.Sort(ByLongVal(embListFromQuery))
+	sort.Sort(byLongVal(embListFromQuery))
 	Equals(2, len(embListFromQuery))
 	Equals(int64(18), embListFromQuery[0])
 	Equals(int64(1234567890), embListFromQuery[1])
@@ -2855,7 +2855,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.DBClient, embType osch
 	Assert(ok, "Cast to oschema.[]interface{} failed")
 
 	Equals(3, len(embListFromQuery))
-	sort.Sort(ByEmbeddedCatName(embListFromQuery))
+	sort.Sort(byEmbeddedCatName(embListFromQuery))
 
 	embCatDoc0, ok = embListFromQuery[0].(*oschema.ODocument)
 	Assert(ok, "Cast to *oschema.ODocument failed")
@@ -3521,66 +3521,66 @@ func removeProperty(dbc *obinary.DBClient, class, property string) {
 // ------
 // Sort OLinks by RID
 
-type ByRID []*oschema.OLink
+type byRID []*oschema.OLink
 
-func (slnk ByRID) Len() int {
+func (slnk byRID) Len() int {
 	return len(slnk)
 }
 
-func (slnk ByRID) Swap(i, j int) {
+func (slnk byRID) Swap(i, j int) {
 	slnk[i], slnk[j] = slnk[j], slnk[i]
 }
 
-func (slnk ByRID) Less(i, j int) bool {
+func (slnk byRID) Less(i, j int) bool {
 	return slnk[i].RID.String() < slnk[j].RID.String()
 }
 
 // ------
 // sort ODocuments by name field
 
-type ByEmbeddedCatName []interface{}
+type byEmbeddedCatName []interface{}
 
-func (a ByEmbeddedCatName) Len() int {
+func (a byEmbeddedCatName) Len() int {
 	return len(a)
 }
 
-func (a ByEmbeddedCatName) Swap(i, j int) {
+func (a byEmbeddedCatName) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-func (a ByEmbeddedCatName) Less(i, j int) bool {
+func (a byEmbeddedCatName) Less(i, j int) bool {
 	return a[i].(*oschema.ODocument).GetField("name").Value.(string) < a[j].(*oschema.ODocument).GetField("name").Value.(string)
 }
 
 // ------
 
-type ByStringVal []interface{}
+type byStringVal []interface{}
 
-func (sv ByStringVal) Len() int {
+func (sv byStringVal) Len() int {
 	return len(sv)
 }
 
-func (sv ByStringVal) Swap(i, j int) {
+func (sv byStringVal) Swap(i, j int) {
 	sv[i], sv[j] = sv[j], sv[i]
 }
 
-func (sv ByStringVal) Less(i, j int) bool {
+func (sv byStringVal) Less(i, j int) bool {
 	return sv[i].(string) < sv[j].(string)
 }
 
 // ------
 
-type ByLongVal []interface{}
+type byLongVal []interface{}
 
-func (sv ByLongVal) Len() int {
+func (sv byLongVal) Len() int {
 	return len(sv)
 }
 
-func (sv ByLongVal) Swap(i, j int) {
+func (sv byLongVal) Swap(i, j int) {
 	sv[i], sv[j] = sv[j], sv[i]
 }
 
-func (sv ByLongVal) Less(i, j int) bool {
+func (sv byLongVal) Less(i, j int) bool {
 	return sv[i].(int64) < sv[j].(int64)
 }
 
@@ -3733,7 +3733,7 @@ func main() {
 	if *xplore {
 		explore()
 	} else if *conc {
-		TestConcurrentClients()
+		testConcurrentClients()
 	} else {
 		ogonoriTestAgainstOrientDBServer()
 	}

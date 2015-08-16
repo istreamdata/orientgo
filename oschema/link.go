@@ -53,13 +53,20 @@ type ORemoteLinkBag struct {
 }
 
 type treeCollectionPointer struct {
-	fileId     int64
+	fileID     int64
 	pageIndex  int64
 	pageOffset int32
 }
 
+//
+// GetFileID returns the fileID of the server collection pointer
+// if the OLinkBag is an instance of ORemoteLinkBag.
+// If the OLinkBAg is not an instance of ORemoteLinkBag,
+// than the return value is meaningless, but no error
+// is returned/thrown in such a case.
+//
 func (lb *ORemoteLinkBag) GetFileID() int64 {
-	return lb.CollectionPointer.fileId
+	return lb.CollectionPointer.fileID
 }
 
 func (lb *ORemoteLinkBag) GetPageIndex() int64 {
@@ -78,10 +85,17 @@ func (lb *ORemoteLinkBag) SetRemoteSize(sz int32) {
 	lb.size = int(sz)
 }
 
+//
+// AddLink adds an *OLink to the slice of *OLink in the OLinkBag
+//
 func (lb *OLinkBag) AddLink(lnk *OLink) {
 	lb.Links = append(lb.Links, lnk)
 }
 
+//
+// IsRemote indicates where this LinkBag has its data
+// stored in an opaque format on the remote OrientDB server.
+//
 func (lb *OLinkBag) IsRemote() bool {
 	return lb.ORemoteLinkBag.CollectionPointer != nil
 }
@@ -103,9 +117,9 @@ func NewOLinkBag(links []*OLink) *OLinkBag {
 // The OLinkBag returned does not yet know the size of the LinkBag
 // nor know what the OLinks are.
 //
-func NewTreeOLinkBag(fileId int64, pageIdx int64, pageOffset int32, size int32) *OLinkBag {
+func NewTreeOLinkBag(fileID int64, pageIdx int64, pageOffset int32, size int32) *OLinkBag {
 	treeptr := treeCollectionPointer{
-		fileId:     fileId,
+		fileID:     fileID,
 		pageIndex:  pageIdx,
 		pageOffset: pageOffset,
 	}

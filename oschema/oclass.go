@@ -4,8 +4,8 @@ type OClass struct {
 	Name             string
 	ShortName        string
 	Properties       map[string]*OProperty // key=Property.Name
-	DefaultClusterId int32                 // TODO: why is this int32 ??  shouldn't it be int16?
-	ClusterIds       []int32               // TODO: why is this int32 ??  shouldn't it be int16?
+	DefaultClusterID int32                 // TODO: why is this int32 ??  shouldn't it be int16?
+	ClusterIDs       []int32               // TODO: why is this int32 ??  shouldn't it be int16?
 	SuperClass       string
 	OverSize         float32
 	StrictMode       bool
@@ -37,10 +37,10 @@ func NewOClassFromDocument(doc *ODocument) *OClass {
 		}
 	}
 	if fld := doc.GetField("defaultClusterId"); fld != nil && fld.Value != nil {
-		oclass.DefaultClusterId = fld.Value.(int32)
+		oclass.DefaultClusterID = fld.Value.(int32)
 	}
 	if fld := doc.GetField("clusterIds"); fld != nil && fld.Value != nil {
-		oclass.ClusterIds = convertToInt32Slice(fld.Value.([]interface{}))
+		oclass.ClusterIDs = convertToInt32Slice(fld.Value.([]interface{}))
 	}
 	if fld := doc.GetField("superClass"); fld != nil && fld.Value != nil {
 		oclass.SuperClass = fld.Value.(string)

@@ -73,7 +73,7 @@ func TestAgainstOrientDBServer(t *testing.T) {
 	}
 
 	// create new records from low-level create API (not SQL)
-	createRecordsViaNativeAPI(dbc)
+	createAndUpdateRecordsViaNativeAPI(dbc)
 
 	/* ---[ Use Go database/sql API on Document DB ]--- */
 	ogl.SetLevel(ogl.WARN)

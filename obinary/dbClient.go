@@ -49,7 +49,6 @@ func NewDBClient(opts ClientOptions) (*DBClient, error) {
 	// binary port range is: 2424-2430
 	if opts.ServerHost == "" {
 		opts.ServerHost = "127.0.0.1"
-		// opts.ServerHost = "0.0.0.0"
 	}
 	if opts.ServerPort == "" {
 		opts.ServerPort = "2424"

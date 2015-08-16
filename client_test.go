@@ -39,7 +39,7 @@ func TestAgainstOrientDBServer(t *testing.T) {
 
 	dbc, err = obinary.NewDBClient(obinary.ClientOptions{})
 	if err != nil {
-		t.Fatalf("Unexpected erorr %s", err)
+		t.Fatalf("Unexpected error %s", err)
 	}
 	defer dbc.Close()
 

@@ -2,26 +2,57 @@
 
 **Ogonori** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
-[![Build Status](https://travis-ci.org/quux00/ogonori.svg?branch=master)](https://travis-ci.org/quux00/ogonori)
+<!-- [![Build Status](https://travis-ci.org/quux00/ogonori.svg?branch=master)](https://travis-ci.org/quux00/ogonori) -->
 
 <br/>
 # Status
 
-This project is in early stages and the API is unstable.
+The primary focus of ogonori is to build a Go (golang) client supporting the OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
 
-However, the SQL statements that a project will typically need to do can be done now using either the golang `database/sql` API or the current function-based API in the ogonori/obinary package.  The obinary package is intended as low-level and eventually a friendlier object-based API will probably be built on top of it.
+The ogonori driver is under active development: it is in an alpha-state for the core features and the API is potentially unstable (though getting more stable now).
 
-Note that the database/sql API has some constraints that can be make it painful to work with OrientDB.  For example:
-* when you insert a record, the Go `database/sql` API only allows one to return a single int64 identifier for the record, but OrientDB uses as a compound int16:int64 RID, so getting the RID of records you just inserted requires another round trip to the database to query the RID.
-* there is no way (that I know of) to specify an OrientDB fetch plan in the SQL only, and the `database/sql` package provides no affordance for adding this. So if you want to pull in additional linked records using a fetch plan (such as `*:-1`), then you'll need to use the ogonori native low-level `obinary` API.
+Here's what you can do with it right now:
+
+1. Do most any OrientDB SQL statements via `obinary.SQLQuery` and `obinary.SQLCommand`, including support for OrientDB fetch plans.
+2. Create `oschema.ODocument` objects and create them in the DB via `obinary.CreateRecord`.
+3. Update fields on `oschema.ODocument` objects and update them in the DB via `obinary.UpdateRecord`.
+4. Use the ogonori driver for the golang `database/sql` API, with some cautions (see below).
+5. Use it with either document or graph databases.
+6. Use it with the OrientDB 2.0.x series.  Some of my tests fail with the recent 2.1.x series and I haven't yet worked out the issues, so OrientDB 2.1 is currently not supported.  OrientDB 1.x is also not supported.
+7. Run it with multiple goroutines - the unit of thread safety is the `obinary.DBClient`.  As long as each goroutine uses its own `DBClient`, it should work based on my design and testing so far.
 
 Early adopters are welcome to try it out and report any problems found.  You are also welcome to suggest a more user-friendly API on top of the low-level `obinary` one.
 
-Little work has been done on the serialization front, so supporting object creation on the client side followed by saves (standalone or in transactions) are not yet supported.
 
-The primary focus is of ogonori is to build a Go (golang) client supporting OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
+What is not yet supported:
 
-*Documentation*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
+1. Transactions (that is next on my TODO list)
+2. A more user-friendly Document or Graph API, perhaps with JSON marshaling/unmarshaling.  If you want to help design that see Issue #6.
+3. OrientDB DECIMAL and CUSTOM types.
+4. Insertion/retrieval of "large" records into OrientDB.  In some cases a few hundred or even a few dozen KB will cause a problem - see Issue #7.
+5. Some edge cases around RidBags (LinkBags) - the library will panic at present if you hit these. That obviously is not proper behavior, but since this is alpha (or pre-alpha) that's what I'm doing right now.
+6. A `DBClient` connection pool.  Right now you have to create your DBClients afresh (or find a way to reuse them).
+7. OrientDB Functions - I haven't looked at these at all, so they might work insofar as you can create and use them only via OrientDB SQL.
+
+
+*Documentation Note*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
+
+
+### Caveat on using ogonori as a golang database/sql API driver
+
+The golang `database/sql` API has some constraints that can be make it painful to work with OrientDB.  For example:
+
+* when you insert a record, the Go `database/sql` API only allows one to return a single int64 identifier for the record, but OrientDB uses as a compound int16:int64 RID, so getting the RID of records you just inserted requires another round trip to the database to query the RID.
+* there is no way (that I know of) to specify an OrientDB fetch plan in the SQL only, and the `database/sql` package provides no affordance for adding this. So if you want to pull in additional linked records using a fetch plan (such as `*:-1`), then you'll need to use the ogonori native low-level `obinary` API.
+
+Also, since I don't yet support OrientDB transactions, the `Tx` portion of the `database/sql` API is not yet implemented.
+
+<br>
+#### [Update: 16-Aug-2015]
+
+* Updates of `oschema.ODocument` fields using `obinary.UpdateRecord` are supported for all datatypes except DECIMAL, CUSTOM and possibly some edge cases around RidBags (not well tested yet.)
+* Added concurrent_client test and it passes.  DBClient-per-goroutine model looks to be safe.
+
 
 <br>
 #### [Update: 07-Aug-2015]

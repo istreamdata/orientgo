@@ -3,7 +3,7 @@
 PARENT_DIR=$(dirname $(cd "$(dirname "$0")"; pwd))
 CI_DIR="$PARENT_DIR/travis/environment"
 
-ODB_VERSION=${1:-"2.0.1"}
+ODB_VERSION=${1:-"2.0.14"}
 ODB_DIR="${CI_DIR}/orientdb-community-${ODB_VERSION}"
 ODB_LAUNCHER="${ODB_DIR}/bin/server.sh"
 

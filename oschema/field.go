@@ -5,10 +5,13 @@ import (
 	"fmt"
 )
 
+//
+// ODataType is an enum for the various datatypes supported
+// by OrientDB.
+//
 type ODataType byte
 
 // in alignment with: https://github.com/orientechnologies/orientdb/wiki/Types
-// TODO: change to type ODataType
 const (
 	BOOLEAN      ODataType = 0
 	INTEGER      ODataType = 1
@@ -34,7 +37,7 @@ const (
 	DECIMAL      ODataType = 21
 	LINKBAG      ODataType = 22
 	ANY          ODataType = 23  // BTW: ANY == UNKNOWN/UNSPECIFIED
-	UNKNOWN      ODataType = 255 // my addition
+	UNKNOWN      ODataType = 255 // ogonori addition
 )
 
 func ODataTypeNameFor(dt ODataType) string {

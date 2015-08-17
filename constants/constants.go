@@ -1,10 +1,10 @@
 //
-// Useful global constants for use in ogonori
+// Package constants provides useful
+// global constants for use in ogonori
 //
 package constants
 
 const (
-	// TODO: put 32 suffix on these first for constants
 	MaxUint32 = ^uint32(0)
 	MinUint32 = 0
 	MaxInt32  = int32(MaxUint32 >> 1)

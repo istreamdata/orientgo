@@ -215,7 +215,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(wbuf *obuf.WriteBuf, doc 
 		if oprop != nil {
 			// if property is known in the global properties, then
 			// just write its encoded id
-			varint.EncodeAndWriteVarInt32(wbuf, encodeFieldIdForHeader(oprop.ID))
+			varint.EncodeAndWriteVarInt32(wbuf, encodeFieldIDForHeader(oprop.ID))
 			ptrPos = append(ptrPos, wbuf.Len())
 			wbuf.Skip(4)
 			// Note: no need to write property type when writing property ID
@@ -626,14 +626,14 @@ func readHeader(buf io.Reader) (header, error) {
 		} else {
 			// have a document, not a property, so the number is an encoded property id,
 			// convert to (positive) property-id
-			propertyId := decodeFieldIdInHeader(decoded)
+			propertyID := decodeFieldIDInHeader(decoded)
 
 			ptr, err := rw.ReadInt(buf)
 			if err != nil {
 				return header{}, oerror.NewTrace(err)
 			}
 
-			hdrProp := headerProperty{id: propertyId}
+			hdrProp := headerProperty{id: propertyID}
 			hdr.properties = append(hdr.properties, hdrProp)
 			hdr.dataPtrs = append(hdr.dataPtrs, ptr)
 		}
@@ -1017,7 +1017,7 @@ func readLinkBagUUID(buf io.Reader) (int32, error) {
 //         0,      0, 0, 0, 0, 0, 0, 0, 30,   0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 8, 0,     -1, -1, -1, -1,  0, 0, 0, 0,
 //
 func readTreeBasedLinkBag(buf io.Reader) (*oschema.OLinkBag, error) {
-	fileId, err := rw.ReadLong(buf)
+	fileID, err := rw.ReadLong(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
@@ -1043,7 +1043,7 @@ func readTreeBasedLinkBag(buf io.Reader) (*oschema.OLinkBag, error) {
 		return nil, oerror.NewTrace(err)
 	}
 
-	return oschema.NewTreeOLinkBag(fileId, pageIdx, pageOffset, size), nil
+	return oschema.NewTreeOLinkBag(fileID, pageIdx, pageOffset, size), nil
 }
 
 func (serde ORecordSerializerV0) readLinkList(buf io.Reader) ([]*oschema.OLink, error) {
@@ -1069,7 +1069,7 @@ func (serde ORecordSerializerV0) readLinkList(buf io.Reader) ([]*oschema.OLink, 
 // We translate it here to a string RID (cluster:record) and return it.
 //
 func (serde ORecordSerializerV0) readLink(buf io.Reader) (*oschema.OLink, error) {
-	clusterId, err := varint.ReadVarIntAndDecode64(buf)
+	clusterID, err := varint.ReadVarIntAndDecode64(buf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}
@@ -1079,7 +1079,7 @@ func (serde ORecordSerializerV0) readLink(buf io.Reader) (*oschema.OLink, error)
 		return nil, oerror.NewTrace(err)
 	}
 
-	orid := oschema.ORID{ClusterID: int16(clusterId), ClusterPos: clusterPos}
+	orid := oschema.ORID{ClusterID: int16(clusterID), ClusterPos: clusterPos}
 	return &oschema.OLink{RID: orid}, nil
 }
 
@@ -1327,11 +1327,11 @@ func toInt64(value interface{}) (int64, error) {
 	return int64(-1), oerror.ErrDataTypeMismatch{ExpectedDataType: oschema.LONG, ActualValue: value}
 }
 
-func encodeFieldIdForHeader(id int32) int32 {
+func encodeFieldIDForHeader(id int32) int32 {
 	return (id + 1) * -1
 }
 
-func decodeFieldIdInHeader(decoded int32) int32 {
+func decodeFieldIDInHeader(decoded int32) int32 {
 	return (decoded * -1) - 1
 }
 

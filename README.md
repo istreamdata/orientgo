@@ -38,7 +38,7 @@ What is not yet supported:
 *Documentation Note*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
 
 
-### Caveat on using ogonori as a golang database/sql API driver
+#### Caveat on using ogonori as a golang database/sql API driver
 
 The golang `database/sql` API has some constraints that can be make it painful to work with OrientDB.  For example:
 
@@ -139,40 +139,28 @@ I have much of the low level binary protocol implemented, but still missing some
 
 
 <br/>
-
-## Near-term Priorities
-
-* Refactor client.go functional test into smaller more readable pieces
-* Start on serialization features
-* Work out what the "native" ogonori API is going to be - right now most everything is done via DDL and SQL strings.  The serialization features will be needed to support this.
-
-## TODOs
+## Next TODO
 
 * transactions - transactions in OrientDB are done via optimistic concurrency control (version checking), so the client has to do most of the work; thus, this will take some time
-* support for graph databases (focusing on document dbs first)
-* marshal and unmarshal Go structs to OrientDB documents and data structures
- * intend to look closely at the mgo (mongo DB) Go driver for API ideas/compatibility
 
-## Longer-term
-
-* May add support for OrientDB 1.7.x - which requires implementing the CSV serialization format
-
-
+<br/>
 ## Timeline
 
 I have no projection for when this will be in a ready state.
 
 
+<br/>
 ## Development
 
-So far I've been testing on Linux only.  I will start testing on Windows soon.  I do not have access to any Mac OS X machines, so if someone wants to run the client.go tests on a Mac and tell me the results, that would be helpful.
+I am testing on Linux and Windows 7.  I do not have access to any Mac OS X machines, so if someone wants to run the client.go tests on a Mac and tell me the results, that would be helpful.
 
 
-Right now I have high coverage unit tests for the following packages:
+Right now I have unit tests for the following packages:
 
 * `github.com/quux00/ogonori/obinary/binserde/varint`
 * `github.com/quux00/ogonori/obinary/rw`
-* `github.com/quux00/ogonori/oschema` (EmbeddedMap only)
+* `github.com/quux00/ogonori/obuf`
+* `github.com/quux00/ogonori/oschema`
 
 For the higher level functionality I'm using a running functional test - the top-level `client.go`.  Right now to use it you need to have OrientDB 2.x installed and running.
 

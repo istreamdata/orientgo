@@ -2,6 +2,7 @@ language: go
 
 go:
   - 1.4
+  - 1.5
 
 before_script:
   - ./travis/initialize-ci.sh 2.0.14

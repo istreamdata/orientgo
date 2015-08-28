@@ -10,7 +10,7 @@
 - Uses varint encoding/decoding functions from stdlib `binary` package (which is more robust)
 - Uses Glog for logging instead of custom package
 - Uses [MapStructure](http://github.com/mitchellh/mapstructure) lib for record deserialization
-- User can omit deserialization of query/command results to `ODocument` and provide value for deserialization (array/struct)
+- User can omit deserialization of query/command results to `ODocument` and provide custom values for deserialization (array/struct)
 - Supports Orient functions ( SQL/JS(/Groovy?) )
 - Works with OrientDB 2.1-rc3
 
@@ -80,42 +80,13 @@ Right now I have unit tests for the following packages:
 
 For the higher level functionality I'm using a running functional test - the top-level `client.go`.  Right now to use it you need to have OrientDB 2.x installed and running.
 
-#### How to run client.go:
+#### How to run tests:
 
-**OPTION 1**: Set up before hand and only run data statements, not DDL
+1) Install Docker
 
-Before running this test, you can to run the scripts/ogonori-setup.sql
-with the `console.sh` program of OrientDB:
-  
-     ./console.sh ogonori-setup.sql
+2) Pull Orient image: `docker pull dennwc/orient`
 
-Then run this code with:
-
-     ./ogonori  (or go run client.go)
-
-**OPTION 2**: Run full DDL - create and drop the database, in between
-run the data statements
-
-    ./ogonori full
-
-**OPTION 3**: Run create DDL, but not the drop
-
-    ./ogonori create
-
-After doing this then you can run with
-
-    ./ogonori
-
-to test the data statements only
-
-
-If that finishes without error, then the test is passing.  If it fails, it should clean up after itself.  If it doesn't you'll need to do:
-
-    ./console.sh
-    > connect remote:localhost/ogonoriTest admin admin
-    orientdb {db=ogonoriTest}> delete from Cat where name <> 'Linus' AND name <> 'Keiko'
-
-This will be more automated in the future, but is what I have for now.
+3) `go test -v ./...`
 
 
 <br/>

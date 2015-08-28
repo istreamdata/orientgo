@@ -220,3 +220,65 @@ func TestSelectSaveFunc2(t *testing.T) {
 		t.Error("wrong result count")
 	}
 }
+
+func TestSelectSaveFuncResult(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	name := "tempFuncOne"
+	code := `return {"name":"ori","props":{"data":"ok","num":10,"custom":one}}`
+	if err := cli.CreateScriptFunc(orient.Function{
+		Name: name, Code: code, Idemp: false,
+		Lang: orient.LangJS, Params: []string{"one"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		Name  string
+		Props map[string]interface{}
+	}
+	recs, err := cli.CallScriptFunc(nil, name, "some")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("recs: %d", len(recs))
+	for _, r := range recs {
+		t.Logf("rec: %T: %+v", r, r)
+	}
+	err = recs.DeserializeAll(&result)
+	if err != nil {
+		t.Fatal(err)
+	} else if result.Name != "ori" {
+		t.Fatal("wrong object name property")
+	} else if len(result.Props) == 0 {
+		t.Fatal("empty object props")
+	}
+	t.Logf("doc: %+v", result)
+}
+
+func TestSelectSaveFuncResultJSON(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	name := "tempFuncOne"
+	code := `return {"name":"ori","props":{"data":"ok","num":10,"custom":one}}`
+	if err := cli.CreateScriptFunc(orient.Function{
+		Name: name, Code: code, Idemp: false,
+		Lang: orient.LangJS, Params: []string{"one"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		Name  string
+		Props map[string]interface{}
+	}
+	err := cli.CallScriptFuncJSON(&result, name, "some")
+	if err != nil {
+		t.Fatal(err)
+	} else if result.Name != "ori" {
+		t.Fatal("wrong object name property")
+	} else if len(result.Props) == 0 {
+		t.Fatal("empty object props")
+	}
+	t.Logf("doc: %+v", result)
+}

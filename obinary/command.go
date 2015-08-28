@@ -70,14 +70,14 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 		case 'n': // null result
 			// do nothing
 		case 'r': // single record
-			recs = append(recs, dbc.readSingleRecord())
+			recs = append(recs, dbc.readSingleRecord(dbc.conx))
 		case 'l': // collection of records
-			recs = append(recs, dbc.readResultSet()...)
+			recs = append(recs, dbc.readResultSet(dbc.conx)...)
 		case 'a': // serialized type
 			recs = append(recs, SerializedRecord(rw.ReadBytes(dbc.conx)))
 		default:
 			if class == "q" && resType == 2 { // TODO: always == 2?
-				recs = append(recs, SupplementaryRecord{dbc.readSingleRecord()})
+				recs = append(recs, SupplementaryRecord{dbc.readSingleRecord(dbc.conx)})
 			} else {
 				return nil, fmt.Errorf("not supported result type %v, proto: %d, class: %s", resultType, dbc.binaryProtocolVersion, class)
 			}

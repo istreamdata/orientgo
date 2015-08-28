@@ -40,6 +40,11 @@ func (dbc *Client) CreateRecord(doc *oschema.ODocument) (err error) {
 
 	rw.WriteByte(buf, byte(0)) // synchronous mode indicator
 
+	dbc.mutex.Lock()
+	defer func() {
+		dbc.mutex.Unlock()
+	}()
+
 	// send to the OrientDB server
 	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 

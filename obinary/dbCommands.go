@@ -19,8 +19,7 @@ import (
 // DocumentDbType or GraphDbType.
 func (dbc *Client) OpenDatabase(dbname string, dbtype constants.DatabaseType, username, passw string) (err error) {
 	defer catch(&err)
-	buf := dbc.buf
-	buf.Reset()
+	buf := dbc.writeBuffer()
 
 	// first byte specifies request type
 	rw.WriteByte(buf, requestDbOpen)
@@ -465,7 +464,7 @@ func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
 
 	rw.WriteString(buf, cname)
 
-	rw.WriteShort(dbc.buf, -1) // -1 means generate new cluster id
+	rw.WriteShort(buf, -1) // -1 means generate new cluster id
 
 	// send to the OrientDB server
 	rw.WriteRawBytes(dbc.conx, buf.Bytes())
@@ -684,7 +683,7 @@ func (dbc *Client) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, e
 	defer catch(&err)
 	buf := dbc.writeCommandAndSessionId(requestRIDBAG_GET_SIZE)
 
-	writeLinkBagCollectionPointer(dbc.buf, linkBag)
+	writeLinkBagCollectionPointer(buf, linkBag)
 
 	// changes => TODO: right now not supporting any change -> just writing empty changes
 	rw.WriteBytes(buf, []byte{0, 0, 0, 0})
@@ -768,14 +767,20 @@ func (dbc *Client) getClusterCount(countTombstones bool, clusterNames []string) 
 	return nrecs, err
 }
 
+func (dbc *Client) writeBuffer() *bytes.Buffer {
+	buf := new(bytes.Buffer)
+	buf.Reset()
+	return buf
+}
+
 func (dbc *Client) writeCommandAndSessionId(cmd byte) *bytes.Buffer {
-	dbc.buf.Reset()
 	if dbc.sessionId == noSessionId {
 		panic(fmt.Errorf("Session not initialized"))
 	}
-	rw.WriteByte(dbc.buf, cmd)
-	rw.WriteInt(dbc.buf, dbc.sessionId)
-	return dbc.buf
+	buf := dbc.writeBuffer()
+	rw.WriteByte(buf, cmd)
+	rw.WriteInt(buf, dbc.sessionId)
+	return buf
 }
 
 func (dbc *Client) getLongFromDB(cmd byte) (val int64, err error) {

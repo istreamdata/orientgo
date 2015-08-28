@@ -24,8 +24,7 @@ import (
 // required are for the server (admin) not any particular database.
 func (dbc *Client) ConnectToServer(adminUser, adminPassw string) (err error) {
 	defer catch(&err)
-	buf := dbc.buf
-	buf.Reset()
+	buf := dbc.writeBuffer()
 
 	// first byte specifies request type
 	rw.WriteByte(buf, requestConnect)
@@ -88,7 +87,8 @@ func (dbc *Client) ConnectToServer(adminUser, adminPassw string) (err error) {
 // storageType must type PersistentStorageType or VolatileStorageType.
 func (dbc *Client) CreateDatabase(dbname string, dbtype constants.DatabaseType, storageType constants.StorageType) (err error) {
 	defer catch(&err)
-	dbc.buf.Reset()
+
+	buf := dbc.writeBuffer()
 
 	// TODO: may need to change this to serverSessionid (can the "sessionId" be used for both server connections and db conx?)
 	if dbc.sessionId == noSessionId {
@@ -96,15 +96,15 @@ func (dbc *Client) CreateDatabase(dbname string, dbtype constants.DatabaseType, 
 	}
 
 	// cmd
-	rw.WriteByte(dbc.buf, requestDbCreate)
+	rw.WriteByte(buf, requestDbCreate)
 
 	// session id
-	rw.WriteInt(dbc.buf, dbc.sessionId)
+	rw.WriteInt(buf, dbc.sessionId)
 
-	rw.WriteStrings(dbc.buf, dbname, string(dbtype), string(storageType))
+	rw.WriteStrings(buf, dbname, string(dbtype), string(storageType))
 
 	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, dbc.buf.Bytes())
+	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 
 	// ---[ read response from server ]---
 
@@ -131,23 +131,24 @@ func (dbc *Client) CreateDatabase(dbname string, dbtype constants.DatabaseType, 
 // ConnectToServer before calling this function.
 func (dbc *Client) DropDatabase(dbname string, dbtype constants.StorageType) (err error) {
 	defer catch(&err)
-	dbc.buf.Reset()
+
+	buf := dbc.writeBuffer()
 
 	if dbc.sessionId == noSessionId {
 		return oerror.SessionNotInitialized{}
 	}
 
 	// cmd
-	rw.WriteByte(dbc.buf, requestDbDrop)
+	rw.WriteByte(buf, requestDbDrop)
 
 	// session id
-	rw.WriteInt(dbc.buf, dbc.sessionId)
+	rw.WriteInt(buf, dbc.sessionId)
 
 	// database name, storage-type
-	rw.WriteStrings(dbc.buf, dbname, string(dbtype))
+	rw.WriteStrings(buf, dbname, string(dbtype))
 
 	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, dbc.buf.Bytes())
+	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 
 	// ---[ read response from server ]---
 
@@ -169,23 +170,24 @@ func (dbc *Client) DropDatabase(dbname string, dbtype constants.StorageType) (er
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
 func (dbc *Client) DatabaseExists(dbname string, storageType constants.StorageType) (val bool, err error) {
 	defer catch(&err)
-	dbc.buf.Reset()
+
+	buf := dbc.writeBuffer()
 
 	if dbc.sessionId == noSessionId {
 		return false, oerror.SessionNotInitialized{}
 	}
 
 	// cmd
-	rw.WriteByte(dbc.buf, requestDbExists)
+	rw.WriteByte(buf, requestDbExists)
 
 	// session id
-	rw.WriteInt(dbc.buf, dbc.sessionId)
+	rw.WriteInt(buf, dbc.sessionId)
 
 	// database name, storage-type
-	rw.WriteStrings(dbc.buf, dbname, string(storageType))
+	rw.WriteStrings(buf, dbname, string(storageType))
 
 	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, dbc.buf.Bytes())
+	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 
 	// ---[ Read Response From Server ]---
 
@@ -214,20 +216,21 @@ func (dbc *Client) DatabaseExists(dbname string, storageType constants.StorageTy
 //     val:  plocal:/path/to/orientdb-community-2.0.1/databases/cars
 func (dbc *Client) RequestDBList() (list map[string]string, err error) {
 	defer catch(&err)
-	dbc.buf.Reset()
+
+	buf := dbc.writeBuffer()
 
 	if dbc.sessionId == noSessionId {
 		return nil, oerror.SessionNotInitialized{}
 	}
 
 	// cmd
-	rw.WriteByte(dbc.buf, requestDbLIST)
+	rw.WriteByte(buf, requestDbLIST)
 
 	// session id
-	rw.WriteInt(dbc.buf, dbc.sessionId)
+	rw.WriteInt(buf, dbc.sessionId)
 
 	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, dbc.buf.Bytes())
+	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 
 	status := rw.ReadByte(dbc.conx)
 
@@ -244,9 +247,8 @@ func (dbc *Client) RequestDBList() (list map[string]string, err error) {
 	responseBytes := rw.ReadBytes(dbc.conx)
 
 	serde := dbc.RecordSerDes[int(responseBytes[0])]
-	buf := bytes.NewReader(responseBytes[1:])
 	doc := oschema.NewDocument("")
-	err = serde.Deserialize(dbc, doc, buf)
+	err = serde.Deserialize(dbc, doc, bytes.NewReader(responseBytes[1:]))
 	if err != nil {
 		return nil, err
 	}

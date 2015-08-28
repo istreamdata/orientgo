@@ -8,20 +8,29 @@ import (
 	"net"
 	"sync"
 
+	"github.com/dyy18/orientgo/constants"
 	"github.com/dyy18/orientgo/obinary/rw"
 	"github.com/dyy18/orientgo/oschema"
 )
 
-// DBClient encapsulates the active TCP connection to an OrientDB server
+// Mirror constants for convenience
+const (
+	GraphDb    = constants.GraphDB
+	DocumentDB = constants.DocumentDB
+	Persistent = constants.Persistent
+	Volatile   = constants.Volatile
+)
+
+// Client encapsulates the active TCP connection to an OrientDB server
 // to be used with the Network Binary Protocol.
 // It also may be connected to up to one database at a time.
-// Do not create a DBClient struct directly.  You should use NewDBClient,
+// Do not create a Client struct directly.  You should use NewClient,
 // followed immediately by ConnectToServer, to connect to the OrientDB server,
 // or OpenDatabase, to connect to a database on the server.
 type Client struct {
-	opts                  ClientOptions
-	conx                  net.Conn
-	buf                   *bytes.Buffer
+	opts ClientOptions
+	conx net.Conn
+	//buf                   *bytes.Buffer
 	sessionId             int32
 	token                 []byte     // orientdb token when not using sessionId
 	currDb                *ODatabase // only one db session open at a time
@@ -54,7 +63,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	if opts.ServerPort == "" {
 		opts.ServerPort = "2424"
 	}
-	hostport := fmt.Sprintf("%s:%s", opts.ServerHost, opts.ServerPort)
+	hostport := net.JoinHostPort(opts.ServerHost, opts.ServerPort)
 	conx, err := net.Dial("tcp", hostport)
 	if err != nil {
 		return nil, err
@@ -92,9 +101,9 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	}
 
 	dbc := &Client{
-		opts:                  opts,
-		conx:                  conx,
-		buf:                   new(bytes.Buffer),
+		opts: opts,
+		conx: conx,
+		//buf:                   new(bytes.Buffer),
 		serializationType:     serializerType,
 		binaryProtocolVersion: svrProtocolNum,
 		serializationVersion:  byte(0), // default is 0 // TODO: need to detect if server is using a higher version
@@ -135,62 +144,62 @@ func (dbc *Client) prepareBuffer(cmd byte) *bytes.Buffer {
 	return buf
 }
 
-func (dbc *Client) readSingleRecord() Record {
-	resultType := rw.ReadShort(dbc.conx)
+func (dbc *Client) readSingleRecord(r io.Reader) Record {
+	resultType := rw.ReadShort(r)
 	switch resultType {
 	case RecordNull:
 		return NullRecord{}
 	case RecordRID:
-		rid := readRID(dbc.conx)
+		rid := readRID(r)
 		return RIDRecord{RID: rid, dbc: dbc}
 	case 0:
-		return dbc.readRecord()
+		return dbc.readRecord(r)
 	default:
 		panic(fmt.Errorf("unexpected result type: %v", resultType))
 	}
 }
 
-func (dbc *Client) readRecord() Record {
+func (dbc *Client) readRecord(r io.Reader) Record {
 	// if get here then have a full record, which can be in one of three formats:
 	//  - "flat data"
 	//  - "raw bytes"
 	//  - "document"
-	recType := rw.ReadByte(dbc.conx)
+	recType := rw.ReadByte(r)
 	switch tp := rune(recType); tp {
 	case 'd':
-		return dbc.readSingleDocument()
+		return dbc.readSingleDocument(r)
 	case 'f':
-		return dbc.readFlatDataRecord()
+		return dbc.readFlatDataRecord(r)
 	case 'b':
-		return dbc.readRawBytesRecord()
+		return dbc.readRawBytesRecord(r)
 	default:
 		panic(fmt.Errorf("unexpected record type: '%v'", tp))
 	}
 }
 
-func (dbc *Client) readSingleDocument() (doc *RecordData) {
-	rid := readRID(dbc.conx)
-	recVersion := rw.ReadInt(dbc.conx)
-	recBytes := rw.ReadBytes(dbc.conx)
+func (dbc *Client) readSingleDocument(r io.Reader) (doc *RecordData) {
+	rid := readRID(r)
+	recVersion := rw.ReadInt(r)
+	recBytes := rw.ReadBytes(r)
 	return &RecordData{RID: rid, Version: recVersion, Data: recBytes, dbc: dbc}
 }
 
-func (dbc *Client) readFlatDataRecord() Record {
+func (dbc *Client) readFlatDataRecord(r io.Reader) Record {
 	panic(fmt.Errorf("readFlatDataRecord: Non implemented")) // TODO: need example from server to know how to handle this
 }
 
-func (dbc *Client) readRawBytesRecord() Record {
+func (dbc *Client) readRawBytesRecord(r io.Reader) Record {
 	panic(fmt.Errorf("readRawBytesRecord: Non implemented")) // TODO: need example from server to know how to handle this
 }
 
-func (dbc *Client) readResultSet() []Record {
+func (dbc *Client) readResultSet(r io.Reader) []Record {
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
-	resultSetSize := int(rw.ReadInt(dbc.conx))
+	resultSetSize := int(rw.ReadInt(r))
 	docs := make([]Record, resultSetSize)
 	for i := range docs {
-		docs[i] = dbc.readSingleRecord()
+		docs[i] = dbc.readSingleRecord(r)
 	}
 	return docs
 }

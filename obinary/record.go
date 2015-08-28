@@ -1,6 +1,7 @@
 package obinary
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/dyy18/orientgo/oschema"
@@ -122,6 +123,15 @@ func (r RecordData) GetRID() oschema.ORID {
 }
 
 type Records []Record
+
+func (recs Records) String() string {
+	buf := new(bytes.Buffer)
+	fmt.Fprintf(buf, "Records[%d]", len(recs))
+	for _, r := range recs {
+		fmt.Fprintf(buf, "\n\t%T: %+v", r, r)
+	}
+	return buf.String()
+}
 
 func (recs Records) LoadSupplementary(docs ...*oschema.ODocument) error {
 	arr := make([]*oschema.ODocument, 0, len(docs))

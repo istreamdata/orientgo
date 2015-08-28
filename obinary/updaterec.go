@@ -35,10 +35,10 @@ func (dbc *Client) UpdateRecord(doc *oschema.ODocument) (err error) {
 	rw.WriteInt(buf, doc.Version)
 
 	// record-type: document
-	rw.WriteByte(dbc.buf, byte('d')) // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
+	rw.WriteByte(buf, byte('d')) // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
 
 	// mode: synchronous
-	rw.WriteByte(dbc.buf, 0x0)
+	rw.WriteByte(buf, 0x0)
 
 	// send to the OrientDB server
 	rw.WriteRawBytes(dbc.conx, buf.Bytes())

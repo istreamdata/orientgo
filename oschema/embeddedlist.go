@@ -1,16 +1,14 @@
 package oschema
 
-//
 // OEmbeddedList is a interface wrapper for go slices that
 // should be used when serializing Go ODocuments to the
 // OrientDB database.
-//
 type OEmbeddedList interface {
 	Len() int
 	Get(idx int) interface{}
 	Add(val interface{})
 	// Add(val interface{}, typ ODataType) // TODO: we could allow for mixed type lists -> useful?
-	Type() ODataType
+	Type() OType
 	Values() []interface{}
 }
 
@@ -25,10 +23,10 @@ type OEmbeddedStringList struct { // FIXME: not yet used -> remove ??
 
 type OEmbeddedSlice struct {
 	slice []interface{}
-	typ   ODataType
+	typ   OType
 }
 
-func NewEmbeddedSlice(v []interface{}, typ ODataType) OEmbeddedList {
+func NewEmbeddedSlice(v []interface{}, typ OType) OEmbeddedList {
 	return &OEmbeddedSlice{slice: v, typ: typ}
 }
 
@@ -44,7 +42,7 @@ func (es *OEmbeddedSlice) Add(val interface{}) {
 	es.slice = append(es.slice, val)
 }
 
-func (es *OEmbeddedSlice) Type() ODataType {
+func (es *OEmbeddedSlice) Type() OType {
 	return es.typ
 }
 

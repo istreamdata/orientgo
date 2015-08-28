@@ -1,0 +1,222 @@
+package obinary_test
+
+import (
+	"fmt"
+	orientc "github.com/dyy18/orientgo/constants"
+	orient "github.com/dyy18/orientgo/obinary"
+	"github.com/fsouza/go-dockerclient"
+	"math/rand"
+	"testing"
+	"time"
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func randPort() int {
+	return 2500 + rand.Intn(1000)
+}
+
+func TestBuild(t *testing.T) {
+
+}
+
+func SpinOrient(t *testing.T) (*orient.Client, func()) {
+	port := randPort()
+
+	dport_api := docker.Port("2424/tcp")
+	dport_web := docker.Port("2480/tcp")
+	binds := make(map[docker.Port][]docker.PortBinding)
+	binds[dport_api] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port)}}
+	binds[dport_web] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port + 1)}}
+
+	cl, err := docker.NewClient("unix:///var/run/docker.sock")
+	if err != nil {
+		t.Skip(err)
+	}
+	cont, err := cl.CreateContainer(docker.CreateContainerOptions{
+		Config: &docker.Config{
+			OpenStdin: true, Tty: true,
+			ExposedPorts: map[docker.Port]struct{}{dport_api: struct{}{}, dport_web: struct{}{}},
+			Image:        `dennwc/orient:latest`,
+		}, HostConfig: &docker.HostConfig{
+			PortBindings: binds,
+		},
+	})
+	if err != nil {
+		t.Skip(err)
+	}
+
+	rm := func() {
+		cl.RemoveContainer(docker.RemoveContainerOptions{ID: cont.ID, Force: true})
+	}
+
+	if err := cl.StartContainer(cont.ID, &docker.HostConfig{PortBindings: binds}); err != nil {
+		rm()
+		t.Skip(err)
+	}
+	time.Sleep(time.Second * 5) // TODO: wait for input from container?
+
+	cli, err := orient.NewClient(orient.ClientOptions{
+		ServerHost: "localhost",
+		ServerPort: fmt.Sprint(port),
+	})
+	if err != nil {
+		rm()
+		t.Fatal(err)
+	}
+	return cli, func() {
+		cli.Close()
+		rm()
+	}
+}
+
+func prepareDB(t *testing.T) (*orient.Client, func()) {
+	cli, closer := SpinOrient(t)
+	if err := cli.OpenDatabase("iSD", orientc.DocumentDB, "admin", "admin"); err != nil {
+		closer()
+		t.Fatal(err)
+	}
+	return cli, closer
+}
+
+func TestSelect(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	docs, err := cli.SQLQuery(nil, nil, "SELECT FROM OUser")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(docs) != 3 {
+		t.Error("wrong docs count")
+	}
+	t.Logf("docs[%d]: %+v", len(docs), docs)
+}
+
+func TestSelectCommand(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(recs) != 3 {
+		t.Error("wrong docs count")
+	}
+	t.Logf("docs[%d]: %+v", len(recs), recs)
+}
+
+func TestSelectScript(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	recs, err := cli.ExecScript(nil, orient.LangSQL, "SELECT FROM OUser")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(recs) != 3 {
+		t.Error("wrong docs count")
+	}
+	t.Logf("docs[%d]: %+v", len(recs), recs)
+}
+
+func TestSelectScriptJS(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	recs, err := cli.ExecScript(nil, orient.LangJS, `var docs = db.query('SELECT FROM OUser'); docs`)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(recs) != 3 {
+		t.Error("wrong docs count")
+	}
+	t.Logf("docs[%d]: %+v", len(recs), recs)
+}
+
+func TestSelectSaveFunc(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	name := "tempFuncOne"
+	code := `
+	var param = one
+	if (param != "some") {
+		response.send(500, "err", "text/plain", "err" )
+	}
+	if (typeof(two) != "object") {
+		response.send(500, "err2", "text/plain", "err2" )
+	} else if (two.Name != "one") {
+		response.send(500, "err3", "text/plain", "err3" )
+	}
+	var unused = "\\"
+	var tbl = 'OUser'
+	var docs = db.query("SELECT FROM "+tbl)
+	return docs
+	`
+	if err := cli.CreateScriptFunc(orient.Function{
+		Name: name, Code: code, Idemp: false,
+		Lang: orient.LangJS, Params: []string{"one", "two"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var fnc []struct {
+		Name string
+		Code string
+	}
+	if _, err := cli.SQLQuery(&fnc, nil, "SELECT FROM OFunction"); err != nil {
+		t.Fatal(err)
+	} else if len(fnc) != 1 {
+		t.Fatal("wrong func count")
+	} else if fnc[0].Name != name {
+		t.Fatal("wrong func name")
+	} else if fnc[0].Code != code {
+		t.Fatal(fmt.Errorf("wrong func code:\n\n%s\nvs\n%s\n", fnc[0].Code, code))
+	}
+
+	recs, err := cli.CallScriptFunc(nil, name, "some", struct{ Name string }{"one"})
+	if err != nil {
+		t.Fatal(err)
+	} else if len(recs) != 3 {
+		t.Error("wrong docs count")
+	}
+	t.Logf("docs[%d]: %+v", len(recs), recs)
+}
+
+func TestSelectSaveFunc2(t *testing.T) {
+	cli, closer := prepareDB(t)
+	defer closer()
+
+	name := "tempFuncTwo"
+	code := `return {"params": [one, two]}`
+	if err := cli.CreateScriptFunc(orient.Function{
+		Name: name, Code: code, Idemp: false,
+		Lang: orient.LangJS, Params: []string{"one", "two"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var fnc []struct {
+		Name string
+		Code string
+	}
+	if _, err := cli.SQLQuery(&fnc, nil, "SELECT FROM OFunction"); err != nil {
+		t.Fatal(err)
+	} else if len(fnc) != 1 {
+		t.Fatal("wrong func count")
+	} else if fnc[0].Name != name {
+		t.Fatal("wrong func name")
+	} else if fnc[0].Code != code {
+		t.Fatal(fmt.Errorf("wrong func code:\n\n%s\nvs\n%s\n", fnc[0].Code, code))
+	}
+
+	var res struct {
+		Params []string
+	}
+	err := cli.CallScriptFuncJSON(&res, name, "some", "one")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(res.Params) != 2 {
+		t.Error("wrong result count")
+	}
+}

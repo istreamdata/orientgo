@@ -8,10 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/ogl"
-	"github.com/quux00/ogonori/oschema"
+	"github.com/dyy18/orientgo/obinary"
+	"github.com/dyy18/orientgo/oerror"
+	"github.com/dyy18/orientgo/oschema"
 )
 
 //

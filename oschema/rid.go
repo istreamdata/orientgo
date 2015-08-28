@@ -7,21 +7,14 @@ import (
 )
 
 const (
-	//
 	// Default ClusterID that maps to the "invalid" value on the OrientDB server
-	//
 	ClusterIDInvalid = -1
-
-	//
 	// Default ClusterPos that maps to the "invalid" value on the OrientDB server
-	//
 	ClusterPosInvalid = -1
 )
 
-//
 // ORID encapsulates the two aspects of an OrientDB RecordID -
 // ClusterID:ClusterPos
-//
 type ORID struct {
 	ClusterID  int16
 	ClusterPos int64

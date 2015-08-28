@@ -1,7 +1,5 @@
-//
 // Package constants provides useful
 // global constants for use in ogonori
-//
 package constants
 
 const (
@@ -15,8 +13,6 @@ const (
 	MaxInt64  = int64(MaxUint64 >> 1)
 	MinInt64  = -MaxInt64 - 1
 )
-
-// ----
 
 type DatabaseType string
 type StorageType string

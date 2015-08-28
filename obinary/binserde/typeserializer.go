@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/quux00/ogonori/obinary/rw"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/oschema"
+	"github.com/dyy18/orientgo/obinary/rw"
+	"github.com/dyy18/orientgo/oschema"
 )
 
 //
@@ -57,17 +56,14 @@ var TypeSerializers [21]OBinaryTypeSerializer
 
 type OLinkSerializer struct{}
 
-func (ols OLinkSerializer) Deserialize(buf *bytes.Buffer) (interface{}, error) {
-	clusterID, err := rw.ReadShort(buf)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-
-	clusterPos, err := rw.ReadLong(buf)
-	if err != nil {
-		return nil, oerror.NewTrace(err)
-	}
-
+func (ols OLinkSerializer) Deserialize(buf *bytes.Buffer) (v interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("deserialize error: %v", r)
+		}
+	}()
+	clusterID := rw.ReadShort(buf)
+	clusterPos := rw.ReadLong(buf)
 	rid := oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
 	return &oschema.OLink{RID: rid}, nil
 }

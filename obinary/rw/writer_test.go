@@ -10,8 +10,7 @@ import (
 func TestWriteBytes(t *testing.T) {
 	buf := new(bytes.Buffer)
 	byteMsg := []byte("I like Ike")
-	err := WriteBytes(buf, byteMsg)
-	ok(t, err)
+	WriteBytes(buf, byteMsg)
 
 	equals(t, 4+len(byteMsg), buf.Len())
 	bs := buf.Next(4)
@@ -24,8 +23,7 @@ func TestWriteBytes(t *testing.T) {
 func TestWriteRawBytes(t *testing.T) {
 	buf := new(bytes.Buffer)
 	byteMsg := []byte("I like Ike")
-	err := WriteRawBytes(buf, byteMsg)
-	ok(t, err)
+	WriteRawBytes(buf, byteMsg)
 
 	bs := buf.Next(len(byteMsg))
 	equals(t, byteMsg, bs)
@@ -33,16 +31,14 @@ func TestWriteRawBytes(t *testing.T) {
 	// write empty bytes
 	buf = new(bytes.Buffer)
 	byteMsg = []byte{}
-	err = WriteRawBytes(buf, byteMsg)
-	ok(t, err)
+	WriteRawBytes(buf, byteMsg)
 
 	equals(t, 0, buf.Len())
 }
 
 func TestWriteNull(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteNull(buf)
-	ok(t, err)
+	WriteNull(buf)
 
 	equals(t, 4, buf.Len()) // null in OrientDB is -1 (int32)
 
@@ -53,12 +49,9 @@ func TestWriteNull(t *testing.T) {
 
 func TestWriteBool(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteBool(buf, true)
-	ok(t, err)
-	err = WriteBool(buf, false)
-	ok(t, err)
-	err = WriteBool(buf, true)
-	ok(t, err)
+	WriteBool(buf, true)
+	WriteBool(buf, false)
+	WriteBool(buf, true)
 
 	equals(t, 3, buf.Len())
 	bs := buf.Bytes()
@@ -70,33 +63,28 @@ func TestWriteBool(t *testing.T) {
 func TestWriteFloat(t *testing.T) {
 	f := float32(55.668209)
 	buf := new(bytes.Buffer)
-	err := WriteFloat(buf, f)
-	ok(t, err)
+	WriteFloat(buf, f)
 
 	equals(t, 4, buf.Len())
 
-	f2, err := ReadFloat(buf)
-	ok(t, err)
+	f2 := ReadFloat(buf)
 	equals(t, f, f2)
 }
 
 func TestWriteDouble(t *testing.T) {
 	f := float64(199999999999999999955.6682090323333337298)
 	buf := new(bytes.Buffer)
-	err := WriteDouble(buf, f)
-	ok(t, err)
+	WriteDouble(buf, f)
 
 	equals(t, 8, buf.Len())
 
-	f2, err := ReadDouble(buf)
-	ok(t, err)
+	f2 := ReadDouble(buf)
 	equals(t, f, f2)
 }
 
 func TestWriteString(t *testing.T) {
 	var buf bytes.Buffer
-	err := WriteString(&buf, "hello")
-	ok(t, err)
+	WriteString(&buf, "hello")
 	equals(t, 9, buf.Len())
 
 	n, s := nextBinaryString(&buf)
@@ -106,8 +94,7 @@ func TestWriteString(t *testing.T) {
 
 func TestWriteStrings(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteStrings(buf, "a", "a longer string", "golang")
-	ok(t, err)
+	WriteStrings(buf, "a", "a longer string", "golang")
 	equals(t, (4*3)+len("a")+len("a longer string")+len("golang"), buf.Len())
 
 	// read back first string
@@ -129,21 +116,14 @@ func TestWriteStrings(t *testing.T) {
 func TestWriteManyTypes(t *testing.T) {
 	var (
 		buf bytes.Buffer
-		err error
 		bs  []byte
 	)
-	err = WriteByte(&buf, 0x1)
-	ok(t, err)
-	err = WriteString(&buf, "vått og tørt")
-	ok(t, err)
-	err = WriteShort(&buf, int16(29876))
-	ok(t, err)
-	err = WriteShort(&buf, int16(444))
-	ok(t, err)
-	err = WriteInt(&buf, 9999999)
-	ok(t, err)
-	err = WriteLong(&buf, MaxInt64)
-	ok(t, err)
+	WriteByte(&buf, 0x1)
+	WriteString(&buf, "vått og tørt")
+	WriteShort(&buf, int16(29876))
+	WriteShort(&buf, int16(444))
+	WriteInt(&buf, 9999999)
+	WriteLong(&buf, MaxInt64)
 
 	// read back
 	bs = buf.Next(1) // byte

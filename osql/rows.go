@@ -5,8 +5,8 @@ import (
 	"database/sql/driver"
 	"io"
 
-	"github.com/quux00/ogonori/ogl"
-	"github.com/quux00/ogonori/oschema"
+	"github.com/dyy18/orientgo/ogl"
+	"github.com/dyy18/orientgo/oschema"
 )
 
 //

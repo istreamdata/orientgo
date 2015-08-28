@@ -43,3 +43,10 @@ _testmain.go
 *.prof
 *pprof
 *.html
+
+*.iml
+.idea/
+/out/
+.idea_modules/
+*.ipr
+*.iws

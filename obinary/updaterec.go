@@ -3,97 +3,55 @@ package obinary
 import (
 	"errors"
 
-	"github.com/quux00/ogonori/obinary/rw"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/oschema"
+	"github.com/dyy18/orientgo/obinary/rw"
+	"github.com/dyy18/orientgo/oschema"
 )
 
-//
 // UpdateRecord should be used update an existing record in the OrientDB database.
 // It does the REQUEST_RECORD_UPDATE OrientDB cmd (network binary protocol)
-//
-func UpdateRecord(dbc *DBClient, doc *oschema.ODocument) error {
-	dbc.buf.Reset()
-
-	err := writeCommandAndSessionId(dbc, REQUEST_RECORD_UPDATE)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
+func (dbc *Client) UpdateRecord(doc *oschema.ODocument) (err error) {
+	defer catch(&err)
 	if doc.RID.ClusterID < 0 || doc.RID.ClusterPos < 0 {
 		return errors.New("Document is not updateable - has negative RID values")
 	}
+	buf := dbc.writeCommandAndSessionId(requestRecordUPDATE)
 
-	err = rw.WriteShort(dbc.buf, doc.RID.ClusterID)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
-	err = rw.WriteLong(dbc.buf, doc.RID.ClusterPos)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	rw.WriteShort(buf, doc.RID.ClusterID)
+	rw.WriteLong(buf, doc.RID.ClusterPos)
 
 	// update-content flag
-	err = rw.WriteBool(dbc.buf, true)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	rw.WriteBool(buf, true)
 
 	// serialized-doc
 	serde := dbc.RecordSerDes[int(dbc.serializationVersion)]
 
 	// this writes the serialized record to dbc.buf
-	serializedBytes, err := serde.Serialize(dbc, doc)
+	err = serde.Serialize(doc, buf)
 	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
-	err = rw.WriteBytes(dbc.buf, serializedBytes)
-	if err != nil {
-		return oerror.NewTrace(err)
+		return err
 	}
 
 	// record version
-	err = rw.WriteInt(dbc.buf, doc.Version)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	rw.WriteInt(buf, doc.Version)
 
 	// record-type: document
-	err = rw.WriteByte(dbc.buf, byte('d')) // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	rw.WriteByte(dbc.buf, byte('d')) // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
 
 	// mode: synchronous
-	err = rw.WriteByte(dbc.buf, 0x0)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	rw.WriteByte(dbc.buf, 0x0)
 
 	// send to the OrientDB server
-	_, err = dbc.conx.Write(dbc.buf.Bytes())
-	if err != nil {
-		return oerror.NewTrace(err)
+	rw.WriteRawBytes(dbc.conx, buf.Bytes())
+
+	// ---[ Read Response ]---
+
+	if err = dbc.readStatusCodeAndError(); err != nil {
+		return err
 	}
 
-	/* ---[ Read Response ]--- */
+	doc.Version = rw.ReadInt(dbc.conx)
 
-	err = readStatusCodeAndSessionId(dbc)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
-	doc.Version, err = rw.ReadInt(dbc.conx)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
-
-	nCollChanges, err := rw.ReadInt(dbc.conx)
-	if err != nil {
-		return oerror.NewTrace(err)
-	}
+	nCollChanges := rw.ReadInt(dbc.conx)
 
 	if nCollChanges != 0 {
 		// if > 0, then have to deal with RidBag mgmt:

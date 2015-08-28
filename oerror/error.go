@@ -1,22 +1,16 @@
-//
-// Error types and error functions for the ogonori library
-//
 package oerror
 
 import (
 	"bytes"
 	"fmt"
-	"runtime"
+	"github.com/dyy18/orientgo/oschema"
+	"regexp"
 	"strings"
-
-	"github.com/quux00/ogonori/oschema"
 )
 
-//
 // Trace is a wrapper struct for errors so we can preseve information
 // about the call stack an error passes through.
 // Trace implements the Error interface.
-//
 type Trace struct {
 	File  string
 	Line  int
@@ -33,11 +27,9 @@ func (e Trace) traceInfo() string {
 	return fmt.Sprintf("%s:%d", e.File[idx:], e.Line)
 }
 
-//
 // GetFullTrace extracts an error "stack" trace for the Trace error
 // wrappers down to the ultimate cause. If a non-Trace error is
 // passed in then just the "Cause" info is returned.
-//
 func GetFullTrace(err error) string {
 	var buf bytes.Buffer
 	buf.Write([]byte("Trace:"))
@@ -59,11 +51,9 @@ OUTER:
 	return buf.String()
 }
 
-//
 // ExtractCause will recurse down a "stack" of Trace errors until
 // it gets to an error that is not of type Trace and return that.
 // If an error not of type Trace is passed it, it is simply returned.
-//
 func ExtractCause(err error) error {
 	switch err.(type) {
 	case Trace:
@@ -73,7 +63,6 @@ func ExtractCause(err error) error {
 	}
 }
 
-//
 // NewTrace creates a Trace Error wrapper that retains the underlying
 // error ("cause") and the filename and line number of the previous call
 // where 2 is subtracted from the line number.  So it's usage is appropriate
@@ -83,32 +72,23 @@ func ExtractCause(err error) error {
 //     if err != nil {
 //         return oerror.NewTrace(err)  // line - 2 refers to the DoSomething() line
 //     }
-//
-func NewTrace(cause error) Trace {
-	_, file, line, _ := runtime.Caller(1)
-	return Trace{file, line - 2, cause}
-}
+//func NewTrace(cause error) Trace {
+//	_, file, line, _ := runtime.Caller(1)
+//	return Trace{file, line - 2, cause}
+//}
 
-// ------
-
-//
 // SessionNotInitialized is an Error that indicates that no session was started
 // before trying to issue a command to the OrientDB server or one of its databases.
-//
 type SessionNotInitialized struct{}
 
 func (e SessionNotInitialized) Error() string {
 	return "Session not initialized. Call OpenDatabase or CreateServerSession first."
 }
 
-// ------
-
-//
 // InvalidDatabaseType is an Error that indicates that the db type value
 // is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
 // valid types are "document" or "graph".  Constants for these values are
 // provided in the obinary ogonori code base.
-//
 type InvalidDatabaseType struct {
 	TypeRequested string
 }
@@ -117,70 +97,58 @@ func (e InvalidDatabaseType) Error() string {
 	return "Database Type is not valid: " + e.TypeRequested
 }
 
-// ------
-
-//
-// InvalidDatabaseType is an Error that indicates that the db type value
-// is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
-// valid types are "document" or "graph".  Constants for these values are
-// provided in the obinary ogonori code base.
-//
-type ErrDataTypeMismatch struct {
-	ExpectedDataType oschema.ODataType
-	ExpectedGoType   string
-	ActualValue      interface{}
-}
-
-func (e ErrDataTypeMismatch) Error() string {
-	gotype := ""
-	if e.ExpectedGoType != "" {
-		gotype = " (" + e.ExpectedGoType + ")"
-	}
-	return fmt.Sprintf("DataTypeMismatch: Actual: %v of type %T; Expected %s%s",
-		e.ActualValue, e.ActualValue, oschema.ODataTypeNameFor(e.ExpectedDataType),
-		gotype)
-}
-
-// ------
-
-//
 // OServerException encapsulates Java-based Exceptions from
 // the OrientDB server. OrientDB can return multiple exceptions
 // for a single query/command, so they are all encapsulated in
 // one ogonori OServerException object.
 // Class = Java exception class
 // Message = error message from the server
-//
+type Exception interface {
+	error
+	ExcClass() string
+	ExcMessage() string
+}
+
+type UnknownException struct {
+	Class   string
+	Message string
+}
+
+func (e UnknownException) ExcClass() string {
+	return e.Class
+}
+func (e UnknownException) ExcMessage() string {
+	return e.Message
+}
+func (e UnknownException) Error() string {
+	return e.Class + ": " + e.Message
+}
+
 type OServerException struct {
-	Classes  []string
-	Messages []string
+	Exceptions []Exception
 }
 
 func (e OServerException) Error() string {
 	var buf bytes.Buffer
 	buf.WriteString("OrientDB Server Exception: ")
-	for i, cls := range e.Classes {
+	for _, ex := range e.Exceptions {
 		buf.WriteString("\n  ")
-		buf.WriteString(cls)
-		buf.WriteString(": ")
-		buf.WriteString(e.Messages[i])
+		buf.WriteString(ex.Error())
 	}
 	return buf.String()
 }
 
-// ------
+var ErrStaleGlobalProperties error
 
-type IncorrectNetworkRead struct {
-	Expected int
-	Actual   int
+// InvalidDatabaseType is an Error that indicates that the db type value
+// is not one that the OrientDB server will recognize.  For OrientDB 2.x, the
+// valid types are "document" or "graph".  Constants for these values are
+// provided in the obinary ogonori code base.
+type ErrDataTypeMismatch struct {
+	ExpectedDataType oschema.OType
+	ExpectedGoType   string
+	ActualValue      interface{}
 }
-
-func (e IncorrectNetworkRead) Error() string {
-	return fmt.Sprintf("Incorrect number of bytes read from connection. Expected: %d; Actual: %d",
-		e.Expected, e.Actual)
-}
-
-// ------
 
 type ErrInvalidConn struct {
 	Msg string
@@ -190,6 +158,38 @@ func (e ErrInvalidConn) Error() string {
 	return "Invalid Connection: %s" + e.Msg
 }
 
-// ------
+func (e ErrDataTypeMismatch) Error() string {
+	gotype := ""
+	if e.ExpectedGoType != "" {
+		gotype = " (" + e.ExpectedGoType + ")"
+	}
+	return fmt.Sprintf("DataTypeMismatch: Actual: %v of type %T; Expected %s%s",
+		e.ActualValue, e.ActualValue, e.ExpectedDataType,
+		gotype)
+}
 
-var ErrStaleGlobalProperties error
+type ODuplicatedRecordException struct {
+	OServerException
+}
+
+func (e ODuplicatedRecordException) Error() string {
+	re := regexp.MustCompile(".* found duplicated key '(?P<key>.+)' in index " +
+		"'(?P<index>[\\w\\s\\.]+)' previously assigned to the record [\\d\\#\\:]*")
+	for _, ex := range e.Exceptions {
+		message := ex.ExcMessage()
+		if re.MatchString(message) {
+			key := fmt.Sprintf("${%s}", re.SubexpNames()[1])
+			key = re.ReplaceAllString(message, key)
+			index := fmt.Sprintf("${%s}", re.SubexpNames()[2])
+			index = re.ReplaceAllString(message, index)
+			i := strings.Split(index, ".")
+			if len(i) != 2 {
+				break
+			}
+			className := i[0]
+			propertyName := i[1]
+			return fmt.Sprintf(`%s with %s "%s" already exists`, className, strings.ToLower(propertyName), key)
+		}
+	}
+	return e.OServerException.Error()
+}

@@ -11,8 +11,7 @@ func TestReadBytes_GoodData_5Bytes(t *testing.T) {
 	buf.WriteByte(byte(10))    // varint encoded 10 == 5
 	buf.Write([]byte("total")) // 5 bytes
 
-	outbytes, err := ReadBytes(buf)
-	ok(t, err)
+	outbytes := ReadBytes(buf)
 	equals(t, 5, len(outbytes))
 	equals(t, "total", string(outbytes))
 }
@@ -22,18 +21,7 @@ func TestReadBytes_GoodData_0Bytes(t *testing.T) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(0)) // varint encoded 0 == 0
 
-	outbytes, err := ReadBytes(buf)
-	ok(t, err)
-	assert(t, outbytes == nil, "outbytes should be nil")
-}
-
-func TestReadBytes_BadData_VarintEncodesNegativeNumber(t *testing.T) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(11)) // varint encoded 11 == -6
-
-	// an error should be returned
-	outbytes, err := ReadBytes(buf)
-	assert(t, err != nil, "err should not nil")
+	outbytes := ReadBytes(buf)
 	assert(t, outbytes == nil, "outbytes should be nil")
 }
 
@@ -43,8 +31,7 @@ func TestReadString_GoodData(t *testing.T) {
 	buf.WriteByte(byte(12))     // varint encoded 12 == 6
 	buf.Write([]byte("ZAXXON")) // 6 bytes
 
-	outstr, err := ReadString(buf)
-	ok(t, err)
+	outstr := ReadString(buf)
 	equals(t, 6, len(outstr))
 	equals(t, "ZAXXON", outstr)
 }
@@ -54,18 +41,7 @@ func TestReadString_Empty(t *testing.T) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(0)) // varint encoded 12 == 6
 
-	outstr, err := ReadString(buf)
-	ok(t, err)
-	equals(t, "", outstr)
-}
-
-func TestReadString_BadData_NegativeVarint(t *testing.T) {
-	// varint.ReadBytes expects a varint encoded int, followed by that many bytes
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(77)) // odd varint encode negative numbers, which shouldn't happen when encoding strings
-
-	outstr, err := ReadString(buf)
-	assert(t, err != nil, "err should not nil")
+	outstr := ReadString(buf)
 	equals(t, "", outstr)
 }
 
@@ -75,14 +51,13 @@ func TestReadString_LargeString(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	// the encoded varint will be 2 bytes in length
-	err := EncodeAndWriteVarInt32(buf, strlen)
-	ok(t, err)
+	WriteVarint(buf, int64(strlen))
 
-	_, err = buf.WriteString(largeString)
+	_, err := buf.WriteString(largeString)
 	ok(t, err)
 
 	/* ---[ code under test ]--- */
-	outstr, err := ReadString(buf)
+	outstr := ReadString(buf)
 	ok(t, err)
 	equals(t, int(strlen), len(outstr))
 	equals(t, largeString, outstr)

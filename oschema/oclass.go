@@ -3,9 +3,9 @@ package oschema
 type OClass struct {
 	Name             string
 	ShortName        string
-	Properties       map[string]*OProperty // key=Property.Name
-	DefaultClusterID int32                 // TODO: why is this int32 ??  shouldn't it be int16?
-	ClusterIDs       []int32               // TODO: why is this int32 ??  shouldn't it be int16?
+	Properties       map[string]*OProperty
+	DefaultClusterId int32
+	ClusterIds       []int32
 	SuperClass       string
 	OverSize         float32
 	StrictMode       bool
@@ -14,10 +14,8 @@ type OClass struct {
 	CustomFields     map[string]string
 }
 
-//
 // Should be passed an ODocument that comes from a load schema
 // request to the database.
-//
 func NewOClassFromDocument(doc *ODocument) *OClass {
 	oclass := &OClass{Properties: make(map[string]*OProperty)}
 
@@ -37,10 +35,10 @@ func NewOClassFromDocument(doc *ODocument) *OClass {
 		}
 	}
 	if fld := doc.GetField("defaultClusterId"); fld != nil && fld.Value != nil {
-		oclass.DefaultClusterID = fld.Value.(int32)
+		oclass.DefaultClusterId = fld.Value.(int32)
 	}
 	if fld := doc.GetField("clusterIds"); fld != nil && fld.Value != nil {
-		oclass.ClusterIDs = convertToInt32Slice(fld.Value.([]interface{}))
+		oclass.ClusterIds = convertToInt32Slice(fld.Value.([]interface{}))
 	}
 	if fld := doc.GetField("superClass"); fld != nil && fld.Value != nil {
 		oclass.SuperClass = fld.Value.(string)

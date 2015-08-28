@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/quux00/ogonori/constants"
+	"github.com/dyy18/orientgo/constants"
 )
 
 func TestWriteBytes_GoodData_5Bytes(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteBytes(buf, []byte("total"))
-	ok(t, err)
+	WriteBytes(buf, []byte("total"))
 
 	equals(t, 6, buf.Len())
 
@@ -30,8 +29,7 @@ func TestWriteBytes_GoodData_5Bytes(t *testing.T) {
 
 func TestWriteString_GoodData_5Bytes(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteString(buf, "total")
-	ok(t, err)
+	WriteString(buf, "total")
 
 	equals(t, 6, buf.Len())
 
@@ -45,8 +43,7 @@ func TestWriteString_GoodData_5Bytes(t *testing.T) {
 
 func TestWriteString_GoodData_EmptyString(t *testing.T) {
 	buf := new(bytes.Buffer)
-	err := WriteString(buf, "")
-	ok(t, err)
+	WriteString(buf, "")
 
 	equals(t, 1, buf.Len())
 
@@ -65,13 +62,11 @@ func xTestWriteBytes_VeryLargeArrayRequires64BitVarintEncode(t *testing.T) {
 	largebytes[100] = byte(255)
 
 	buf := new(bytes.Buffer)
-	err := WriteBytes(buf, largebytes)
-	ok(t, err)
+	WriteBytes(buf, largebytes)
 
 	equals(t, 5+len(largebytes), buf.Len()) // takes 5 bytes to varint encode this size
 
 	// an error should be returned
-	outbytes, err := ReadBytes(buf)
-	ok(t, err)
+	outbytes := ReadBytes(buf)
 	equals(t, lbsize, int64(len(outbytes)))
 }

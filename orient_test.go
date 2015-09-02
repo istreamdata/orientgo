@@ -57,7 +57,7 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 	}
 	time.Sleep(time.Second * 5) // TODO: wait for input from container?
 
-	cli, err := orient.Dial(fmt.Sprint("localhost:%d", port))
+	cli, err := orient.Dial(fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		rm()
 		t.Fatal(err)

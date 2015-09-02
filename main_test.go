@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dyy18/orientgo"
+	_ "github.com/dyy18/orientgo/obinary"
 )
 
 func TestNewDB(t *testing.T) {

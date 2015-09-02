@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"github.com/dyy18/orientgo/oschema"
 	"strings"
+	"sync"
 )
+
+const poolLimit = 10
 
 type FetchPlan struct {
 	Plan string
@@ -21,6 +24,7 @@ type Manager interface {
 	CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error
 	DropDatabase(name string, storageType StorageType) error
 	ListDatabases() (map[string]string, error)
+	Close() error
 }
 
 type Client interface {
@@ -66,108 +70,175 @@ type Database interface {
 }
 
 func Dial(addr string) (Client, error) {
-	dial := protos[ProtoBinary]
-	if dial == nil {
-		return nil, fmt.Errorf("orientgo: no protocols are active; import obinary package?")
+	cli := &client{
+		addr:  addr,
+		conns: make(map[string]chan DBConnection, 2),
 	}
-	cli, err := protos[ProtoBinary](addr)
+	conn, err := cli.getConn("")
 	if err != nil {
 		return nil, err
 	}
-	return &client{cli}, nil
+	cli.putConn("", conn)
+	return cli, nil
 }
 
 type client struct {
-	c DBConnection
+	addr  string
+	mu    sync.Mutex
+	conns map[string]chan DBConnection
+}
+
+func (c *client) getConn(name string) (DBConnection, error) {
+	c.mu.Lock()
+	ch := c.conns[name]
+	c.mu.Unlock()
+	select {
+	case conn := <-ch:
+		return conn, nil
+	default:
+		dial := protos[ProtoBinary]
+		if dial == nil {
+			return nil, fmt.Errorf("orientgo: no protocols are active; forgot to import obinary package?")
+		}
+		conn, err := dial(c.addr)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
+func (c *client) putConn(name string, conn DBConnection) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ch := c.conns[name]
+	if ch == nil {
+		ch = make(chan DBConnection, poolLimit)
+		c.conns[name] = ch
+	}
+	select {
+	case ch <- conn:
+	default:
+		conn.Close()
+	}
 }
 
 func (c *client) Auth(user, pass string) (Manager, error) {
-	if err := c.c.ConnectToServer(user, pass); err != nil {
+	conn, err := c.getConn("")
+	if err != nil {
 		return nil, err
 	}
-	return &manager{c}, nil
+	if err := conn.ConnectToServer(user, pass); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &manager{conn, c}, nil
 }
 func (c *client) Open(name string, dbType DatabaseType, user, pass string) (Database, error) {
-	if err := c.c.OpenDatabase(name, dbType, user, pass); err != nil {
+	conn, err := c.getConn(name)
+	if err != nil {
 		return nil, err
 	}
-	return &database{c}, nil
+	if err := conn.OpenDatabase(name, dbType, user, pass); err != nil {
+		return nil, err
+	}
+	return &database{name, conn, c}, nil
 }
 func (c *client) Close() error {
-	return c.c.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for name, ch := range c.conns {
+		close(ch)
+		for conn := range ch {
+			conn.Close()
+		}
+		delete(c.conns, name)
+	}
+	return nil
 }
 
 type manager struct {
-	cli *client
+	conn DBConnection
+	cli  *client
 }
 
 func (mgr *manager) DatabaseExists(name string, storageType StorageType) (bool, error) {
-	return mgr.cli.c.DatabaseExists(name, storageType)
+	return mgr.conn.DatabaseExists(name, storageType)
 }
 func (mgr *manager) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
-	return mgr.cli.c.CreateDatabase(name, dbType, storageType)
+	return mgr.conn.CreateDatabase(name, dbType, storageType)
 }
 func (mgr *manager) DropDatabase(name string, storageType StorageType) error {
-	return mgr.cli.c.DropDatabase(name, storageType)
+	return mgr.conn.DropDatabase(name, storageType)
 }
 func (mgr *manager) ListDatabases() (map[string]string, error) {
-	return mgr.cli.c.ListDatabases()
+	return mgr.conn.ListDatabases()
+}
+func (mgr *manager) Close() error {
+	mgr.cli.putConn("", mgr.conn)
+	mgr.conn = nil
+	return nil
 }
 
 type database struct {
-	cli *client
+	name string
+	conn DBConnection
+	cli  *client
 }
 
 func (db *database) Size() (int64, error) {
-	return db.cli.c.Size()
+	return db.conn.Size()
 }
 func (db *database) Close() error {
-	return db.cli.c.CloseDatabase()
+	//return db.conn.CloseDatabase()
+	db.cli.putConn(db.name, db.conn)
+	db.conn = nil
+	return nil
 }
 func (db *database) ReloadSchema() error {
-	return db.cli.c.ReloadSchema()
+	return db.conn.ReloadSchema()
 }
 func (db *database) GetClasses() map[string]*oschema.OClass {
-	return db.cli.c.GetClasses()
+	return db.conn.GetClasses()
 }
 
 func (db *database) AddCluster(name string) (int16, error) {
-	return db.cli.c.AddCluster(name)
+	return db.conn.AddCluster(name)
 }
 func (db *database) DropCluster(name string) error {
-	return db.cli.c.DropCluster(name)
+	return db.conn.DropCluster(name)
 }
 
 func (db *database) CreateRecord(doc *oschema.ODocument) error {
-	return db.cli.c.CreateRecord(doc)
+	return db.conn.CreateRecord(doc)
 }
 func (db *database) DeleteRecordByRID(rid string, recVersion int32) error {
-	return db.cli.c.DeleteRecordByRID(rid, recVersion)
+	return db.conn.DeleteRecordByRID(rid, recVersion)
 }
 func (db *database) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
-	return db.cli.c.DeleteRecordByRIDAsync(rid, recVersion)
+	return db.conn.DeleteRecordByRIDAsync(rid, recVersion)
 }
 func (db *database) GetRecordByRID(rid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
-	return db.cli.c.GetRecordByRID(rid, fetchPlan)
+	return db.conn.GetRecordByRID(rid, fetchPlan)
 }
 func (db *database) UpdateRecord(doc *oschema.ODocument) error {
-	return db.cli.c.UpdateRecord(doc)
+	return db.conn.UpdateRecord(doc)
 }
 func (db *database) CountRecords() (int64, error) {
-	return db.cli.c.CountRecords()
+	return db.conn.CountRecords()
 }
 
 func (db *database) CreateScriptFunc(fnc Function) error {
-	return db.cli.c.CreateScriptFunc(fnc)
+	return db.conn.CreateScriptFunc(fnc)
 }
 func (db *database) DeleteScriptFunc(name string) error {
-	return db.cli.c.DeleteScriptFunc(name)
+	return db.conn.DeleteScriptFunc(name)
 }
 func (db *database) UpdateScriptFunc(name string, script string) error {
-	return db.cli.c.UpdateScriptFunc(name, script)
+	return db.conn.UpdateScriptFunc(name, script)
 }
 func (db *database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
-	return db.cli.c.CallScriptFunc(result, name, params...)
+	return db.conn.CallScriptFunc(result, name, params...)
 }
 
 // CallScriptFuncJSON is a workaround for driver bug. It allow to return pure JS objects from DB functions.
@@ -200,7 +271,7 @@ func (db *database) InitScriptFunc(fncs ...Function) (err error) {
 }
 
 func (db *database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (Records, error) {
-	return db.cli.c.SQLQuery(result, fetchPlan, sql, params...)
+	return db.conn.SQLQuery(result, fetchPlan, sql, params...)
 }
 func (db *database) SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error) {
 	recs, err := db.SQLQuery(result, nil, sql, params...)
@@ -210,7 +281,7 @@ func (db *database) SQLQueryOne(result interface{}, sql string, params ...interf
 	return recs.One()
 }
 func (db *database) SQLCommand(result interface{}, sql string, params ...interface{}) (Records, error) {
-	return db.cli.c.SQLCommand(result, sql, params...)
+	return db.conn.SQLCommand(result, sql, params...)
 }
 func (db *database) SQLCommandExpect(expected int, sql string, params ...interface{}) error {
 	return checkExpected(expected)(db.SQLCommand(nil, sql, params...))
@@ -237,7 +308,7 @@ func (db *database) SQLBatchOne(result interface{}, sql string, params ...interf
 }
 
 func (db *database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
-	return db.cli.c.ExecScript(result, lang, script, params...)
+	return db.conn.ExecScript(result, lang, script, params...)
 }
 
 type ErrUnexpectedResultCount struct {

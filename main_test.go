@@ -50,15 +50,10 @@ var DocumentDBSeeds = []string{
 	"INSERT INTO Cat (name, age, caretaker) VALUES ('Linus', 15, 'Michael'), ('Keiko', 10, 'Anna')",
 }
 
-func Seed(t *testing.T) {
-	db, closer := ConnectToDocumentDatabase(t)
-	defer closer()
-
-	var err error
-
+func SeedDB(t *testing.T, db orient.Database) {
 	for _, seed := range DocumentDBSeeds {
-		if _, err = db.SQLCommand(nil, seed); err != nil {
-			panic(err) // Programming error
+		if _, err := db.SQLCommand(nil, seed); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

@@ -1,5 +1,6 @@
 package osql
 
+/*
 import "github.com/dyy18/orientgo/oerror"
 
 //
@@ -34,3 +35,4 @@ func (tx *ogonoriTx) Rollback() error {
 //         Commit() error
 //         Rollback() error
 // }
+*/

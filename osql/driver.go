@@ -10,6 +10,7 @@
 //
 package osql
 
+/*
 import (
 	"database/sql"
 	"database/sql/driver"
@@ -17,9 +18,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dyy18/orientgo/constants"
 	"github.com/dyy18/orientgo/obinary"
-	"github.com/dyy18/orientgo/ogl"
 )
 
 var dsnRx *regexp.Regexp = regexp.MustCompile(`([^@]+)@([^:]+):([^/]+)/(.+)`)
@@ -76,3 +75,4 @@ func parseDsn(dsn string) (uname, passw, host, port, dbname string, err error) {
 	}
 	return matches[1], matches[2], host, port, matches[4], nil
 }
+*/

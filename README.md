@@ -12,7 +12,7 @@
 - Uses [MapStructure](http://github.com/mitchellh/mapstructure) lib for record deserialization
 - User can omit deserialization of query/command results to `ODocument` and provide custom values for deserialization (array/struct)
 - Supports Orient functions ( SQL/JS(/Groovy?) )
-- Works with OrientDB 2.1-rc3
+- Works with OrientDB 2.1.1
 
 # Status
 

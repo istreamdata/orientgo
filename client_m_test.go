@@ -149,49 +149,19 @@ func createOgonoriTestDB(t *testing.T, dbc orient.Client, dbUser, dbPass string)
 
 	seedInitialData(t, dbc)
 
-	// bug in OrientDB 2.0.1? :
-	//  ERROR: com.orientechnologies.orient.core.exception.ODatabaseException Database 'plocal:/home/midpeter444/apps/orientdb-community-2.0.1/databases/ogonoriTest' is closed}
-	// mapDBs, err = dbc.RequestDBList()
-	// if err != nil {
-	// 	Fatal(err)
-	// }
-	// fmt.Printf("%v\n", mapDBs)
-	// ogonoriTestPath, ok := mapDBs[dbDocumentName]
-	// True(t, ok, dbDocumentName+" not in DB list")
-	// True(t, strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
+	mapDBs, err = sess.ListDatabases()
+	Nil(t, err)
+	//fmt.Printf("%v\n", mapDBs)
+	ogonoriTestPath, ok := mapDBs[dbDocumentName]
+	True(t, ok, dbDocumentName+" not in DB list")
+	True(t, strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 }
 
 func seedInitialData(t *testing.T, dbc orient.Client) {
 	db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
 
-	defer db.Close()
-
-	// seed initial data
-	var sqlCmd string
-	sqlCmd = "CREATE CLASS Animal"
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
-
-	sqlCmd = "CREATE property Animal.name string"
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
-
-	sqlCmd = "CREATE property Animal.age integer"
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
-
-	sqlCmd = "CREATE CLASS Cat extends Animal"
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
-
-	sqlCmd = "CREATE property Cat.caretaker string"
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
-
-	sqlCmd = `INSERT INTO Cat (name, age, caretaker) VALUES ("Linus", 15, "Michael"), ("Keiko", 10, "Anna")`
-	_, err = db.SQLCommand(nil, sqlCmd)
-	Nil(t, err)
+	SeedDB(t, db)
 }
 
 func deleteNewRecordsDocDB(db orient.Database) {
@@ -226,11 +196,6 @@ func deleteNewRecordsGraphDB(db orient.Database) {
 	}
 }
 
-func cleanUp(t *testing.T, dbc orient.Client, fullTest bool) {
-	cleanUpDocDB(t, dbc, fullTest)
-	cleanUpGraphDB(t, dbc, fullTest)
-}
-
 func dropDatabase(t *testing.T, dbc orient.Client, dbname string, dbtype orient.StorageType) {
 	//_ = dbc.Close()
 	sess, err := dbc.Auth(dbUser, dbPass)
@@ -245,46 +210,6 @@ func dropDatabase(t *testing.T, dbc orient.Client, dbname string, dbtype orient.
 	}
 	if dbexists {
 		glog.Warningf("ERROR: Deletion of database %s failed\n", dbname)
-	}
-}
-
-func cleanUpDocDB(t *testing.T, dbc orient.Client, fullTest bool) {
-	if fullTest {
-		dropDatabase(t, dbc, dbDocumentName, orient.Persistent)
-
-	} else {
-		//_ = dbc.Close()
-		db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
-		if err != nil {
-			glog.Warning(err.Error())
-			return
-		}
-		deleteNewRecordsDocDB(db)
-		deleteNewClustersDocDB(t, db)
-		err = db.Close()
-		if err != nil {
-			glog.Warning(err.Error())
-		}
-	}
-}
-
-func cleanUpGraphDB(t *testing.T, dbc orient.Client, fullTest bool) {
-	if fullTest {
-		dropDatabase(t, dbc, dbGraphName, orient.Persistent)
-
-	} else {
-		//_ = dbc.CloseDatabase()
-		db, err := dbc.Open(dbGraphName, orient.GraphDB, "admin", "admin")
-		if err != nil {
-			glog.Warning(err.Error())
-			return
-		}
-
-		deleteNewRecordsGraphDB(db)
-		err = db.Close()
-		if err != nil {
-			glog.Warning(err.Error())
-		}
 	}
 }
 
@@ -1687,9 +1612,9 @@ func dbCommandsNativeAPI(t *testing.T, dbc orient.Client) {
 	dt := docs[0].GetField("dt").Value.(time.Time)
 	zone, zoneOffset := dt.Zone()
 	zoneLocation := time.FixedZone(zone, zoneOffset)
-	expectedTm, err := time.ParseInLocation("2006-01-02 03:04:05", "2014-11-25 09:14:54", zoneLocation)
+	expectedTm, err := time.Parse("2006-01-02 03:04:05", "2014-11-25 09:14:54") //time.ParseInLocation("2006-01-02 03:04:05", "2014-11-25 09:14:54", zoneLocation)
 	Nil(t, err)
-	Equals(t, expectedTm.String(), dt.String())
+	Equals(t, expectedTm.Local().String(), dt.String())
 
 	bruceRID := docs[0].RID
 

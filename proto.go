@@ -44,6 +44,8 @@ type DBConnection interface {
 
 	AddCluster(clusterName string) (clusterID int16, err error)
 	DropCluster(clusterName string) (err error)
+	GetClusterDataRange(clusterName string) (begin, end int64, err error)
+	CountClusters(withDeleted bool, clusterNames ...string) (int64, error)
 
 	CreateRecord(doc *oschema.ODocument) (err error)
 	DeleteRecordByRID(rid string, recVersion int32) error
@@ -52,13 +54,7 @@ type DBConnection interface {
 	UpdateRecord(doc *oschema.ODocument) error
 	CountRecords() (int64, error)
 
-	CreateScriptFunc(fnc Function) error
-	DeleteScriptFunc(name string) error
-	UpdateScriptFunc(name string, script string) error
-	CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error)
-
 	SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
 	SQLCommand(result interface{}, sql string, params ...interface{}) (recs Records, err error)
-
 	ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
 }

@@ -1,5 +1,6 @@
 package osql
 
+/*
 import (
 	_ "database/sql"
 	"database/sql/driver"
@@ -102,3 +103,4 @@ func (rows *ogonoriRows) Close() error {
 	ogl.Debugln("** ogonoriRows.Close")
 	return nil
 }
+*/

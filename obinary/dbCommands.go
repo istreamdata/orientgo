@@ -421,7 +421,7 @@ func (dbc *Client) ReloadSchema() error {
 }
 
 // FetchClusterDataRange returns the range of record ids for a cluster
-func (dbc *Client) FetchClusterDataRange(clusterName string) (begin, end int64, err error) {
+func (dbc *Client) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
 	defer catch(&err)
 
 	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
@@ -702,19 +702,9 @@ func (dbc *Client) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, e
 	return int(size), nil
 }
 
-// GetClusterCountIncludingDeleted gets the number of records in all
-// the clusters specified *including* deleted records (applicable for
-// autosharded storage only)
-func (dbc *Client) GetClusterCountIncludingDeleted(clusterNames ...string) (int64, error) {
-	return dbc.getClusterCount(true, clusterNames)
-}
-
-// FetchClusterCountIncludingDeleted gets the number of records in all the
-// clusters specified. The count does NOT include deleted records in
-// autosharded storage. Use FetchClusterCountIncludingDeleted if you want
-// the count including deleted records
-func (dbc *Client) GetClusterCount(clusterNames ...string) (int64, error) {
-	return dbc.getClusterCount(false, clusterNames)
+// CountClusters gets the number of records in all the clusters specified.
+func (dbc *Client) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
+	return dbc.getClusterCount(withDeleted, clusterNames)
 }
 
 func (dbc *Client) getClusterCount(countTombstones bool, clusterNames []string) (count int64, err error) {

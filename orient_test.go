@@ -22,13 +22,13 @@ func TestBuild(t *testing.T) {
 }
 
 func SpinOrient(t *testing.T) (orient.Client, func()) {
-	port := randPort()
+	port := 2424 //randPort()
 
 	dport_api := docker.Port("2424/tcp")
 	dport_web := docker.Port("2480/tcp")
 	binds := make(map[docker.Port][]docker.PortBinding)
-	binds[dport_api] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port)}}
-	binds[dport_web] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port + 1)}}
+	//	binds[dport_api] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port)}}
+	//	binds[dport_web] = []docker.PortBinding{docker.PortBinding{HostPort: fmt.Sprint(port + 1)}}
 
 	cl, err := docker.NewClient("unix:///var/run/docker.sock")
 	if err != nil {
@@ -38,7 +38,7 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 		Config: &docker.Config{
 			OpenStdin: true, Tty: true,
 			ExposedPorts: map[docker.Port]struct{}{dport_api: struct{}{}, dport_web: struct{}{}},
-			Image:        `dennwc/orient:latest`,
+			Image:        `dennwc/orient:2.1.1`,
 		}, HostConfig: &docker.HostConfig{
 			PortBindings: binds,
 		},
@@ -57,7 +57,13 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 	}
 	time.Sleep(time.Second * 5) // TODO: wait for input from container?
 
-	cli, err := orient.Dial(fmt.Sprintf("localhost:%d", port))
+	info, err := cl.InspectContainer(cont.ID)
+	if err != nil {
+		rm()
+		t.Skip(err)
+	}
+
+	cli, err := orient.Dial(fmt.Sprintf("%s:%d", info.NetworkSettings.IPAddress, port))
 	if err != nil {
 		rm()
 		t.Fatal(err)

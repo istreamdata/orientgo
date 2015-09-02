@@ -1,5 +1,6 @@
 package osql
 
+/*
 import (
 	_ "database/sql"
 	"database/sql/driver"
@@ -135,3 +136,4 @@ func valuesToStrings(args []driver.Value) []string {
 	}
 	return strargs
 }
+*/

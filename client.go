@@ -41,6 +41,8 @@ type Database interface {
 
 	AddCluster(clusterName string) (clusterID int16, err error)
 	DropCluster(clusterName string) (err error)
+	GetClusterDataRange(clusterName string) (begin, end int64, err error)
+	CountClusters(withDeleted bool, clusterNames ...string) (int64, error)
 
 	CreateRecord(doc *oschema.ODocument) (err error)
 	DeleteRecordByRID(rid string, recVersion int32) error
@@ -208,6 +210,12 @@ func (db *database) AddCluster(name string) (int16, error) {
 func (db *database) DropCluster(name string) error {
 	return db.conn.DropCluster(name)
 }
+func (db *database) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
+	return db.conn.GetClusterDataRange(clusterName)
+}
+func (db *database) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
+	return db.conn.CountClusters(withDeleted, clusterNames...)
+}
 
 func (db *database) CreateRecord(doc *oschema.ODocument) error {
 	return db.conn.CreateRecord(doc)
@@ -226,19 +234,6 @@ func (db *database) UpdateRecord(doc *oschema.ODocument) error {
 }
 func (db *database) CountRecords() (int64, error) {
 	return db.conn.CountRecords()
-}
-
-func (db *database) CreateScriptFunc(fnc Function) error {
-	return db.conn.CreateScriptFunc(fnc)
-}
-func (db *database) DeleteScriptFunc(name string) error {
-	return db.conn.DeleteScriptFunc(name)
-}
-func (db *database) UpdateScriptFunc(name string, script string) error {
-	return db.conn.UpdateScriptFunc(name, script)
-}
-func (db *database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
-	return db.conn.CallScriptFunc(result, name, params...)
 }
 
 // CallScriptFuncJSON is a workaround for driver bug. It allow to return pure JS objects from DB functions.
@@ -309,6 +304,44 @@ func (db *database) SQLBatchOne(result interface{}, sql string, params ...interf
 
 func (db *database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
 	return db.conn.ExecScript(result, lang, script, params...)
+}
+
+func sqlEscape(s string) string { // TODO: escape things in a right way
+	s = strings.Replace(s, `\`, `\\`, -1)
+	s = strings.Replace(s, `"`, `\"`, -1)
+	return `"` + s + `"`
+}
+
+func (db *database) CreateScriptFunc(fnc Function) error {
+	sql := `CREATE FUNCTION ` + fnc.Name + ` ` + sqlEscape(fnc.Code)
+	if len(fnc.Params) > 0 {
+		sql += ` PARAMETERS [` + strings.Join(fnc.Params, ", ") + `]`
+	}
+	sql += ` IDEMPOTENT ` + fmt.Sprint(fnc.Idemp)
+	if fnc.Lang != "" {
+		sql += ` LANGUAGE ` + string(fnc.Lang)
+	}
+	_, err := db.SQLCommand(nil, sql)
+	return err
+}
+
+func (db *database) DeleteScriptFunc(name string) error {
+	_, err := db.SQLCommand(nil, `DELETE FROM OFunction WHERE name = ?`, name)
+	return err
+}
+
+func (db *database) UpdateScriptFunc(name string, script string) error {
+	_, err := db.SQLCommand(nil, `UPDATE OFunction SET code = ? WHERE name = ?`, script, name)
+	return err
+}
+
+func (db *database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
+	sparams := make([]string, 0, len(params))
+	for _, p := range params {
+		data, _ := json.Marshal(p)
+		sparams = append(sparams, string(data))
+	}
+	return db.ExecScript(result, LangJS, name+`(`+strings.Join(sparams, ",")+`)`)
 }
 
 type ErrUnexpectedResultCount struct {

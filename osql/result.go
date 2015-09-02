@@ -1,5 +1,6 @@
 package osql
 
+/*
 //
 // ogonoriResult implements the sql/driver.Result inteface.
 //
@@ -22,3 +23,4 @@ func (res ogonoriResult) LastInsertId() (int64, error) {
 func (res ogonoriResult) RowsAffected() (int64, error) {
 	return res.affectedRows, nil
 }
+*/

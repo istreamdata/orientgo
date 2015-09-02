@@ -3,8 +3,6 @@ package varint
 import (
 	"bytes"
 	"testing"
-
-	"github.com/dyy18/orientgo/constants"
 )
 
 func TestWriteBytes_GoodData_5Bytes(t *testing.T) {
@@ -50,23 +48,4 @@ func TestWriteString_GoodData_EmptyString(t *testing.T) {
 	n, err := buf.ReadByte()
 	equals(t, byte(0), n)
 	ok(t, err)
-}
-
-// This one is slow and slows done rapid testing, so commented out for now
-func xTestWriteBytes_VeryLargeArrayRequires64BitVarintEncode(t *testing.T) {
-	lbsize := int64(constants.MaxInt32) + 4
-	largebytes := make([]byte, lbsize)
-	// set some sentinel values to check later
-	largebytes[0] = byte(255)
-	largebytes[10] = byte(255)
-	largebytes[100] = byte(255)
-
-	buf := new(bytes.Buffer)
-	WriteBytes(buf, largebytes)
-
-	equals(t, 5+len(largebytes), buf.Len()) // takes 5 bytes to varint encode this size
-
-	// an error should be returned
-	outbytes := ReadBytes(buf)
-	equals(t, lbsize, int64(len(outbytes)))
 }

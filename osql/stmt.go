@@ -1,5 +1,6 @@
 package osql
 
+/*
 import (
 	_ "database/sql"
 	"database/sql/driver"
@@ -61,3 +62,4 @@ func (st *ogonoriStmt) Close() error {
 	// that is referenced by a client driver
 	return nil
 }
+*/

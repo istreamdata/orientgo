@@ -1,4 +1,4 @@
-package obinary_test
+package orient_test
 
 import (
 	"github.com/golang/glog"

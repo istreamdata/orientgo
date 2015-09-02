@@ -1,4 +1,4 @@
-package obinary_test
+package orient_test
 
 import (
 	//	"database/sql"
@@ -19,11 +19,10 @@ import (
 	//	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/dyy18/orientgo/constants"
-	"github.com/dyy18/orientgo/obinary"
 	"github.com/dyy18/orientgo/oerror"
 	"github.com/dyy18/orientgo/oschema"
 	//_ "github.com/dyy18/orientgo/osql"
+	"github.com/dyy18/orientgo"
 	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"runtime/debug"
@@ -116,16 +115,16 @@ func Equals(t *testing.T, exp, act interface{}) {
 	}
 }
 
-func createOgonoriTestDB(t *testing.T, dbc *obinary.Client, dbUser, dbPass string) {
+func createOgonoriTestDB(t *testing.T, dbc orient.Client, dbUser, dbPass string) {
 	glog.Infof("%s\n\n", "-------- Create OgonoriTest DB --------")
 
-	err := dbc.ConnectToServer(dbUser, dbPass)
+	sess, err := dbc.Auth(dbUser, dbPass)
 	Nil(t, err)
 
-	True(t, dbc.GetSessionId() >= int32(0), "sessionid")
-	True(t, dbc.GetCurrDB() == nil, "currDB should be nil")
+	//	True(t, dbc.GetSessionId() >= int32(0), "sessionid")
+	//	True(t, dbc.GetCurrDB() == nil, "currDB should be nil")
 
-	mapDBs, err := dbc.RequestDBList()
+	mapDBs, err := sess.ListDatabases()
 	Nil(t, err)
 	glog.V(10).Infof("mapDBs: %v\n", mapDBs)
 	gratefulTestPath, ok := mapDBs["GratefulDeadConcerts"]
@@ -133,18 +132,18 @@ func createOgonoriTestDB(t *testing.T, dbc *obinary.Client, dbUser, dbPass strin
 	True(t, strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	// first check if ogonoriTest db exists and if so, drop it
-	dbexists, err := dbc.DatabaseExists(dbDocumentName, constants.Persistent)
+	dbexists, err := sess.DatabaseExists(dbDocumentName, orient.Persistent)
 	Nil(t, err)
 
 	if dbexists {
-		err = dbc.DropDatabase(dbDocumentName, constants.Persistent)
+		err = sess.DropDatabase(dbDocumentName, orient.Persistent)
 		Nil(t, err)
 	}
 
 	// err = dbc.CreateDatabase(dbc, dbDocumentName, constants.DocumentDbType, constants.Volatile)
-	err = dbc.CreateDatabase(dbDocumentName, constants.DocumentDB, constants.Persistent)
+	err = sess.CreateDatabase(dbDocumentName, orient.DocumentDB, orient.Persistent)
 	Nil(t, err)
-	dbexists, err = dbc.DatabaseExists(dbDocumentName, constants.Persistent)
+	dbexists, err = sess.DatabaseExists(dbDocumentName, orient.Persistent)
 	Nil(t, err)
 	True(t, dbexists, dbDocumentName+" should now exists after creating it")
 
@@ -162,84 +161,84 @@ func createOgonoriTestDB(t *testing.T, dbc *obinary.Client, dbUser, dbPass strin
 	// True(t, strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
 }
 
-func seedInitialData(t *testing.T, dbc *obinary.Client) {
-	err := dbc.OpenDatabase(dbDocumentName, constants.DocumentDB, "admin", "admin")
+func seedInitialData(t *testing.T, dbc orient.Client) {
+	db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
 
-	defer dbc.CloseDatabase()
+	defer db.Close()
 
 	// seed initial data
 	var sqlCmd string
 	sqlCmd = "CREATE CLASS Animal"
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 
 	sqlCmd = "CREATE property Animal.name string"
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 
 	sqlCmd = "CREATE property Animal.age integer"
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 
 	sqlCmd = "CREATE CLASS Cat extends Animal"
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 
 	sqlCmd = "CREATE property Cat.caretaker string"
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 
 	sqlCmd = `INSERT INTO Cat (name, age, caretaker) VALUES ("Linus", 15, "Michael"), ("Keiko", 10, "Anna")`
-	_, err = dbc.SQLCommand(nil, sqlCmd)
+	_, err = db.SQLCommand(nil, sqlCmd)
 	Nil(t, err)
 }
 
-func deleteNewRecordsDocDB(dbc *obinary.Client) {
-	_, err := dbc.SQLCommand(nil, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
+func deleteNewRecordsDocDB(db orient.Database) {
+	_, err := db.SQLCommand(nil, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
 	if err != nil {
 		glog.Warning(err.Error())
 		return
 	}
 }
 
-func deleteNewClustersDocDB(t *testing.T, dbc *obinary.Client) {
+func deleteNewClustersDocDB(t *testing.T, db orient.Database) {
 	// doing DROP CLUSTER via SQL will not return an exception - it just
 	// returns "false" as the retval (first return value), so safe to do this
 	// even if these clusters don't exist
 	for _, clustName := range []string{"CatUSA", "CatAmerica", "bigapple"} {
-		_, err := dbc.SQLCommand(nil, "DROP CLUSTER "+clustName)
+		_, err := db.SQLCommand(nil, "DROP CLUSTER "+clustName)
 		Nil(t, err)
 	}
 }
 
-func deleteNewRecordsGraphDB(dbc *obinary.Client) {
-	_, _ = dbc.SQLCommand(nil, "DELETE VERTEX Person")
-	_, err := dbc.SQLCommand(nil, "DROP CLASS Person")
+func deleteNewRecordsGraphDB(db orient.Database) {
+	_, _ = db.SQLCommand(nil, "DELETE VERTEX Person")
+	_, err := db.SQLCommand(nil, "DROP CLASS Person")
 	if err != nil {
 		glog.Warning(err.Error())
 		return
 	}
-	_, err = dbc.SQLCommand(nil, "DROP CLASS Friend")
+	_, err = db.SQLCommand(nil, "DROP CLASS Friend")
 	if err != nil {
 		glog.Warning(err.Error())
 		return
 	}
 }
 
-func cleanUp(t *testing.T, dbc *obinary.Client, fullTest bool) {
+func cleanUp(t *testing.T, dbc orient.Client, fullTest bool) {
 	cleanUpDocDB(t, dbc, fullTest)
 	cleanUpGraphDB(t, dbc, fullTest)
 }
 
-func dropDatabase(t *testing.T, dbc *obinary.Client, dbname string, dbtype constants.StorageType) {
-	_ = dbc.CloseDatabase()
-	err := dbc.ConnectToServer(dbUser, dbPass)
+func dropDatabase(t *testing.T, dbc orient.Client, dbname string, dbtype orient.StorageType) {
+	//_ = dbc.Close()
+	sess, err := dbc.Auth(dbUser, dbPass)
 	Nil(t, err)
 
-	err = dbc.DropDatabase(dbname, dbtype)
+	err = sess.DropDatabase(dbname, dbtype)
 	Nil(t, err)
-	dbexists, err := dbc.DatabaseExists(dbname, constants.Persistent)
+	dbexists, err := sess.DatabaseExists(dbname, orient.Persistent)
 	if err != nil {
 		glog.Warning(err.Error())
 		return
@@ -249,40 +248,40 @@ func dropDatabase(t *testing.T, dbc *obinary.Client, dbname string, dbtype const
 	}
 }
 
-func cleanUpDocDB(t *testing.T, dbc *obinary.Client, fullTest bool) {
+func cleanUpDocDB(t *testing.T, dbc orient.Client, fullTest bool) {
 	if fullTest {
-		dropDatabase(t, dbc, dbDocumentName, constants.Persistent)
+		dropDatabase(t, dbc, dbDocumentName, orient.Persistent)
 
 	} else {
-		_ = dbc.CloseDatabase()
-		err := dbc.OpenDatabase(dbDocumentName, constants.DocumentDB, "admin", "admin")
+		//_ = dbc.Close()
+		db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
 		if err != nil {
 			glog.Warning(err.Error())
 			return
 		}
-		deleteNewRecordsDocDB(dbc)
-		deleteNewClustersDocDB(t, dbc)
-		err = dbc.CloseDatabase()
+		deleteNewRecordsDocDB(db)
+		deleteNewClustersDocDB(t, db)
+		err = db.Close()
 		if err != nil {
 			glog.Warning(err.Error())
 		}
 	}
 }
 
-func cleanUpGraphDB(t *testing.T, dbc *obinary.Client, fullTest bool) {
+func cleanUpGraphDB(t *testing.T, dbc orient.Client, fullTest bool) {
 	if fullTest {
-		dropDatabase(t, dbc, dbGraphName, constants.Persistent)
+		dropDatabase(t, dbc, dbGraphName, orient.Persistent)
 
 	} else {
-		_ = dbc.CloseDatabase()
-		err := dbc.OpenDatabase(dbGraphName, constants.GraphDB, "admin", "admin")
+		//_ = dbc.CloseDatabase()
+		db, err := dbc.Open(dbGraphName, orient.GraphDB, "admin", "admin")
 		if err != nil {
 			glog.Warning(err.Error())
 			return
 		}
 
-		deleteNewRecordsGraphDB(dbc)
-		err = dbc.CloseDatabase()
+		deleteNewRecordsGraphDB(db)
+		err = db.Close()
 		if err != nil {
 			glog.Warning(err.Error())
 		}
@@ -715,7 +714,7 @@ func databaseSQLPreparedStmtAPI(conxStr string) {
 
 }
 
-func dbClusterCommandsNativeAPI(dbc *obinary.Client) {
+func dbClusterCommandsNativeAPI(dbc orient.Client) {
 	glog.V(10).Infoln("\n-------- CLUSTER commands --------\n")
 
 	recint := func(recs obinary.Records) int {
@@ -729,7 +728,7 @@ func dbClusterCommandsNativeAPI(dbc *obinary.Client) {
 		return val
 	}
 
-	err := dbc.OpenDatabase(dbDocumentName, constants.DocumentDB, "admin", "admin")
+	err := dbc.OpenDatabase(dbDocumentName, orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
 	defer dbc.CloseDatabase()
 
@@ -749,20 +748,20 @@ func dbClusterCommandsNativeAPI(dbc *obinary.Client) {
 
 	glog.V(10).Infoln("\n-------- CLUSTER SQL commands --------\n")
 
-	recs, err := dbc.SQLCommand(nil, "CREATE CLUSTER CatUSA")
+	recs, err := db.SQLCommand(nil, "CREATE CLUSTER CatUSA")
 	Nil(t, err)
 	ival := recint(recs)
 	True(t, ival > 5, fmt.Sprintf("Unexpected value of ival: %d", ival))
 
-	recs, err = dbc.SQLCommand(nil, "ALTER CLUSTER CatUSA Name CatAmerica")
+	recs, err = db.SQLCommand(nil, "ALTER CLUSTER CatUSA Name CatAmerica")
 	Nil(t, err)
 	//glog.Infof("ALTER CLUSTER CatUSA Name CatAmerica: retval: %v; docs: %v\n", retval, docs)
 
-	recs, err = dbc.SQLCommand(nil, "DROP CLUSTER CatUSA")
+	recs, err = db.SQLCommand(nil, "DROP CLUSTER CatUSA")
 	Nil(t, err)
 	Equals(t, false, recbool(recs))
 
-	recs, err = dbc.SQLCommand(nil, "DROP CLUSTER CatAmerica")
+	recs, err = db.SQLCommand(nil, "DROP CLUSTER CatAmerica")
 	Nil(t, err)
 	Equals(t, true, recbool(recs))
 	//glog.Infof("DROP CLUSTER CatAmerica: retval: %v; docs: %v\n", retval, docs)
@@ -791,22 +790,22 @@ func dbClusterCommandsNativeAPI(dbc *obinary.Client) {
 }
 */
 
-func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
+func dbCommandsNativeAPI(t *testing.T, dbc orient.Client) {
 	glog.Infof("\n%s\n\n", "-------- database-level commands --------")
 
 	var sql string
-	var recs obinary.Records
+	var recs orient.Records
 
-	err := dbc.OpenDatabase(dbDocumentName, constants.DocumentDB, "admin", "admin")
+	db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
-	defer dbc.CloseDatabase()
+	defer db.Close()
 
 	// ---[ query from the ogonoriTest database ]---
 
 	sql = "select from Cat where name = 'Linus'"
 
 	var docs []*oschema.ODocument
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 
 	linusDocRID := docs[0].RID
@@ -834,7 +833,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	Equals(t, "Michael", caretakerField.Value)
 
 	// ---[ get by RID ]---
-	docs, err = dbc.GetRecordByRID(linusDocRID, "")
+	docs, err = db.GetRecordByRID(linusDocRID, "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	docByRID := docs[0]
@@ -863,12 +862,12 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	glog.Infof("docs returned by RID: %v\n", *(docs[0]))
 
 	// ---[ cluster data range ]---
-	begin, end, err := dbc.FetchClusterDataRange("cat")
-	Nil(t, err)
-	glog.Infof("begin = %v; end = %v\n", begin, end)
+	//	begin, end, err := db.FetchClusterDataRange("cat")
+	//	Nil(t, err)
+	//	glog.Infof("begin = %v; end = %v\n", begin, end)
 
 	sql = "insert into Cat (name, age, caretaker) values(\"Zed\", 3, \"Shaw\")"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	// ---[ query after inserting record(s) ]---
@@ -876,7 +875,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = "select * from Cat order by name asc"
 	glog.Infoln("Issuing command query: " + sql)
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 3, len(docs))
 	Equals(t, 3, len(docs[0].FieldNames()))
@@ -910,7 +909,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "select name, caretaker from Cat order by caretaker"
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 3, len(docs))
 	Equals(t, 2, len(docs[0].FieldNames()))
@@ -931,7 +930,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	// ---[ delete newly added record(s) ]---
 	glog.Infoln("Deleting (sync) record #" + zed.RID.String())
-	err = dbc.DeleteRecordByRID(zed.RID.String(), zed.Version)
+	err = db.DeleteRecordByRID(zed.RID.String(), zed.Version)
 	Nil(t, err)
 
 	// glog.Infoln("Deleting (Async) record #11:4")
@@ -941,12 +940,12 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// }
 
 	sql = "insert into Cat (name, age, caretaker) values(?, ?, ?)"
-	_, err = dbc.SQLCommand(nil, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
+	_, err = db.SQLCommand(nil, sql, "June", "8", "Cleaver") // TODO: check if numeric types are passed as strings in the Java client
 	Nil(t, err)
 
 	sql = "select name, age from Cat where caretaker = ?"
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql, "Cleaver")
+	_, err = db.SQLQuery(&docs, nil, sql, "Cleaver")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, 2, len(docs[0].FieldNames()))
@@ -956,7 +955,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "select caretaker, name, age from Cat where age > ? order by age desc"
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql, "9")
+	_, err = db.SQLQuery(&docs, nil, sql, "9")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, 3, len(docs[0].FieldNames()))
@@ -969,13 +968,13 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "delete from Cat where name ='June'" // TODO: can we use a param here too ?
 	glog.Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	glog.Infoln("+++++++++ END: SQL COMMAND w/ PARAMS ++++++++++++===")
 
 	glog.Infoln("+++++++++ START: Basic DDL ++++++++++++===")
 
 	sql = "DROP CLASS Patient"
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	if retval != "" {
 	//		Equals(t, "true", retval)
@@ -985,12 +984,12 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "CREATE CLASS Patient"
 	glog.V(10).Infoln(sql)
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
 		sql = "DROP CLASS Patient"
-		_, err = dbc.SQLCommand(nil, sql)
+		_, err = db.SQLCommand(nil, sql)
 		if err != nil {
 			glog.Warningf("WARN: clean up error: %v\n", err)
 			return
@@ -998,7 +997,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 		// TRUNCATE after drop should return an OServerException type
 		sql = "TRUNCATE CLASS Patient"
-		_, err = dbc.SQLCommand(nil, sql)
+		_, err = db.SQLCommand(nil, sql)
 		True(t, err != nil, "Error from TRUNCATE should not be null")
 		glog.V(10).Infoln(oerror.GetFullTrace(err))
 
@@ -1019,43 +1018,43 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "Create property Patient.name string"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "alter property Patient.name min 3"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "Create property Patient.married boolean"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
-	dbc.ReloadSchema()
+	db.ReloadSchema()
 	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true')"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "TRUNCATE CLASS Patient"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "INSERT INTO Patient (name, married) VALUES ('Hank', 'true'), ('Martha', 'false')"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
@@ -1063,7 +1062,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = "SELECT count(*) from Patient"
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	fldCount := docs[0].GetField("count")
@@ -1071,28 +1070,28 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "CREATE PROPERTY Patient.gender STRING"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "ALTER PROPERTY Patient.gender REGEXP [M|F]"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "INSERT INTO Patient (name, married, gender) VALUES ('Larry', 'true', 'M'), ('Shirley', 'false', 'F')"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: %v\n", retval)
 	//	glog.V(10).Infof("docs: %v\n", docs)
 
 	sql = "INSERT INTO Patient (name, married, gender) VALUES ('Lt. Dan', 'true', 'T'), ('Sally', 'false', 'F')"
 	glog.Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	True(t, err != nil, "should be error - T is not an allowed gender")
 	err = oerror.ExtractCause(err)
 	switch err.(type) {
@@ -1105,28 +1104,28 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = "SELECT FROM Patient ORDER BY @rid desc"
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 4, len(docs))
 	Equals(t, "Shirley", docs[0].GetField("name").Value)
 
 	sql = "ALTER PROPERTY Patient.gender NAME sex"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
-	err = dbc.ReloadSchema()
+	err = db.ReloadSchema()
 	Nil(t, err)
 
 	sql = "DROP PROPERTY Patient.sex"
 	glog.V(10).Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	sql = "select from Patient order by RID"
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 4, len(docs))
 	Equals(t, 2, len(docs[0].Fields)) // has name and married
@@ -1138,13 +1137,13 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = "TRUNCATE CLASS Patient"
 	glog.Infoln(sql)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	// ---[ Attempt to create, insert and read back EMBEDDEDLIST types ]---
 
 	sql = "CREATE PROPERTY Patient.tags EMBEDDEDLIST STRING"
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	numval, err := recs.AsInt()
@@ -1153,14 +1152,14 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `insert into Patient (name, married, tags) values ("George", "false", ["diabetic", "osteoarthritis"])`
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, 3, len(docs[0].FieldNames()))
 
 	sql = `SELECT from Patient where name = 'George'`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	glog.V(10).Infof("docs: %v\n", docs)
 	Equals(t, 1, len(docs))
@@ -1177,7 +1176,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `insert into Patient content {"name": "Freddy", "married":false}`
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Freddy", docs[0].GetField("name").Value)
@@ -1187,15 +1186,15 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `select from Cat WHERE name = 'Linus' OR name='Keiko' ORDER BY @rid`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Equals(t, 2, len(docs))
 	linusRID := docs[0].RID
 	keikoRID := docs[1].RID
 
 	sql = `CREATE PROPERTY Cat.buddy LINK`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "buddy")
+	defer removeProperty(db, "Cat", "buddy")
 
 	numval, err = recs.AsInt()
 	Nil(t, err)
@@ -1204,7 +1203,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `insert into Cat SET name='Tilde', age=8, caretaker='Earl', buddy=(SELECT FROM Cat WHERE name = 'Linus')`
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	//	glog.V(10).Infof("retval: >>%v<<\n", retval)
 	//	glog.V(10).Infof("docs: >>%v<<\n", docs)
@@ -1218,13 +1217,13 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// ---[ Test EMBEDDED ]---
 
 	sql = `CREATE PROPERTY Cat.embeddedCat EMBEDDED`
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "embeddedCat")
+	defer removeProperty(db, "Cat", "embeddedCat")
 
 	emb := `{"name": "Spotty", "age": 2, emb: {"@type": "d", "@class":"Cat", "name": "yowler", "age":13}}`
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, "insert into Cat content "+emb)
+	_, err = db.SQLCommand(&docs, "insert into Cat content "+emb)
 	Nil(t, err)
 
 	Equals(t, 1, len(docs))
@@ -1240,15 +1239,15 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	Equals(t, "yowler", embCat.GetField("name").Value.(string))
 	Equals(t, int(13), toInt(embCat.GetField("age").Value))
 
-	_, err = dbc.SQLCommand(nil, "delete from Cat where name = 'Spotty'")
+	_, err = db.SQLCommand(nil, "delete from Cat where name = 'Spotty'")
 	Nil(t, err)
 
 	// ---[ Test LINKLIST ]---
 
 	sql = `CREATE PROPERTY Cat.buddies LINKLIST`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "buddies")
+	defer removeProperty(db, "Cat", "buddies")
 	numval, err = recs.AsInt()
 	Nil(t, err)
 	True(t, int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1256,7 +1255,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `insert into Cat SET name='Felix', age=6, caretaker='Ed', buddies=(SELECT FROM Cat WHERE name = 'Linus' OR name='Keiko')`
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Felix", docs[0].GetField("name").Value)
@@ -1271,9 +1270,9 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	// ---[ Try LINKMAP ]---
 	sql = `CREATE PROPERTY Cat.notes LINKMAP`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "notes")
+	defer removeProperty(db, "Cat", "notes")
 
 	numval, err = recs.AsInt()
 	Nil(t, err)
@@ -1282,7 +1281,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = fmt.Sprintf(`INSERT INTO Cat SET name='Charlie', age=5, caretaker='Anna', notes = {"bff": %s, '30': %s}`,
 		linusRID, keikoRID)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, 4, len(docs[0].FieldNames()))
@@ -1295,7 +1294,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// query with a fetchPlan that does NOT follow all the links
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, nil, sql)
+	_, err = db.SQLQuery(&docs, nil, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	doc := docs[0]
@@ -1315,7 +1314,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL`
 	docs = nil
-	recs, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	True(t, len(docs) > 0)
 	doc = docs[0]
@@ -1336,15 +1335,15 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// ---[ Try LINKSET ]---
 
 	sql = `CREATE PROPERTY Cat.buddySet LINKSET`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "buddySet")
+	defer removeProperty(db, "Cat", "buddySet")
 
 	numval, err = recs.AsInt()
 	Nil(t, err)
 	True(t, int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 
-	dbc.ReloadSchema() // good thing to do after modifying the schema
+	db.ReloadSchema() // good thing to do after modifying the schema
 
 	// insert record with all the LINK types
 	sql = `insert into Cat SET name='Germaine', age=2, caretaker='Minnie', ` +
@@ -1367,7 +1366,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	//     Felix references => Linus and Keiko as "buddies" (LINKLIST)
 
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Germaine", docs[0].GetField("name").Value)
@@ -1395,7 +1394,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// now query with fetchPlan that retrieves all links
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name`
 	docs = nil
-	recs, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, "Charlie", docs[0].GetField("name").Value)
@@ -1445,7 +1444,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	// now make a circular reference -> give Linus to Germaine as buddy
 	sql = `UPDATE Cat SET buddy = ` + germaineRID.String() + ` where name = 'Linus'`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	ret, err := recs.AsInt()
 	Equals(t, 1, ret)
@@ -1465,7 +1464,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// ---[ queries with extended fetchPlan (simple case) ]---
 	sql = `select * from Cat where name = 'Tilde'`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	doc = docs[0]
@@ -1484,7 +1483,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `SELECT FROM Cat where buddy is not null ORDER BY name`
 
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, "Linus", docs[0].GetField("name").Value)
@@ -1510,7 +1509,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// Felix.buddies links Linux and Keiko
 	sql = `SELECT FROM Cat WHERE name = 'Linus' OR name = 'Felix' ORDER BY name DESC`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	linusBuddy = docs[0].GetField("buddy").Value.(*oschema.OLink)
@@ -1531,7 +1530,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `select * from Cat where buddies is not null ORDER BY name`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	felixDoc = docs[0]
@@ -1561,7 +1560,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `INSERT INTO Cat SET name='Tom', age=3`
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	tomRID := docs[0].RID
@@ -1569,21 +1568,21 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 
 	sql = `INSERT INTO Cat SET name='Nick', age=4, buddy=?`
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql, tomRID)
+	_, err = db.SQLCommand(&docs, sql, tomRID)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	nickRID := docs[0].RID
 
 	sql = `UPDATE Cat SET buddy=? WHERE name='Tom' and age=3`
-	_, err = dbc.SQLCommand(nil, sql, nickRID)
+	_, err = db.SQLCommand(nil, sql, nickRID)
 	Nil(t, err)
 
-	dbc.ReloadSchema()
+	db.ReloadSchema()
 
 	// in this case the buddy links should be filled in with full Documents
 	sql = `SELECT FROM Cat WHERE name=? OR name=? ORDER BY name desc`
 	docs = nil
-	recs, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql, "Tom", "Nick")
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql, "Tom", "Nick")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	tomDoc := docs[0]
@@ -1604,7 +1603,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	//	// in this case the buddy links should NOT be filled in with full Documents
 	//	sql = `SELECT FROM Cat WHERE name=? OR name=? ORDER BY name desc`
 	//	docs = nil
-	//	_, err = dbc.SQLQuery(&docs, nil, sql, "Tom", "Nick")
+	//	_, err = db.SQLQuery(&docs, nil, sql, "Tom", "Nick")
 	//	Nil(t, err)
 	//	Equals(t, 2, len(docs))
 	//	tomDoc = docs[0]
@@ -1639,8 +1638,8 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	//
 	sql = `SELECT from Cat where name = ?`
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, &obinary.FetchPlan{"buddy:0 buddies:1 buddySet:0 notes:0"}, sql, "Felix")
-	// docs, err = dbc.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Felix")
+	_, err = db.SQLQuery(&docs, &orient.FetchPlan{"buddy:0 buddies:1 buddySet:0 notes:0"}, sql, "Felix")
+	// docs, err = db.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Felix")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Felix", docs[0].GetField("name").Value)
@@ -1661,17 +1660,17 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	// ---[ Try DATETIME ]---
 
 	sql = `Create PROPERTY Cat.dt DATETIME`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "dt")
+	defer removeProperty(db, "Cat", "dt")
 	numval, err = recs.AsInt()
 	Nil(t, err)
 	True(t, int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
 
 	sql = `Create PROPERTY Cat.birthday DATE`
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
-	defer removeProperty(dbc, "Cat", "birthday")
+	defer removeProperty(db, "Cat", "birthday")
 	numval, err = recs.AsInt()
 	Nil(t, err)
 	True(t, int(numval) >= 0, "retval from PROPERTY creation should be a positive number")
@@ -1680,7 +1679,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `INSERT into Cat SET name = 'Bruce', dt = '2014-11-25 09:14:54'`
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Bruce", docs[0].GetField("name").Value)
@@ -1697,7 +1696,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	sql = `INSERT into Cat SET name = 'Tiger', birthday = '2014-11-25'`
 	glog.V(10).Infoln(sql)
 	docs = nil
-	_, err = dbc.SQLCommand(&docs, sql)
+	_, err = db.SQLCommand(&docs, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	Equals(t, "Tiger", docs[0].GetField("name").Value)
@@ -1716,17 +1715,17 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 	ridsToDelete := []interface{}{felixRID, tildeRID, charlieRID, bruceRID, tigerRID, germaineRID, tomRID, nickRID}
 	sql = fmt.Sprintf("DELETE from [%s,%s,%s,%s,%s,%s,%s,%s]", ridsToDelete...)
 
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	ret, err = recs.AsInt()
 	Nil(t, err)
 	Equals(t, len(ridsToDelete), ret)
 
-	dbc.ReloadSchema()
+	db.ReloadSchema()
 
 	sql = "DROP CLASS Patient"
 	glog.V(10).Infoln(sql)
-	recs, err = dbc.SQLCommand(nil, sql)
+	recs, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 	retb, err := recs.AsBool()
 	Nil(t, err)
@@ -1734,8 +1733,8 @@ func dbCommandsNativeAPI(t *testing.T, dbc *obinary.Client) {
 }
 
 /*
-func createAndUpdateRecordsViaNativeAPI(dbc *obinary.Client) {
-	err := dbc.OpenDatabase(dbc, dbDocumentName, constants.DocumentDB, "admin", "admin")
+func createAndUpdateRecordsViaNativeAPI(dbc orient.Client) {
+	err := dbc.OpenDatabase(dbc, dbDocumentName, orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
 	defer dbc.CloseDatabase(dbc)
 
@@ -1764,7 +1763,7 @@ func createAndUpdateRecordsViaNativeAPI(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < winston.Version, "version should have incremented")
 
-	docs, err := dbc.SQLQuery(dbc, "select * from Cat where @rid="+winston.RID.String(), "")
+	docs, err := db.SQLQuery(dbc, "select * from Cat where @rid="+winston.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -1787,7 +1786,7 @@ func createAndUpdateRecordsViaNativeAPI(dbc *obinary.Client) {
 
 	sql := fmt.Sprintf("select from Cat where @rid=%s or @rid=%s or @rid=%s ORDER BY name",
 		winston.RID, daemon.RID, indy.RID)
-	resultDocs, err := dbc.SQLQuery(dbc, sql, "")
+	resultDocs, err := db.SQLQuery(dbc, sql, "")
 	Nil(t, err)
 	Equals(t, 3, len(resultDocs))
 	Equals(t, daemon.RID, resultDocs[0].RID)
@@ -1798,7 +1797,7 @@ func createAndUpdateRecordsViaNativeAPI(dbc *obinary.Client) {
 	Equals(t, "Matt", resultDocs[0].GetField("caretaker").Value)
 
 	sql = fmt.Sprintf("DELETE FROM [%s, %s, %s]", winston.RID, daemon.RID, indy.RID)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	// ---[ Test DATE Serialization ]---
@@ -1837,9 +1836,9 @@ func createAndUpdateRecordsViaNativeAPI(dbc *obinary.Client) {
 	createAndUpdateRecordsWithLinkMap(dbc)
 }
 
-func createAndUpdateRecordsWithLinkMap(dbc *obinary.Client) {
+func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 	sql := `CREATE PROPERTY Cat.notes LINKMAP`
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer removeProperty(dbc, "Cat", "notes")
@@ -1847,7 +1846,7 @@ func createAndUpdateRecordsWithLinkMap(dbc *obinary.Client) {
 
 	defer func() {
 		for _, delrid := range ridsToDelete {
-			_, err = dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
+			_, err = db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
 			Nil(t, err)
 		}
 	}()
@@ -1886,7 +1885,7 @@ func createAndUpdateRecordsWithLinkMap(dbc *obinary.Client) {
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat3.RID.String())
 
-	docs, err := dbc.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	docs, err := db.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 
@@ -1921,7 +1920,7 @@ func createAndUpdateRecordsWithLinkMap(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat3.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat3FromQuery = docs[0]
@@ -1935,9 +1934,9 @@ func createAndUpdateRecordsWithLinkMap(dbc *obinary.Client) {
 	Equals(t, cat3MapFromQuery["new2"].RID, cat2.RID)
 }
 
-func createAndUpdateRecordsWithLinkLists(dbc *obinary.Client, collType oschema.OType) {
+func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OType) {
 	sql := "CREATE PROPERTY Cat.catfriends " + oschema.ODataTypeNameFor(collType) + " Cat"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer removeProperty(dbc, "Cat", "catfriends")
@@ -1945,7 +1944,7 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.Client, collType oschema.O
 
 	defer func() {
 		for _, delrid := range ridsToDelete {
-			_, err = dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
+			_, err = db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
 			Nil(t, err)
 		}
 	}()
@@ -1989,7 +1988,7 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.Client, collType oschema.O
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat3.RID.String())
 
-	docs, err := dbc.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	docs, err := db.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 
@@ -2025,7 +2024,7 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.Client, collType oschema.O
 	Nil(t, err)
 	True(t, versionBefore < cat2.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat2FromQuery = docs[0]
@@ -2038,9 +2037,9 @@ func createAndUpdateRecordsWithLinkLists(dbc *obinary.Client, collType oschema.O
 	Equals(t, catFriendsFromQuery[1].RID, cat3.RID)
 }
 
-func createAndUpdateRecordsWithLinks(dbc *obinary.Client) {
+func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.catlink LINK Cat"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer removeProperty(dbc, "Cat", "catlink")
@@ -2048,7 +2047,7 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.Client) {
 
 	defer func() {
 		for _, delrid := range ridsToDelete {
-			_, err = dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
+			_, err = db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
 			Nil(t, err)
 		}
 	}()
@@ -2090,7 +2089,7 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.Client) {
 
 	// test that they were inserted correctly and come back correctly
 
-	docs, err := dbc.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
+	docs, err := db.SQLQuery(dbc, "select * from Cat where name='A2' OR name='A3' ORDER BY name", "")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 
@@ -2119,7 +2118,7 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat3.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat3.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat3FromQuery = docs[0]
@@ -2130,17 +2129,17 @@ func createAndUpdateRecordsWithLinks(dbc *obinary.Client) {
 	Equals(t, linkToCat1FromQuery.RID, cat1.RID)
 }
 
-func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschema.OType) {
+func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.OType) {
 	sql := "CREATE PROPERTY Cat.embstrings " + embType.String() + " string"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	sql = "CREATE PROPERTY Cat.emblongs " + embType.String() + " LONG"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	sql = "CREATE PROPERTY Cat.embcats " + embType.String() + " Cat"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	// ------
@@ -2153,7 +2152,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 
 	defer func() {
 		for _, delrid := range ridsToDelete {
-			_, err = dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
+			_, err = db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
 			Nil(t, err)
 		}
 	}()
@@ -2182,7 +2181,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 
 	True(t, cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err := db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery := docs[0]
@@ -2219,7 +2218,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 
 	True(t, cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2267,7 +2266,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 
 	True(t, cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2305,7 +2304,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2334,7 +2333,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2361,7 +2360,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2392,9 +2391,9 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc *obinary.Client, embType oschem
 
 }
 
-func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
+func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.embcat EMBEDDED"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer removeProperty(dbc, "Cat", "embcat")
@@ -2402,7 +2401,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	ridsToDelete := make([]string, 0, 10)
 	defer func() {
 		for _, delrid := range ridsToDelete {
-			_, err = dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
+			_, err = db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+delrid)
 			Nil(t, err)
 		}
 	}()
@@ -2418,7 +2417,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 		Field("age", 4).
 		FieldWithType("embcat", embcat, oschema.EMBEDDED)
 
-	// err = dbc.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
+	// err = db.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
 	// Nil(t, err)
 
 	err = dbc.CreateRecord(dbc, cat)
@@ -2429,7 +2428,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 
 	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err := db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2465,7 +2464,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	True(t, int(embcat.RID.ClusterID) < int(0), "embedded RID should be NOT filled in")
 	True(t, cat.RID.ClusterID >= 0, "RID should be filled in")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2500,7 +2499,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2533,7 +2532,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat.RID.String())
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2564,7 +2563,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2575,13 +2574,13 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc *obinary.Client) {
 	Equals(t, float32(99.092), mshineFromQuery.GetField("oz").Value)
 }
 
-func createAndUpdateRecordsWithBINARYType(dbc *obinary.Client) {
+func createAndUpdateRecordsWithBINARYType(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.bin BINARY"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.bin")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.bin")
 	}()
 
 	// ---[ FieldWithType ]---
@@ -2598,10 +2597,10 @@ func createAndUpdateRecordsWithBINARYType(dbc *obinary.Client) {
 	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
 	}()
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
+	docs, err := db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2631,10 +2630,10 @@ func createAndUpdateRecordsWithBINARYType(dbc *obinary.Client) {
 	True(t, cat2.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
 	}()
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat2FromQuery := docs[0]
@@ -2651,44 +2650,44 @@ func createAndUpdateRecordsWithBINARYType(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
 	Equals(t, newbindata, catFromQuery.GetField("bin").Value)
 }
 
-func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc *obinary.Client) {
+func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.ii INTEGER"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.ii")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.ii")
 	}()
 
 	sql = "CREATE PROPERTY Cat.lg LONG"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.lg")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.lg")
 	}()
 
 	sql = "CREATE PROPERTY Cat.ff FLOAT"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.ff")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.ff")
 	}()
 
 	sql = "CREATE PROPERTY Cat.dd DOUBLE"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.dd")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.dd")
 	}()
 
 	floatval := float32(constants.MaxInt32) + 0.5834
@@ -2710,10 +2709,10 @@ func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc *obinary.Client) {
 	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
 	}()
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt32)))
+	docs, err := db.SQLQuery(dbc, "select from Cat where ii = ?", "", strconv.Itoa(int(constants.MaxInt32)))
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2745,10 +2744,10 @@ func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc *obinary.Client) {
 	True(t, cat2.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
 	}()
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid = ?", "", cat2.RID.String())
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat2FromQuery := docs[0]
@@ -2771,7 +2770,7 @@ func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat2.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat2.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	cat2FromQuery = docs[0]
@@ -2794,29 +2793,29 @@ func toInt(value interface{}) int {
 }
 
 /*
-func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.Client) {
+func createAndUpdateRecordsWithBooleanByteAndShort(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.x BOOLEAN"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.x")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.x")
 	}()
 
 	sql = "CREATE PROPERTY Cat.y BYTE"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.y")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.y")
 	}()
 
 	sql = "CREATE PROPERTY Cat.z SHORT"
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.z")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.z")
 	}()
 
 	cat := oschema.NewDocument("Cat")
@@ -2831,10 +2830,10 @@ func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.Client) {
 	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat.RID.String())
 	}()
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where y = 55", "")
+	docs, err := db.SQLQuery(dbc, "select from Cat where y = 55", "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2856,10 +2855,10 @@ func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.Client) {
 	True(t, cat2.RID.ClusterID > 0, "RID should be filled in")
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
+		db.SQLCommand(nil, "DELETE FROM Cat WHERE @rid="+cat2.RID.String())
 	}()
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where x = true", "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where x = true", "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 
@@ -2880,7 +2879,7 @@ func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+cat.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
@@ -2890,7 +2889,7 @@ func createAndUpdateRecordsWithBooleanByteAndShort(dbc *obinary.Client) {
 
 }
 
-func testCreationOfMismatchedTypesAndValues(dbc *obinary.Client) {
+func testCreationOfMismatchedTypesAndValues(dbc orient.Client) {
 	c1 := oschema.NewDocument("Cat")
 	c1.Field("name", "fluffy1").
 		Field("age", 22).
@@ -2910,18 +2909,18 @@ func testCreationOfMismatchedTypesAndValues(dbc *obinary.Client) {
 	True(t, ok, "should be DataTypeMismatch error")
 
 	// no fluffy1 should be in the database
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where name = 'fluffy1'", "")
+	docs, err := db.SQLQuery(dbc, "select from Cat where name = 'fluffy1'", "")
 	Nil(t, err)
 	Equals(t, 0, len(docs))
 }
 
-func createAndUpdateRecordsWithDateTime(dbc *obinary.Client) {
+func createAndUpdateRecordsWithDateTime(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.ddd DATETIME"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.ddd")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.ddd")
 	}()
 
 	// ---[ creation ]---
@@ -2935,13 +2934,13 @@ func createAndUpdateRecordsWithDateTime(dbc *obinary.Client) {
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM "+simba.RID.String())
+		db.SQLCommand(nil, "DELETE FROM "+simba.RID.String())
 	}()
 
 	True(t, simba.RID.ClusterID > 0, "ClusterID should be set")
 	True(t, simba.RID.ClusterPos >= 0, "ClusterID should be set")
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	docs, err := db.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	simbaFromQuery := docs[0]
@@ -2959,20 +2958,20 @@ func createAndUpdateRecordsWithDateTime(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < simba.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+simba.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	simbaFromQuery = docs[0]
 	Equals(t, twoDaysAgo.Unix(), simbaFromQuery.GetField("ddd").Value.(time.Time).Unix())
 }
 
-func createAndUpdateRecordsWithDate(dbc *obinary.Client) {
+func createAndUpdateRecordsWithDate(dbc orient.Client) {
 	sql := "CREATE PROPERTY Cat.bday DATE"
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DROP PROPERTY Cat.bday")
+		db.SQLCommand(nil, "DROP PROPERTY Cat.bday")
 	}()
 
 	const dtTemplate = "Jan 2, 2006 at 3:04pm (MST)"
@@ -2987,7 +2986,7 @@ func createAndUpdateRecordsWithDate(dbc *obinary.Client) {
 	Nil(t, err)
 
 	defer func() {
-		dbc.SQLCommand(nil, "DELETE FROM "+jj.RID.String())
+		db.SQLCommand(nil, "DELETE FROM "+jj.RID.String())
 	}()
 
 	True(t, jj.RID.ClusterID > 0, "ClusterID should be set")
@@ -2997,7 +2996,7 @@ func createAndUpdateRecordsWithDate(dbc *obinary.Client) {
 	Equals(t, 0, jjbdayAfterCreate.Minute())
 	Equals(t, 0, jjbdayAfterCreate.Second())
 
-	docs, err := dbc.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
+	docs, err := db.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
 	Equals(t, 1, len(docs))
 	jjFromQuery := docs[0]
 	Equals(t, jj.RID, jjFromQuery.RID)
@@ -3014,7 +3013,7 @@ func createAndUpdateRecordsWithDate(dbc *obinary.Client) {
 	Nil(t, err)
 	True(t, versionBefore < jj.Version, "version should have incremented")
 
-	docs, err = dbc.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
+	docs, err = db.SQLQuery(dbc, "select from Cat where @rid="+jj.RID.String(), "")
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	jjFromQuery = docs[0]
@@ -3023,14 +3022,14 @@ func createAndUpdateRecordsWithDate(dbc *obinary.Client) {
 */
 // ------
 
-func removeProperty(dbc *obinary.Client, class, property string) {
+func removeProperty(db orient.Database, class, property string) {
 	sql := fmt.Sprintf("UPDATE %s REMOVE %s", class, property)
-	_, err := dbc.SQLCommand(nil, sql)
+	_, err := db.SQLCommand(nil, sql)
 	if err != nil {
 		glog.Warningf("WARN: clean up error: %v\n", err)
 	}
 	sql = fmt.Sprintf("DROP PROPERTY %s.%s", class, property)
-	_, err = dbc.SQLCommand(nil, sql)
+	_, err = db.SQLCommand(nil, sql)
 	if err != nil {
 		glog.Warningf("WARN: clean up error: %v\n", err)
 	}
@@ -3106,7 +3105,7 @@ func (sv byLongVal) Less(i, j int) bool {
 /*
 func ogonoriTestAgainstOrientDBServer() {
 	var (
-		dbc *obinary.Client
+		dbc orient.Client
 		err error
 	)
 
@@ -3200,14 +3199,14 @@ func explore() {
 	Nil(t, err)
 	defer dbc.Close()
 
-	err = dbc.OpenDatabase(dbc, "ogonoriTest", constants.DocumentDB, "admin", "admin")
+	err = dbc.OpenDatabase(dbc, "ogonoriTest", orient.DocumentDB, "admin", "admin")
 	Nil(t, err)
 	defer dbc.CloseDatabase(dbc)
 
-	_, err = dbc.SQLCommand(nil, "Create class Dalek")
+	_, err = db.SQLCommand(nil, "Create class Dalek")
 	Nil(t, err)
 
-	// err = dbc.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
+	// err = db.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
 	// Nil(t, err)
 
 	dingo := oschema.NewDocument("Dingo")

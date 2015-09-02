@@ -1,35 +1,34 @@
-package obinary_test
+package orient_test
 
 import (
-	"fmt"
+	//"fmt"
 	//	"sort"
 
-	"github.com/dyy18/orientgo/constants"
-	"github.com/dyy18/orientgo/obinary"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/dyy18/orientgo"
+	//"github.com/dyy18/orientgo/oschema"
 	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func createOgonoriGraphDb(t *testing.T, dbc *obinary.Client) {
+func createOgonoriGraphDb(t *testing.T, dbc orient.Client) {
 	glog.Infoln("- - - - - - CREATE GRAPHDB - - - - - - -")
 
-	err := dbc.ConnectToServer(dbUser, dbPass)
+	sess, err := dbc.Auth(dbUser, dbPass)
 	assert.Nil(t, err)
 
-	assert.True(t, dbc.GetSessionId() >= int32(0), "sessionid")
-	assert.True(t, dbc.GetCurrDB() == nil, "currDB should be nil")
+	//	assert.True(t, dbc.GetSessionId() >= int32(0), "sessionid")
+	//	assert.True(t, dbc.GetCurrDB() == nil, "currDB should be nil")
 
-	dbexists, err := dbc.DatabaseExists(dbGraphName, constants.Persistent)
+	dbexists, err := sess.DatabaseExists(dbGraphName, orient.Persistent)
 	assert.Nil(t, err)
 	if dbexists {
-		dropDatabase(t, dbc, dbGraphName, constants.Persistent)
+		dropDatabase(t, dbc, dbGraphName, orient.Persistent)
 	}
 
-	err = dbc.CreateDatabase(dbGraphName, constants.GraphDB, constants.Persistent)
+	err = sess.CreateDatabase(dbGraphName, orient.GraphDB, orient.Persistent)
 	assert.Nil(t, err)
-	dbexists, err = dbc.DatabaseExists(dbGraphName, constants.Persistent)
+	dbexists, err = sess.DatabaseExists(dbGraphName, orient.Persistent)
 	assert.Nil(t, err)
 	assert.True(t, dbexists, dbGraphName+" should now exists after creating it")
 }
@@ -311,8 +310,8 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	addManyLinksToFlipFriendLinkBagToExternalTreeBased(dbc, abbieRID)
 	doCircularLinkExample(dbc)
 }
-*/
-func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, dbc *obinary.Client, abbieRID oschema.ORID) {
+
+func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, db orient.Database, abbieRID oschema.ORID) {
 	var (
 		sql  string
 		err  error
@@ -385,7 +384,7 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, dbc *obina
 	}
 }
 
-func doCircularLinkExample(t *testing.T, dbc *obinary.Client) {
+func doCircularLinkExample(t *testing.T, db *obinary.Client) {
 	var docs []*oschema.ODocument
 	_, err := dbc.SQLCommand(&docs, `create vertex Person content {"firstName":"AAA", "lastName":"BBB", "SSN":"111-11-1111"}`)
 	assert.Nil(t, err)
@@ -456,7 +455,7 @@ func doCircularLinkExample(t *testing.T, dbc *obinary.Client) {
 	// ------
 
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, "SELECT FROM Person where firstName='AAA' OR firstName='YYY' ORDER BY firstName")
+	_, err = dbc.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, "SELECT FROM Person where firstName='AAA' OR firstName='YYY' ORDER BY firstName")
 	assert.Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, aaaDoc.RID, docs[0].RID)
@@ -481,7 +480,7 @@ func doCircularLinkExample(t *testing.T, dbc *obinary.Client) {
 	sql = fmt.Sprintf("select from friend where @rid=%s or @rid=%s ORDER BY @rid",
 		aaa2yyyFriendDoc.RID, yyy2aaaFriendDoc.RID)
 	docs = nil
-	_, err = dbc.SQLQuery(&docs, obinary.FetchPlanFollowAllLinks, sql)
+	_, err = dbc.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
 	assert.Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, aaa2yyyFriendDoc.RID, docs[0].RID)
@@ -501,3 +500,4 @@ func doCircularLinkExample(t *testing.T, dbc *obinary.Client) {
 	Equals(t, inLinkFromAAA.RID, aaaDoc.RID)
 	Equals(t, "AAA", inLinkFromAAA.Record.GetField("firstName").Value)
 }
+*/

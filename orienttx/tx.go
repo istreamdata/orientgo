@@ -1,15 +1,15 @@
 package orient // TODO: change to ogonori and/or move to top-level
-
+/*
 import (
 	"github.com/dyy18/orientgo/obinary"
 	"github.com/dyy18/orientgo/oschema"
 )
 
-/* ---[ types ]--- */
+// ---[ types ]---
 
 // TODO: should this be an interface?
 type Tx struct {
-	dbc       *obinary.DBClient
+	dbc       *obinary.Client
 	txentries []obinary.TxEntry
 }
 
@@ -21,13 +21,13 @@ func (itx InvalidTxState) Error() string {
 	return itx.msg
 }
 
-/* ---[ constructor ]--- */
+// ---[ constructor ]---
 
-func TxBegin(dbc *obinary.DBClient) *Tx {
+func TxBegin(dbc *obinary.Client) *Tx {
 	return &Tx{dbc: dbc, txentries: make([]obinary.TxEntry, 0, 8)}
 }
 
-/* ---[ methods ]--- */
+// ---[ methods ]---
 
 func (tx *Tx) Update(doc *oschema.ODocument, docs ...*oschema.ODocument) {
 	tx.txentries = append(tx.txentries, obinary.TxEntry{Optype: obinary.UpdateOp, Doc: doc})
@@ -71,3 +71,4 @@ func (tx *Tx) Rollback() error {
 
 	return nil
 }
+*/

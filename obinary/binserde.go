@@ -1005,7 +1005,7 @@ func (dbc *Client) defaultSerde() ORecordSerializer {
 // stream where it left off.
 //
 func (dbc *Client) refreshGlobalProperties() error {
-	dbctmp, err := NewClient(dbc.opts)
+	dbctmp, err := NewClient(dbc.opts.Addr)
 	if err != nil {
 		return err
 	}

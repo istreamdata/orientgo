@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dyy18/orientgo/constants"
+	"github.com/dyy18/orientgo"
 	"github.com/dyy18/orientgo/obinary/binserde"
 	"github.com/dyy18/orientgo/obinary/rw"
 	"github.com/dyy18/orientgo/oschema"
@@ -17,7 +17,7 @@ import (
 // open the db in read/write mode.  The database name and type are required, plus
 // username and password.  Database type should be one of the obinary constants:
 // DocumentDbType or GraphDbType.
-func (dbc *Client) OpenDatabase(dbname string, dbtype constants.DatabaseType, username, passw string) (err error) {
+func (dbc *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, username, passw string) (err error) {
 	defer catch(&err)
 	buf := dbc.writeBuffer()
 
@@ -279,7 +279,7 @@ func (dbc *Client) getDbSize() (dbSize int64, err error) {
 // FetchNumRecordsInDatabase retrieves the number of records of the current
 // database. It is a database-level operation, so OpenDatabase must have
 // already been called first in order to start a session with the database.
-func (dbc *Client) GetNumRecordsInDatabase() (int64, error) {
+func (dbc *Client) CountRecords() (int64, error) {
 	return dbc.getLongFromDB(requestDbCOUNTRECORDS)
 }
 

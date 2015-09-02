@@ -1,9 +1,8 @@
-package obinary_test
+package orient_test
 
 import (
 	"fmt"
-	orientc "github.com/dyy18/orientgo/constants"
-	orient "github.com/dyy18/orientgo/obinary"
+	"github.com/dyy18/orientgo"
 	"github.com/fsouza/go-dockerclient"
 	"math/rand"
 	"testing"
@@ -22,7 +21,7 @@ func TestBuild(t *testing.T) {
 
 }
 
-func SpinOrient(t *testing.T) (*orient.Client, func()) {
+func SpinOrient(t *testing.T) (orient.Client, func()) {
 	port := randPort()
 
 	dport_api := docker.Port("2424/tcp")
@@ -58,10 +57,7 @@ func SpinOrient(t *testing.T) (*orient.Client, func()) {
 	}
 	time.Sleep(time.Second * 5) // TODO: wait for input from container?
 
-	cli, err := orient.NewClient(orient.ClientOptions{
-		ServerHost: "localhost",
-		ServerPort: fmt.Sprint(port),
-	})
+	cli, err := orient.Dial(fmt.Sprint("localhost:%d", port))
 	if err != nil {
 		rm()
 		t.Fatal(err)
@@ -72,13 +68,14 @@ func SpinOrient(t *testing.T) (*orient.Client, func()) {
 	}
 }
 
-func prepareDB(t *testing.T) (*orient.Client, func()) {
+func prepareDB(t *testing.T) (orient.Database, func()) {
 	cli, closer := SpinOrient(t)
-	if err := cli.OpenDatabase("iSD", orientc.DocumentDB, "admin", "admin"); err != nil {
+	db, err := cli.Open("iSD", orient.DocumentDB, "admin", "admin")
+	if err != nil {
 		closer()
 		t.Fatal(err)
 	}
-	return cli, closer
+	return db, closer
 }
 
 func TestSelect(t *testing.T) {

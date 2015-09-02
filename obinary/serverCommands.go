@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"bytes"
-	"github.com/dyy18/orientgo/constants"
+	"github.com/dyy18/orientgo"
 	"github.com/dyy18/orientgo/obinary/rw"
 	"github.com/dyy18/orientgo/oerror"
 	"github.com/dyy18/orientgo/oschema"
@@ -85,7 +85,7 @@ func (dbc *Client) ConnectToServer(adminUser, adminPassw string) (err error) {
 // CreateDatabase will create a `remote` database of the type and storageType specified.
 // dbType must be type DocumentDBType or GraphDBType.
 // storageType must type PersistentStorageType or VolatileStorageType.
-func (dbc *Client) CreateDatabase(dbname string, dbtype constants.DatabaseType, storageType constants.StorageType) (err error) {
+func (dbc *Client) CreateDatabase(dbname string, dbtype orient.DatabaseType, storageType orient.StorageType) (err error) {
 	defer catch(&err)
 
 	buf := dbc.writeBuffer()
@@ -129,7 +129,7 @@ func (dbc *Client) CreateDatabase(dbname string, dbtype constants.DatabaseType, 
 //
 // This is a "server" command, so you must have already called
 // ConnectToServer before calling this function.
-func (dbc *Client) DropDatabase(dbname string, dbtype constants.StorageType) (err error) {
+func (dbc *Client) DropDatabase(dbname string, dbtype orient.StorageType) (err error) {
 	defer catch(&err)
 
 	buf := dbc.writeBuffer()
@@ -168,7 +168,7 @@ func (dbc *Client) DropDatabase(dbname string, dbtype constants.StorageType) (er
 // DatabaseExists is a server-level command, so must be preceded by calling
 // ConnectToServer, otherwise an authorization error will be returned.
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
-func (dbc *Client) DatabaseExists(dbname string, storageType constants.StorageType) (val bool, err error) {
+func (dbc *Client) DatabaseExists(dbname string, storageType orient.StorageType) (val bool, err error) {
 	defer catch(&err)
 
 	buf := dbc.writeBuffer()
@@ -214,7 +214,7 @@ func (dbc *Client) DatabaseExists(dbname string, storageType constants.StorageTy
 //
 //     key:  cars
 //     val:  plocal:/path/to/orientdb-community-2.0.1/databases/cars
-func (dbc *Client) RequestDBList() (list map[string]string, err error) {
+func (dbc *Client) ListDatabases() (list map[string]string, err error) {
 	defer catch(&err)
 
 	buf := dbc.writeBuffer()

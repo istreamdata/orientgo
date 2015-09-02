@@ -3,7 +3,6 @@ package obinary
 import (
 	"bytes"
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
 	"github.com/dyy18/orientgo/oschema"
 	"strconv"
@@ -84,12 +83,4 @@ func catch(err *error) {
 			*err = fmt.Errorf("%v", r)
 		}
 	}
-}
-
-func MarshalContent(o interface{}) string {
-	data, err := json.Marshal(o)
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
 }

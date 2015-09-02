@@ -4,27 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/dennwc/errs"
+	"github.com/dyy18/orientgo"
 	"github.com/dyy18/orientgo/obinary/rw"
 )
 
-const (
-	LangSQL    = ScriptLang("sql")
-	LangJS     = ScriptLang("javascript")
-	LangGroovy = ScriptLang("groovy")
-)
-
-type ScriptLang string
-
-type FetchPlan struct {
-	Plan string
-}
-
-var (
-	DefaultFetchPlan        = &FetchPlan{"*:0"}
-	FetchPlanFollowAllLinks = &FetchPlan{"*:-1"}
-)
-
-func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) (recs Records, err error) {
+func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) (recs orient.Records, err error) {
 	defer catch(&err)
 	buf := dbc.writeCommandAndSessionId(requestCommand)
 
@@ -77,7 +61,7 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 			recs = append(recs, SerializedRecord(rw.ReadBytes(dbc.conx)))
 		default:
 			if class == "q" && resType == 2 { // TODO: always == 2?
-				recs = append(recs, SupplementaryRecord{dbc.readSingleRecord(dbc.conx)})
+				recs = append(recs, orient.SupplementaryRecord{dbc.readSingleRecord(dbc.conx)})
 			} else {
 				return nil, fmt.Errorf("not supported result type %v, proto: %d, class: %s", resultType, dbc.binaryProtocolVersion, class)
 			}
@@ -103,7 +87,7 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 // 1. cmds with only simple positional parameters allowed
 // 2. cmds with lists of parameters ("complex") NOT allowed
 // 3. parameter types allowed: string only for now
-func (dbc *Client) SQLCommand(result interface{}, sql string, params ...interface{}) (recs Records, err error) {
+func (dbc *Client) SQLCommand(result interface{}, sql string, params ...interface{}) (recs orient.Records, err error) {
 	// SQLCommand
 	var payload []byte
 	payload, err = sqlPayload(dbc.defaultSerde(), sql, params...)
@@ -113,11 +97,11 @@ func (dbc *Client) SQLCommand(result interface{}, sql string, params ...interfac
 	return dbc.rawCommand(result, "c", payload)
 }
 
-func (dbc *Client) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error) {
+func (dbc *Client) SQLQuery(result interface{}, fetchPlan *orient.FetchPlan, sql string, params ...interface{}) (recs orient.Records, err error) {
 	// SQLQuery
 	var payload []byte
 	if fetchPlan == nil {
-		fetchPlan = DefaultFetchPlan
+		fetchPlan = orient.DefaultFetchPlan
 	}
 	//	if fetchPlan != DefaultFetchPlan {
 	//		return nil, fmt.Errorf("non-default fetch plan is not supported for now") // TODO: related to supplementary records parsing
@@ -129,7 +113,7 @@ func (dbc *Client) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string
 	return dbc.rawCommand(result, "q", payload)
 }
 
-func (dbc *Client) execScriptRaw(result interface{}, lang ScriptLang, data []byte) (recs Records, err error) {
+func (dbc *Client) execScriptRaw(result interface{}, lang orient.ScriptLang, data []byte) (recs orient.Records, err error) {
 	defer catch(&err)
 	payload := new(bytes.Buffer)
 	rw.WriteStrings(payload, string(lang))
@@ -137,10 +121,10 @@ func (dbc *Client) execScriptRaw(result interface{}, lang ScriptLang, data []byt
 	return dbc.rawCommand(result, "s", payload.Bytes())
 }
 
-func (dbc *Client) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (recs Records, err error) {
+func (dbc *Client) ExecScript(result interface{}, lang orient.ScriptLang, script string, params ...interface{}) (recs orient.Records, err error) {
 	defer catch(&err)
 	var data []byte
-	if lang == LangSQL {
+	if lang == orient.LangSQL {
 		data, err = sqlPayload(dbc.defaultSerde(), script, params...)
 	} else {
 		data, err = scriptPayload(dbc.defaultSerde(), script, params...)

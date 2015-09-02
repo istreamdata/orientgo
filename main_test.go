@@ -1,11 +1,10 @@
-package obinary_test
+package orient_test
 
 import (
 	//"os"
 	"testing"
 
-	"github.com/dyy18/orientgo/constants"
-	"github.com/dyy18/orientgo/obinary"
+	"github.com/dyy18/orientgo"
 )
 
 func TestNewDB(t *testing.T) {
@@ -16,23 +15,25 @@ func TestNewDB(t *testing.T) {
 func TestDBConnectionToServer(t *testing.T) {
 	db, closer := SpinOrient(t)
 	defer closer()
-	if err := db.ConnectToServer(dbUser, dbPass); err != nil {
+	if _, err := db.Auth(dbUser, dbPass); err != nil {
 		t.Fatal("Connection to database failed")
 	}
 }
 
-func ConnectToGraphDatabase(t *testing.T) (*obinary.Client, func()) {
-	db, closer := SpinOrient(t)
-	if err := db.OpenDatabase(dbGraphName, constants.GraphDB, "admin", "admin"); err != nil {
+func ConnectToGraphDatabase(t *testing.T) (orient.Database, func()) {
+	dbc, closer := SpinOrient(t)
+	db, err := dbc.Open(dbGraphName, orient.GraphDB, "admin", "admin")
+	if err != nil {
 		closer()
 		t.Fatal(err)
 	}
 	return db, closer
 }
 
-func ConnectToDocumentDatabase(t *testing.T) (*obinary.Client, func()) {
-	db, closer := SpinOrient(t)
-	if err := db.OpenDatabase(dbDocumentName, constants.DocumentDB, "admin", "admin"); err != nil {
+func ConnectToDocumentDatabase(t *testing.T) (orient.Database, func()) {
+	dbc, closer := SpinOrient(t)
+	db, err := dbc.Open(dbDocumentName, orient.DocumentDB, "admin", "admin")
+	if err != nil {
 		closer()
 		t.Fatal(err)
 	}
@@ -46,20 +47,6 @@ var DocumentDBSeeds = []string{
 	"CREATE CLASS Cat extends Animal",
 	"CREATE property Cat.caretaker string",
 	"INSERT INTO Cat (name, age, caretaker) VALUES ('Linus', 15, 'Michael'), ('Keiko', 10, 'Anna')",
-}
-
-func SetUp(db *obinary.Client) {
-	if err := db.CreateDatabase(dbDocumentName, constants.DocumentDB, constants.Persistent); err != nil {
-		panic(err)
-	}
-	if err := db.CreateDatabase(dbGraphName, constants.GraphDB, constants.Persistent); err != nil {
-		panic(err)
-	}
-}
-
-func TearDown(db *obinary.Client) {
-	db.DropDatabase(dbDocumentName, constants.Persistent)
-	db.DropDatabase(dbGraphName, constants.Persistent)
 }
 
 func Seed(t *testing.T) {

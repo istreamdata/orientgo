@@ -1,14 +1,14 @@
 package obinary
 
 import (
-	"github.com/dyy18/orientgo/constants"
+	"github.com/dyy18/orientgo"
 	"github.com/dyy18/orientgo/oschema"
 	"github.com/mitchellh/mapstructure"
 )
 
 type ODatabase struct {
 	Name             string
-	Type             constants.DatabaseType
+	Type             orient.DatabaseType
 	Clusters         []OCluster
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
@@ -18,7 +18,7 @@ type ODatabase struct {
 	RecordSerDes     []ORecordSerializer
 }
 
-func NewDatabase(name string, dbtype constants.DatabaseType) *ODatabase {
+func NewDatabase(name string, dbtype orient.DatabaseType) *ODatabase {
 	return &ODatabase{
 		Name:             name,
 		Type:             dbtype,
@@ -55,7 +55,6 @@ type OCluster struct {
 // ClientOptions should be created by the end user to configure details and
 // options needed when opening a database or connecting to the OrientDB server
 type ClientOptions struct {
-	ServerHost      string
-	ServerPort      string
+	Addr            string
 	MapDecoderHooks []mapstructure.DecodeHookFunc
 }

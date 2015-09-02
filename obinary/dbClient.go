@@ -8,18 +8,16 @@ import (
 	"net"
 	"sync"
 
-	"github.com/dyy18/orientgo/constants"
+	"github.com/dyy18/orientgo"
 	"github.com/dyy18/orientgo/obinary/rw"
 	"github.com/dyy18/orientgo/oschema"
 )
 
-// Mirror constants for convenience
-const (
-	GraphDb    = constants.GraphDB
-	DocumentDB = constants.DocumentDB
-	Persistent = constants.Persistent
-	Volatile   = constants.Volatile
-)
+func init() {
+	orient.RegisterProto(orient.ProtoBinary, func(addr string) (orient.DBConnection, error) {
+		return NewClient(addr)
+	})
+}
 
 // Client encapsulates the active TCP connection to an OrientDB server
 // to be used with the Network Binary Protocol.
@@ -45,6 +43,10 @@ func (dbc *Client) GetCurrDB() *ODatabase {
 	return dbc.currDb
 }
 
+func (dbc *Client) GetClasses() map[string]*oschema.OClass {
+	return dbc.GetCurrDB().Classes
+}
+
 func (dbc *Client) GetSessionId() int32 {
 	return dbc.sessionId
 }
@@ -55,16 +57,27 @@ func (dbc *Client) GetSessionId() int32 {
 // The DBClient returned is ready to make calls to the OrientDB but has not
 // yet established a database session or a session with the OrientDB server.
 // After this, the user needs to call either OpenDatabase or CreateServerSession.
-func NewClient(opts ClientOptions) (*Client, error) {
+func NewClient(addr string) (*Client, error) {
+	opts := ClientOptions{Addr: addr}
+	var (
+		host, port string
+	)
+	if addr != "" {
+		var err error
+		host, port, err = net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if host == "" {
+		host = "localhost"
+	}
 	// binary port range is: 2424-2430
-	if opts.ServerHost == "" {
-		opts.ServerHost = "127.0.0.1"
+	if port == "" {
+		port = "2424"
 	}
-	if opts.ServerPort == "" {
-		opts.ServerPort = "2424"
-	}
-	hostport := net.JoinHostPort(opts.ServerHost, opts.ServerPort)
-	conx, err := net.Dial("tcp", hostport)
+	addr = net.JoinHostPort(host, port)
+	conx, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +157,7 @@ func (dbc *Client) prepareBuffer(cmd byte) *bytes.Buffer {
 	return buf
 }
 
-func (dbc *Client) readSingleRecord(r io.Reader) Record {
+func (dbc *Client) readSingleRecord(r io.Reader) orient.Record {
 	resultType := rw.ReadShort(r)
 	switch resultType {
 	case RecordNull:
@@ -159,7 +172,7 @@ func (dbc *Client) readSingleRecord(r io.Reader) Record {
 	}
 }
 
-func (dbc *Client) readRecord(r io.Reader) Record {
+func (dbc *Client) readRecord(r io.Reader) orient.Record {
 	// if get here then have a full record, which can be in one of three formats:
 	//  - "flat data"
 	//  - "raw bytes"
@@ -184,20 +197,20 @@ func (dbc *Client) readSingleDocument(r io.Reader) (doc *RecordData) {
 	return &RecordData{RID: rid, Version: recVersion, Data: recBytes, dbc: dbc}
 }
 
-func (dbc *Client) readFlatDataRecord(r io.Reader) Record {
+func (dbc *Client) readFlatDataRecord(r io.Reader) orient.Record {
 	panic(fmt.Errorf("readFlatDataRecord: Non implemented")) // TODO: need example from server to know how to handle this
 }
 
-func (dbc *Client) readRawBytesRecord(r io.Reader) Record {
+func (dbc *Client) readRawBytesRecord(r io.Reader) orient.Record {
 	panic(fmt.Errorf("readRawBytesRecord: Non implemented")) // TODO: need example from server to know how to handle this
 }
 
-func (dbc *Client) readResultSet(r io.Reader) []Record {
+func (dbc *Client) readResultSet(r io.Reader) orient.Records {
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 	resultSetSize := int(rw.ReadInt(r))
-	docs := make([]Record, resultSetSize)
+	docs := make(orient.Records, resultSetSize)
 	for i := range docs {
 		docs[i] = dbc.readSingleRecord(r)
 	}

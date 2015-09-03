@@ -9,17 +9,15 @@ sudo: required
 services:
   - docker
 
-before_install:
+install:
   - docker pull dennwc/orientdb:2.1.1
   - go get golang.org/x/tools/cmd/vet
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/golang/lint/golint
-
-install:
   - go get -t -v ./...
 
 script:
   - go vet ./...
-  - $HOME/gopath/bin/golint .
-  - go test -race -v ./...
+#  - $HOME/gopath/bin/golint .
+  - go test -race ./...
   - go test -covermode=atomic ./...

@@ -79,7 +79,7 @@ func doQueriesAndInsertions(t *testing.T, db orient.Database, id int) {
 		}
 	}
 
-	t.Logf("records insert by goroutine %d: %v", id, len(ridsToDelete))
+	//t.Logf("records insert by goroutine %d: %v", id, len(ridsToDelete))
 
 	// ---[ clean up ]---
 

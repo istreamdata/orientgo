@@ -8,9 +8,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/obinary/rw"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 func init() {

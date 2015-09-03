@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dyy18/orientgo"
+	"github.com/istreamdata/orientgo"
 	"testing"
 )
 

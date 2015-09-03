@@ -2,15 +2,16 @@
 
 **OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database, a fork of [Ogonori](https://github.com/quux00/ogonori).
 
-[![Build Status](https://travis-ci.org/dyy18/orientgo.svg?branch=master)](https://travis-ci.org/dyy18/orientgo)
+[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
 <br/>
 
 ## Changes to Ogonori
 - Uses varint encoding/decoding functions from stdlib `binary` package (which is more robust)
-- Uses Glog for logging instead of custom package
+- Glog for logging instead of custom package
 - Uses [MapStructure](http://github.com/mitchellh/mapstructure) lib for record deserialization
 - User can omit deserialization of query/command results to `ODocument` and provide custom values for deserialization (array/struct)
+- Connection pooling, `orient.Database` is safe for concurrent use
 - Supports Orient functions ( SQL/JS(/Groovy?) )
 - Works with OrientDB 2.1.1
 
@@ -22,13 +23,12 @@ Driver is under active development: it is in an alpha-state for the core feature
 
 Here's what you can do with it right now:
 
-- Do most any OrientDB SQL statements via `obinary.SQLQuery` and `obinary.SQLCommand`, including support for OrientDB fetch plans.
-- Create `oschema.ODocument` objects and create them in the DB via `obinary.CreateRecord`.
-- Update fields on `oschema.ODocument` objects and update them in the DB via `obinary.UpdateRecord`.
+- Do most any OrientDB SQL statements via `SQLQuery` and `SQLCommand`, including support for OrientDB fetch plans.
+- Create `oschema.ODocument` objects and create them in the DB via `CreateRecord`.
+- Update fields on `oschema.ODocument` objects and update them in the DB via `UpdateRecord`.
 - Use the ogonori driver for the golang `database/sql` API, with some cautions (see below).
 - Use it with either document or graph databases.
-- Use it with the OrientDB 2.0-2.1 series. OrientDB 1.x is not supported.
-- Run it with multiple goroutines - the unit of thread safety is the `obinary.DBClient`.  As long as each goroutine uses its own `DBClient`, it should work based on my design and testing so far.
+- Use it with the OrientDB 2.0.x-2.1.x series. OrientDB 1.x is not supported.
 
 Early adopters are welcome to try it out and report any problems found.  You are also welcome to suggest a more user-friendly API on top of the low-level `obinary` one.
 
@@ -40,7 +40,6 @@ What is not yet supported:
 - OrientDB DECIMAL and CUSTOM types.
 - Insertion/retrieval of "large" records into OrientDB.  In some cases a few hundred or even a few dozen KB will cause a problem - see Issue #7.
 - Some edge cases around RidBags (LinkBags) - the library will panic at present if you hit these. That obviously is not proper behavior, but since this is alpha (or pre-alpha) that's what I'm doing right now.
-- A `DBClient` connection pool.  Right now you have to create your DBClients afresh (or find a way to reuse them).
 
 
 *Documentation Note*: Eventually I will write a detailed wiki on using ogonori with OrientDB, but that will have to wait until the API is stable.  For now the code in the client.go file, plus the godoc for the code is the documentation you'll need to access to see how to use it.
@@ -67,24 +66,12 @@ I have no projection for when this will be in a ready state.
 
 
 <br/>
-## Development
-
-I am testing on Linux and Windows 7.  I do not have access to any Mac OS X machines, so if someone wants to run the client.go tests on a Mac and tell me the results, that would be helpful.
-
-
-Right now I have unit tests for the following packages:
-
-* `github.com/dyy18/orientgo/obinary/binserde/varint`
-* `github.com/dyy18/orientgo/obinary/rw`
-* `github.com/dyy18/orientgo/oschema`
-
-For the higher level functionality I'm using a running functional test - the top-level `client.go`.  Right now to use it you need to have OrientDB 2.x installed and running.
 
 #### How to run tests:
 
 1) Install Docker
 
-2) Pull Orient image: `docker pull dennwc/orient`
+2) Pull OrientDB image: `docker pull dennwc/orientdb:2.1.1`
 
 3) `go test -v ./...`
 

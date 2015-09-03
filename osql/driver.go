@@ -4,7 +4,7 @@
 // The driver should be used via the database/sql package:
 //
 // import "database/sql"
-// import _ "github.com/dyy18/orientgo/osql"
+// import _ "github.com/istreamdata/orientgo/osql"
 //
 // db, err := sql.Open("ogonori", "admin@admin:127.0.0.1/ogonoriTest")
 //
@@ -18,7 +18,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dyy18/orientgo/obinary"
+	"github.com/istreamdata/orientgo/obinary"
 )
 
 var dsnRx *regexp.Regexp = regexp.MustCompile(`([^@]+)@([^:]+):([^/]+)/(.+)`)

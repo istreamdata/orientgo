@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dyy18/orientgo/obinary"
-	"github.com/dyy18/orientgo/oerror"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/obinary"
+	"github.com/istreamdata/orientgo/oerror"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 //

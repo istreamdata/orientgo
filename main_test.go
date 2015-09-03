@@ -4,8 +4,8 @@ import (
 	//"os"
 	"testing"
 
-	"github.com/dyy18/orientgo"
-	_ "github.com/dyy18/orientgo/obinary"
+	"github.com/istreamdata/orientgo"
+	_ "github.com/istreamdata/orientgo/obinary"
 )
 
 func TestNewDB(t *testing.T) {

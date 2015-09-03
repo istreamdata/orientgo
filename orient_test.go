@@ -2,8 +2,8 @@ package orient_test
 
 import (
 	"fmt"
-	"github.com/dyy18/orientgo"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/istreamdata/orientgo"
 	"math/rand"
 	"testing"
 	"time"

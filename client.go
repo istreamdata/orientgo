@@ -3,7 +3,7 @@ package orient
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/oschema"
 	"strings"
 )
 

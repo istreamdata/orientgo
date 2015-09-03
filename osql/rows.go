@@ -6,8 +6,8 @@ import (
 	"database/sql/driver"
 	"io"
 
-	"github.com/dyy18/orientgo/ogl"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/ogl"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 //

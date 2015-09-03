@@ -4,8 +4,8 @@ import (
 	//"fmt"
 	//	"sort"
 
-	"github.com/dyy18/orientgo"
-	//"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
+	//"github.com/istreamdata/orientgo/oschema"
 	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -126,7 +126,7 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	assert.True(t, friendLinkBag.Links[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
 
 	// TODO: this query fails with orientdb-community-2.1-rc5 on Windows (not tested on Linux)
-	//       error is: FATAL: client.go:904: github.com/dyy18/orientgo/obinary/qrycmd.go:125; cause: ERROR: readResultSet: expected short value of 0 but is -3
+	//       error is: FATAL: client.go:904: github.com/istreamdata/orientgo/obinary/qrycmd.go:125; cause: ERROR: readResultSet: expected short value of 0 but is -3
 	sql = `TRAVERSE * from ` + abbieRID.String()
 	docs = nil
 	_, err = dbc.SQLQuery(&docs, nil, sql)

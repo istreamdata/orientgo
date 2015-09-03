@@ -3,7 +3,7 @@ package obinary
 import (
 	"fmt"
 
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 type operationType byte

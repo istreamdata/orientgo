@@ -3,8 +3,8 @@ package obinary
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 var (

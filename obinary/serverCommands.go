@@ -6,10 +6,10 @@ import (
 	"io"
 
 	"bytes"
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/obinary/rw"
-	"github.com/dyy18/orientgo/oerror"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo/oerror"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 /// In the Java client the "server command" functionality is encapsulated

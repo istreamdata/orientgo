@@ -2,7 +2,7 @@ package obinary
 
 import (
 	"bytes"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 // ORecordSerializer is the interface for the binary Serializer/Deserializer.

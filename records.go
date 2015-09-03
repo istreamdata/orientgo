@@ -3,7 +3,7 @@ package orient
 import (
 	"bytes"
 	"fmt"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/oschema"
 	"reflect"
 )
 

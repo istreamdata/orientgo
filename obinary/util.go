@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"fmt"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/oschema"
 	"strconv"
 )
 

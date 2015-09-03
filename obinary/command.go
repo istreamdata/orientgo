@@ -3,9 +3,8 @@ package obinary
 import (
 	"bytes"
 	"fmt"
-	"github.com/dennwc/errs"
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/obinary/rw"
 )
 
 func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) (recs orient.Records, err error) {
@@ -130,7 +129,6 @@ func (dbc *Client) ExecScript(result interface{}, lang orient.ScriptLang, script
 		data, err = scriptPayload(dbc.defaultSerde(), script, params...)
 	}
 	if err != nil {
-		errs.Print(errs.New(err))
 		return
 	}
 	return dbc.execScriptRaw(result, lang, data)

@@ -13,7 +13,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/dyy18/orientgo/oerror"
+	"github.com/istreamdata/orientgo/oerror"
 )
 
 var endianness = binary.BigEndian

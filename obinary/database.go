@@ -1,8 +1,8 @@
 package obinary
 
 import (
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/oschema"
 	"github.com/mitchellh/mapstructure"
 )
 

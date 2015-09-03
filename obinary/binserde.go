@@ -10,11 +10,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/dyy18/orientgo/obinary/binserde/varint"
-	"github.com/dyy18/orientgo/obinary/rw"
-	"github.com/dyy18/orientgo/oerror"
-	"github.com/dyy18/orientgo/oschema"
 	"github.com/golang/glog"
+	"github.com/istreamdata/orientgo/obinary/binserde/varint"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo/oerror"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 type embeddedRecordFunc func(dbc *Client, buf *bytes.Reader) (interface{}, error)
@@ -1004,12 +1004,12 @@ func (dbc *Client) defaultSerde() ORecordSerializer {
 // the code that called this to resume reading from its data
 // stream where it left off.
 //
-func (dbc *Client) refreshGlobalProperties() error {
+func (dbc *Client) refreshGlobalProperties() error { // TODO: should not start new connection
 	dbctmp, err := NewClient(dbc.opts.Addr)
 	if err != nil {
 		return err
 	}
-	defer dbctmp.Close()
+	defer dbctmp.Close() // TODO: remove hardcoded username and password
 	if err = dbctmp.OpenDatabase(dbc.GetCurrDB().Name, dbc.GetCurrDB().Type, "admin", "admin"); err != nil {
 		return err
 	}

@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dyy18/orientgo"
-	"github.com/dyy18/orientgo/obinary/binserde"
-	"github.com/dyy18/orientgo/obinary/rw"
-	"github.com/dyy18/orientgo/oschema"
 	"github.com/golang/glog"
+	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/obinary/binserde"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 // OpenDatabase sends the REQUEST_DB_OPEN command to the OrientDb server to

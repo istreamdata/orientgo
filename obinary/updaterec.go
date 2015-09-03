@@ -3,8 +3,8 @@ package obinary
 import (
 	"errors"
 
-	"github.com/dyy18/orientgo/obinary/rw"
-	"github.com/dyy18/orientgo/oschema"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"github.com/istreamdata/orientgo/oschema"
 )
 
 // UpdateRecord should be used update an existing record in the OrientDB database.

@@ -1,10 +1,7 @@
 # Overview
-
-**OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database, a fork of [Ogonori](https://github.com/quux00/ogonori).
-
 [![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
-<br/>
+**OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database, a fork of [Ogonori](https://github.com/quux00/ogonori).
 
 ## Changes to Ogonori
 - Uses varint encoding/decoding functions from stdlib `binary` package (which is more robust)
@@ -55,14 +52,8 @@ The golang `database/sql` API has some constraints that can be make it painful t
 Also, since I don't yet support OrientDB transactions, the `Tx` portion of the `database/sql` API is not yet implemented.
 
 <br/>
-## Timeline
 
-I have no projection for when this will be in a ready state.
-
-
-<br/>
-
-#### How to run tests:
+## How to run tests:
 
 1) Install Docker
 

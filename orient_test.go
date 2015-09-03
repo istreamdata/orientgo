@@ -2,15 +2,20 @@ package orient_test
 
 import (
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
-	"github.com/istreamdata/orientgo"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/fsouza/go-dockerclient"
+	"github.com/istreamdata/orientgo"
+	_ "github.com/istreamdata/orientgo/obinary"
 )
 
 const (
 	orientVersion = "2.1.1"
+
+	srvUser = "root"
+	srvPass = "root"
 )
 
 func init() {
@@ -19,6 +24,19 @@ func init() {
 
 func TestBuild(t *testing.T) {
 
+}
+
+func TestNewDB(t *testing.T) {
+	_, closer := SpinOrient(t)
+	defer closer()
+}
+
+func TestDBConnectionToServer(t *testing.T) {
+	db, closer := SpinOrient(t)
+	defer closer()
+	if _, err := db.Auth(srvUser, srvPass); err != nil {
+		t.Fatal("Connection to database failed")
+	}
 }
 
 func SpinOrient(t *testing.T) (orient.Client, func()) {
@@ -74,9 +92,13 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 	}
 }
 
-func SpinOrientAndOpenDB(t *testing.T) (orient.Database, func()) {
+func SpinOrientAndOpenDB(t *testing.T, graph bool) (orient.Database, func()) {
 	cli, closer := SpinOrient(t)
-	db, err := cli.Open("default", orient.DocumentDB, "admin", "admin")
+	tp := orient.DocumentDB
+	if graph {
+		tp = orient.GraphDB
+	}
+	db, err := cli.Open("default", tp, "admin", "admin")
 	if err != nil {
 		closer()
 		t.Fatal(err)
@@ -84,8 +106,25 @@ func SpinOrientAndOpenDB(t *testing.T) (orient.Database, func()) {
 	return db, closer
 }
 
+var DocumentDBSeeds = []string{
+	"CREATE CLASS Animal",
+	"CREATE property Animal.name string",
+	"CREATE property Animal.age integer",
+	"CREATE CLASS Cat extends Animal",
+	"CREATE property Cat.caretaker string",
+	"INSERT INTO Cat (name, age, caretaker) VALUES ('Linus', 15, 'Michael'), ('Keiko', 10, 'Anna')",
+}
+
+func SeedDB(t *testing.T, db orient.Database) {
+	for _, seed := range DocumentDBSeeds {
+		if _, err := db.SQLCommand(nil, seed); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestSelect(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	docs, err := cli.SQLQuery(nil, nil, "SELECT FROM OUser")
@@ -98,7 +137,7 @@ func TestSelect(t *testing.T) {
 }
 
 func TestSelectCommand(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser")
@@ -111,7 +150,7 @@ func TestSelectCommand(t *testing.T) {
 }
 
 func TestSelectScript(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	recs, err := cli.ExecScript(nil, orient.LangSQL, "SELECT FROM OUser")
@@ -124,7 +163,7 @@ func TestSelectScript(t *testing.T) {
 }
 
 func TestSelectScriptJS(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	recs, err := cli.ExecScript(nil, orient.LangJS, `var docs = db.query('SELECT FROM OUser'); docs`)
@@ -137,7 +176,7 @@ func TestSelectScriptJS(t *testing.T) {
 }
 
 func TestSelectSaveFunc(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	name := "tempFuncOne"
@@ -187,7 +226,7 @@ func TestSelectSaveFunc(t *testing.T) {
 }
 
 func TestSelectSaveFunc2(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	name := "tempFuncTwo"
@@ -225,7 +264,7 @@ func TestSelectSaveFunc2(t *testing.T) {
 }
 
 func TestSelectSaveFuncResult(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	name := "tempFuncOne"
@@ -260,7 +299,7 @@ func TestSelectSaveFuncResult(t *testing.T) {
 }
 
 func TestSelectSaveFuncResultJSON(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t)
+	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
 	name := "tempFuncOne"

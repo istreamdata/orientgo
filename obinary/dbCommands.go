@@ -437,7 +437,7 @@ func (dbc *Client) GetClusterDataRange(clusterName string) (begin, end int64, er
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a FetchClusterRangeById(dbc, clusterID)
 		return begin, end,
-			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
+			fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
 	}
 
 	buf := dbc.writeCommandAndSessionId(requestDataClusterDATARANGE)
@@ -503,7 +503,7 @@ func (dbc *Client) DropCluster(clusterName string) (err error) {
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a DropClusterById(dbc, clusterID)
-		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
+		return fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
 	}
 
 	buf := dbc.writeCommandAndSessionId(requestDataClusterDROP)
@@ -729,7 +729,7 @@ func (dbc *Client) getClusterCount(countTombstones bool, clusterNames []string) 
 			//       1) do a lookup of all clusters on the DB
 			//       2) provide a FetchClusterCountById(dbc, clusterID)
 			return int64(0),
-				fmt.Errorf("No cluster with name %s is known in database %s\n", name, dbc.getCurrDB().Name)
+				fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", name, dbc.getCurrDB().Name)
 		}
 		clusterIDs[i] = clusterID
 	}

@@ -14,7 +14,7 @@ import (
 func createOgonoriGraphDb(t *testing.T, dbc orient.Client) {
 	glog.Infoln("- - - - - - CREATE GRAPHDB - - - - - - -")
 
-	sess, err := dbc.Auth(dbUser, dbPass)
+	sess, err := dbc.Auth(srvUser, srvPass)
 	assert.Nil(t, err)
 
 	//	assert.True(t, dbc.GetSessionId() >= int32(0), "sessionid")

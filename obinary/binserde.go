@@ -109,7 +109,7 @@ func (serde ORecordSerializerV0) deserializeFields(dbc *Client, buf *bytes.Reade
 //
 // IDEA: maybe this could be DeserializeField?  Might be useful for RidBags. Anything else?
 func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf *bytes.Reader, fields []string) error {
-	return fmt.Errorf("Non implemented")
+	return fmt.Errorf("DeserializePartial: Non implemented")
 }
 
 // Serialize takes an ODocument and serializes it to bytes in accordance
@@ -187,7 +187,7 @@ func (serde ORecordSerializerV0) writeSerializedRecord(buf *bytes.Buffer, doc *o
 
 	} else {
 		// serializing a full document (not just a property or SQL params map) -> use propertyId
-		return fmt.Errorf("Non implemented")
+		return fmt.Errorf("writeSerializedRecord(full): Non implemented") // TODO: fix this
 	}
 
 	// write End of Header (EOH) marker

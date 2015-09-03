@@ -7,7 +7,7 @@ import (
 	"github.com/istreamdata/orientgo/obinary/rw"
 )
 
-func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) (recs orient.Records, err error) {
+func (dbc *Client) rawCommand(class string, payload []byte) (recs orient.Records, err error) {
 	defer catch(&err)
 	buf := dbc.writeCommandAndSessionId(requestCommand)
 
@@ -66,9 +66,6 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 			}
 		}
 	}
-	if result != nil {
-		err = recs.DeserializeAll(result)
-	}
 	return recs, err
 }
 
@@ -86,17 +83,17 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 // 1. cmds with only simple positional parameters allowed
 // 2. cmds with lists of parameters ("complex") NOT allowed
 // 3. parameter types allowed: string only for now
-func (dbc *Client) SQLCommand(result interface{}, sql string, params ...interface{}) (recs orient.Records, err error) {
+func (dbc *Client) SQLCommand(sql string, params ...interface{}) (recs orient.Records, err error) {
 	// SQLCommand
 	var payload []byte
 	payload, err = sqlPayload(dbc.defaultSerde(), sql, params...)
 	if err != nil {
 		return
 	}
-	return dbc.rawCommand(result, "c", payload)
+	return dbc.rawCommand("c", payload)
 }
 
-func (dbc *Client) SQLQuery(result interface{}, fetchPlan *orient.FetchPlan, sql string, params ...interface{}) (recs orient.Records, err error) {
+func (dbc *Client) SQLQuery(fetchPlan *orient.FetchPlan, sql string, params ...interface{}) (recs orient.Records, err error) {
 	// SQLQuery
 	var payload []byte
 	if fetchPlan == nil {
@@ -109,18 +106,18 @@ func (dbc *Client) SQLQuery(result interface{}, fetchPlan *orient.FetchPlan, sql
 	if err != nil {
 		return
 	}
-	return dbc.rawCommand(result, "q", payload)
+	return dbc.rawCommand("q", payload)
 }
 
-func (dbc *Client) execScriptRaw(result interface{}, lang orient.ScriptLang, data []byte) (recs orient.Records, err error) {
+func (dbc *Client) execScriptRaw(lang orient.ScriptLang, data []byte) (recs orient.Records, err error) {
 	defer catch(&err)
 	payload := new(bytes.Buffer)
 	rw.WriteStrings(payload, string(lang))
 	rw.WriteRawBytes(payload, data)
-	return dbc.rawCommand(result, "s", payload.Bytes())
+	return dbc.rawCommand("s", payload.Bytes())
 }
 
-func (dbc *Client) ExecScript(result interface{}, lang orient.ScriptLang, script string, params ...interface{}) (recs orient.Records, err error) {
+func (dbc *Client) ExecScript(lang orient.ScriptLang, script string, params ...interface{}) (recs orient.Records, err error) {
 	defer catch(&err)
 	var data []byte
 	if lang == orient.LangSQL {
@@ -131,7 +128,7 @@ func (dbc *Client) ExecScript(result interface{}, lang orient.ScriptLang, script
 	if err != nil {
 		return
 	}
-	return dbc.execScriptRaw(result, lang, data)
+	return dbc.execScriptRaw(lang, data)
 }
 
 func scriptPayload(serde ORecordSerializer, text string, params ...interface{}) (data []byte, err error) {

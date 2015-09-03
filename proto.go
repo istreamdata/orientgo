@@ -60,7 +60,7 @@ type DBConnection interface {
 	UpdateRecord(doc *oschema.ODocument) error
 	CountRecords() (int64, error)
 
-	SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
-	SQLCommand(result interface{}, sql string, params ...interface{}) (recs Records, err error)
-	ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
+	SQLQuery(fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
+	SQLCommand(sql string, params ...interface{}) (recs Records, err error)
+	ExecScript(lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
 }

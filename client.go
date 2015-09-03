@@ -338,7 +338,14 @@ func (db *database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql strin
 		return nil, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.SQLQuery(result, fetchPlan, sql, params...)
+	recs, err := conn.SQLQuery(fetchPlan, sql, params...)
+	if err != nil {
+		return recs, err
+	}
+	if result != nil {
+		err = recs.DeserializeAll(result)
+	}
+	return recs, err
 }
 func (db *database) SQLCommand(result interface{}, sql string, params ...interface{}) (Records, error) {
 	conn, err := db.pool.getConn()
@@ -346,7 +353,14 @@ func (db *database) SQLCommand(result interface{}, sql string, params ...interfa
 		return nil, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.SQLCommand(result, sql, params...)
+	recs, err := conn.SQLCommand(sql, params...)
+	if err != nil {
+		return recs, err
+	}
+	if result != nil {
+		err = recs.DeserializeAll(result)
+	}
+	return recs, err
 }
 
 func (db *database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
@@ -355,7 +369,14 @@ func (db *database) ExecScript(result interface{}, lang ScriptLang, script strin
 		return nil, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.ExecScript(result, lang, script, params...)
+	recs, err := conn.ExecScript(lang, script, params...)
+	if err != nil {
+		return recs, err
+	}
+	if result != nil {
+		err = recs.DeserializeAll(result)
+	}
+	return recs, err
 }
 
 func (db *database) SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error) {

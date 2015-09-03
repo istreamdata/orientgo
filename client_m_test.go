@@ -1563,7 +1563,7 @@ func dbCommandsNativeAPI(t *testing.T, dbc orient.Client) {
 	//
 	sql = `SELECT from Cat where name = ?`
 	docs = nil
-	_, err = db.SQLQuery(&docs, &orient.FetchPlan{"buddy:0 buddies:1 buddySet:0 notes:0"}, sql, "Felix")
+	_, err = db.SQLQuery(&docs, &orient.FetchPlan{Plan: "buddy:0 buddies:1 buddySet:0 notes:0"}, sql, "Felix")
 	// docs, err = db.SQLQuery(dbc, sql, FetchPlanFollowAllLinks, "Felix")
 	Nil(t, err)
 	Equals(t, 1, len(docs))

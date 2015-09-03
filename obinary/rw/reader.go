@@ -133,7 +133,7 @@ func ReadErrorResponse(r io.Reader) (serverException error) {
 	for _, e := range exc {
 		switch e.ExcClass() {
 		case "com.orientechnologies.orient.core.storage.ORecordDuplicatedException":
-			return oerror.ODuplicatedRecordException{oerror.OServerException{Exceptions: exc}}
+			return oerror.ODuplicatedRecordException{OServerException: oerror.OServerException{Exceptions: exc}}
 		}
 	}
 	return oerror.OServerException{Exceptions: exc}

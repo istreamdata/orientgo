@@ -60,7 +60,7 @@ func (dbc *Client) rawCommand(result interface{}, class string, payload []byte) 
 			recs = append(recs, SerializedRecord(rw.ReadBytes(dbc.conx)))
 		default:
 			if class == "q" && resType == 2 { // TODO: always == 2?
-				recs = append(recs, orient.SupplementaryRecord{dbc.readSingleRecord(dbc.conx)})
+				recs = append(recs, orient.SupplementaryRecord{Record: dbc.readSingleRecord(dbc.conx)})
 			} else {
 				return nil, fmt.Errorf("not supported result type %v, proto: %d, class: %s", resultType, dbc.binaryProtocolVersion, class)
 			}

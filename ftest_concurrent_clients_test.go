@@ -15,43 +15,34 @@ func init() {
 }
 
 func TestConcurrentClients(t *testing.T) {
-	dbc, closer := SpinOrient(t)
+	const N = 5
+	db, closer := SpinOrientAndOpenDB(t)
 	defer closer()
-
-	var clis = make([]orient.Database, 4)
-
-	for i := range clis {
-		db, err := dbc.Open("iSD", orient.DocumentDB, "admin", "admin")
-		Nil(t, err)
-		defer db.Close()
-		clis[i] = db
-	}
-	SeedDB(t, clis[0])
+	SeedDB(t, db)
 
 	// ---[ queries and insertions concurrently ]---
 
 	var wg sync.WaitGroup
 
 	sql := `select count(*) from Cat where caretaker like 'Eva%'`
-	recs, err := clis[0].SQLQuery(nil, nil, sql)
+	recs, err := db.SQLQuery(nil, nil, sql)
 	Nil(t, err)
 	docs, err := recs.AsDocuments()
 	Nil(t, err)
 	beforeCount := toInt(docs[0].GetField("count").Value)
 
-	for i := range clis {
+	for i := 0; i < N; i++ {
 		wg.Add(1)
-		i, db := i, clis[i]
-		go func() {
+		go func(i int) {
 			defer wg.Done()
-			doQueriesAndInsertions(t, db, i+1)
-		}()
+			doQueriesAndInsertions(t, db, i)
+		}(i)
 	}
 
 	wg.Wait()
 
 	sql = `select count(*) from Cat where caretaker like 'Eva%'`
-	recs, err = clis[0].SQLQuery(nil, nil, sql)
+	recs, err = db.SQLQuery(nil, nil, sql)
 	Nil(t, err)
 	docs, err = recs.AsDocuments()
 	Nil(t, err)

@@ -43,6 +43,17 @@ func (dbc *Client) GetCurrDB() *ODatabase {
 	return dbc.currDb
 }
 
+func (dbc *Client) GetCurDB() *orient.ODatabase {
+	if dbc == nil || dbc.currDb == nil {
+		return nil
+	}
+	return &orient.ODatabase{
+		Name:    dbc.currDb.Name,
+		Type:    dbc.currDb.Type,
+		Classes: dbc.currDb.Classes,
+	}
+}
+
 func (dbc *Client) GetClasses() map[string]*oschema.OClass {
 	return dbc.GetCurrDB().Classes
 }

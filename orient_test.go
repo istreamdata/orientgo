@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
+const (
+	orientVersion = "2.1.1"
+)
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
-}
-
-func randPort() int {
-	return 2500 + rand.Intn(1000)
 }
 
 func TestBuild(t *testing.T) {
@@ -22,7 +22,7 @@ func TestBuild(t *testing.T) {
 }
 
 func SpinOrient(t *testing.T) (orient.Client, func()) {
-	port := 2424 //randPort()
+	const port = 2424
 
 	dport_api := docker.Port("2424/tcp")
 	dport_web := docker.Port("2480/tcp")
@@ -38,7 +38,7 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 		Config: &docker.Config{
 			OpenStdin: true, Tty: true,
 			ExposedPorts: map[docker.Port]struct{}{dport_api: struct{}{}, dport_web: struct{}{}},
-			Image:        `dennwc/orient:2.1.1`,
+			Image:        `dennwc/orientdb:` + orientVersion,
 		}, HostConfig: &docker.HostConfig{
 			PortBindings: binds,
 		},
@@ -74,9 +74,9 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 	}
 }
 
-func prepareDB(t *testing.T) (orient.Database, func()) {
+func SpinOrientAndOpenDB(t *testing.T) (orient.Database, func()) {
 	cli, closer := SpinOrient(t)
-	db, err := cli.Open("iSD", orient.DocumentDB, "admin", "admin")
+	db, err := cli.Open("default", orient.DocumentDB, "admin", "admin")
 	if err != nil {
 		closer()
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func prepareDB(t *testing.T) (orient.Database, func()) {
 }
 
 func TestSelect(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	docs, err := cli.SQLQuery(nil, nil, "SELECT FROM OUser")
@@ -98,7 +98,7 @@ func TestSelect(t *testing.T) {
 }
 
 func TestSelectCommand(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser")
@@ -111,7 +111,7 @@ func TestSelectCommand(t *testing.T) {
 }
 
 func TestSelectScript(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	recs, err := cli.ExecScript(nil, orient.LangSQL, "SELECT FROM OUser")
@@ -124,7 +124,7 @@ func TestSelectScript(t *testing.T) {
 }
 
 func TestSelectScriptJS(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	recs, err := cli.ExecScript(nil, orient.LangJS, `var docs = db.query('SELECT FROM OUser'); docs`)
@@ -137,7 +137,7 @@ func TestSelectScriptJS(t *testing.T) {
 }
 
 func TestSelectSaveFunc(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	name := "tempFuncOne"
@@ -187,7 +187,7 @@ func TestSelectSaveFunc(t *testing.T) {
 }
 
 func TestSelectSaveFunc2(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	name := "tempFuncTwo"
@@ -225,7 +225,7 @@ func TestSelectSaveFunc2(t *testing.T) {
 }
 
 func TestSelectSaveFuncResult(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	name := "tempFuncOne"
@@ -260,7 +260,7 @@ func TestSelectSaveFuncResult(t *testing.T) {
 }
 
 func TestSelectSaveFuncResultJSON(t *testing.T) {
-	cli, closer := prepareDB(t)
+	cli, closer := SpinOrientAndOpenDB(t)
 	defer closer()
 
 	name := "tempFuncOne"

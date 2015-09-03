@@ -27,6 +27,12 @@ func RegisterProto(name string, dial func(addr string) (DBConnection, error)) {
 	protos[name] = dial
 }
 
+type ODatabase struct {
+	Name    string
+	Type    DatabaseType
+	Classes map[string]*oschema.OClass
+}
+
 type DBConnection interface {
 	DatabaseExists(name string, storageType StorageType) (bool, error)
 	CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error
@@ -40,7 +46,7 @@ type DBConnection interface {
 	CloseDatabase() error
 	Size() (int64, error)
 	ReloadSchema() error
-	GetClasses() map[string]*oschema.OClass
+	GetCurDB() *ODatabase
 
 	AddCluster(clusterName string) (clusterID int16, err error)
 	DropCluster(clusterName string) (err error)

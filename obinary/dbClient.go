@@ -30,8 +30,9 @@ type Client struct {
 	conx net.Conn
 	//buf                   *bytes.Buffer
 	sessionId             int32
-	token                 []byte     // orientdb token when not using sessionId
-	currDb                *ODatabase // only one db session open at a time
+	token                 []byte       // orientdb token when not using sessionId
+	currmu                sync.RWMutex // guards currDb
+	currDb                *ODatabase   // only one db session open at a time
 	serializationType     string
 	binaryProtocolVersion int16
 	serializationVersion  byte
@@ -39,23 +40,28 @@ type Client struct {
 	RecordSerDes          []ORecordSerializer
 }
 
-func (dbc *Client) GetCurrDB() *ODatabase {
+func (dbc *Client) getCurrDB() *ODatabase {
+	dbc.currmu.RLock()
+	defer dbc.currmu.RUnlock()
 	return dbc.currDb
 }
 
 func (dbc *Client) GetCurDB() *orient.ODatabase {
-	if dbc == nil || dbc.currDb == nil {
+	if dbc == nil {
 		return nil
-	}
-	return &orient.ODatabase{
-		Name:    dbc.currDb.Name,
-		Type:    dbc.currDb.Type,
-		Classes: dbc.currDb.Classes,
+	} else if db := dbc.getCurrDB(); db == nil {
+		return nil
+	} else {
+		return &orient.ODatabase{
+			Name:    db.Name,
+			Type:    db.Type,
+			Classes: db.Classes,
+		}
 	}
 }
 
 func (dbc *Client) GetClasses() map[string]*oschema.OClass {
-	return dbc.GetCurrDB().Classes
+	return dbc.getCurrDB().Classes
 }
 
 func (dbc *Client) GetSessionId() int32 {
@@ -142,7 +148,7 @@ func (dbc *Client) Close() error {
 	if dbc == nil {
 		return nil
 	}
-	if dbc.currDb != nil {
+	if db := dbc.getCurrDB(); db != nil {
 		// ignoring any error here, since closing the conx also terminates the session
 		dbc.CloseDatabase()
 	}
@@ -150,11 +156,12 @@ func (dbc *Client) Close() error {
 }
 
 func (dbc *Client) String() string {
-	if dbc.currDb == nil {
+	if db := dbc.getCurrDB(); db == nil {
 		return "DBClient<not-connected-to-db>"
+	} else {
+		return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
+			db.Name, db.Type, len(db.Clusters), dbc.sessionId, db)
 	}
-	return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
-		dbc.currDb.Name, dbc.currDb.Type, len(dbc.currDb.Clusters), dbc.sessionId, dbc.currDb)
 }
 
 func (dbc *Client) Size() (int64, error) {
@@ -243,7 +250,7 @@ func (dbc *Client) createDocumentFromBytes(rid oschema.ORID, recVersion int32, s
 	if len(serializedDoc) > 0 {
 		// the first byte specifies record serialization version
 		// use it to look up serializer and strip off that byte
-		serde := dbc.currDb.RecordSerDes[int(serializedDoc[0])]
+		serde := dbc.getCurrDB().RecordSerDes[int(serializedDoc[0])]
 		err := serde.Deserialize(dbc, doc, bytes.NewReader(serializedDoc[1:]))
 		if err != nil {
 			return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)
@@ -255,7 +262,7 @@ func (dbc *Client) createDocumentFromBytes(rid oschema.ORID, recVersion int32, s
 func (dbc *Client) createMapFromBytes(rid oschema.ORID, serializedDoc []byte) (map[string]interface{}, error) {
 	// the first byte specifies record serialization version
 	// use it to look up serializer and strip off that byte
-	serde := dbc.currDb.RecordSerDes[int(serializedDoc[0])]
+	serde := dbc.getCurrDB().RecordSerDes[int(serializedDoc[0])]
 	m, err := serde.ToMap(dbc, bytes.NewReader(serializedDoc[1:]))
 	if err != nil {
 		return nil, fmt.Errorf("ERROR in converting to map for rid %v: %v\n", rid, err)

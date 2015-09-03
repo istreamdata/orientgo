@@ -20,7 +20,7 @@ func (dbc *Client) CreateRecord(doc *oschema.ODocument) (err error) {
 		return errors.New("classname must be present on Document to call CreateRecord")
 	}
 	clusterID := int16(-1) // indicates new class/cluster
-	oclass, ok := dbc.currDb.Classes[doc.Classname]
+	oclass, ok := dbc.getCurrDB().Classes[doc.Classname]
 	if ok {
 		// TODO: need way to allow user to specify a non-default cluster
 		clusterID = int16(oclass.DefaultClusterId)

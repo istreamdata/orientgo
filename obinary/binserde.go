@@ -69,7 +69,7 @@ func (serde ORecordSerializerV0) deserializeFields(dbc *Client, buf *bytes.Reade
 	for _, prop := range header {
 		var ofield *oschema.OField
 		if prop.name == "" {
-			globalProp, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			globalProp, ok := dbc.getCurrDB().GlobalProperties[int(prop.id)]
 			if !ok {
 				return nil, oerror.ErrStaleGlobalProperties
 			}
@@ -971,15 +971,15 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 // refreshGlobalProperties is called.
 //
 func (dbc *Client) refreshGlobalPropertiesIfRequired(hdr []headerProperty) error {
-	if dbc.GetCurrDB() == nil {
+	if dbc.getCurrDB() == nil {
 		return nil
 	}
-	if dbc.GetCurrDB().GlobalProperties == nil {
+	if dbc.getCurrDB().GlobalProperties == nil {
 		return nil
 	}
 	for _, prop := range hdr {
 		if prop.name == "" {
-			_, ok := dbc.GetCurrDB().GlobalProperties[int(prop.id)]
+			_, ok := dbc.getCurrDB().GlobalProperties[int(prop.id)]
 			if !ok {
 				return dbc.refreshGlobalProperties()
 			}
@@ -1010,10 +1010,12 @@ func (dbc *Client) refreshGlobalProperties() error { // TODO: should not start n
 		return err
 	}
 	defer dbctmp.Close() // TODO: remove hardcoded username and password
-	if err = dbctmp.OpenDatabase(dbc.GetCurrDB().Name, dbc.GetCurrDB().Type, "admin", "admin"); err != nil {
+	if err = dbctmp.OpenDatabase(dbc.getCurrDB().Name, dbc.getCurrDB().Type, "admin", "admin"); err != nil {
 		return err
 	}
-	dbc.currDb = dbctmp.currDb
+	dbc.currmu.Lock()
+	dbc.currDb = dbctmp.getCurrDB()
+	dbc.currmu.Unlock()
 	return nil
 }
 

@@ -49,7 +49,10 @@ func (dbc *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, usern
 	// first byte indicates success/error
 	status := rw.ReadByte(dbc.conx)
 
-	dbc.currDb = NewDatabase(dbname, dbtype)
+	db := NewDatabase(dbname, dbtype)
+	dbc.currmu.Lock()
+	dbc.currDb = db
+	dbc.currmu.Unlock()
 
 	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
 	sessionValSent := rw.ReadInt(dbc.conx)
@@ -82,12 +85,12 @@ func (dbc *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, usern
 		clusterId := rw.ReadShort(dbc.conx)
 		clusters = append(clusters, OCluster{Name: clusterName, Id: clusterId})
 	}
-	dbc.currDb.Clusters = clusters
+	db.Clusters = clusters
 
 	// cluster-config - bytes - null unless running server in clustered config
 	// TODO: treating this as an opaque blob for now
 	clusterCfg := rw.ReadBytes(dbc.conx)
-	dbc.currDb.ClustCfg = clusterCfg
+	db.ClustCfg = clusterCfg
 
 	// orientdb server release - throwing away for now // TODO: need this?
 	_ = rw.ReadString(dbc.conx)
@@ -135,9 +138,7 @@ func (dbc *Client) loadConfigRecord() (oschemaRID oschema.ORID, err error) {
 
 	// Driver supports only synchronous requests, so we need to wait until previous request is finished
 	dbc.mutex.Lock()
-	defer func() {
-		dbc.mutex.Unlock()
-	}()
+	defer dbc.mutex.Unlock()
 
 	// send to the OrientDB server
 	rw.WriteRawBytes(dbc.conx, buf.Bytes())
@@ -171,12 +172,13 @@ func (dbc *Client) loadConfigRecord() (oschemaRID oschema.ORID, err error) {
 			fmt.Errorf("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
 	}
 
-	err = parseConfigRecord(dbc.currDb, string(databytes))
+	db := dbc.getCurrDB()
+	err = parseConfigRecord(db, string(databytes))
 	if err != nil {
 		return oschemaRID, err
 	}
 
-	oschemaRID = dbc.currDb.StorageCfg.schemaRID
+	oschemaRID = db.StorageCfg.schemaRID
 	return oschemaRID, err
 }
 
@@ -222,8 +224,10 @@ func (dbc *Client) loadSchema(oschemaRID oschema.ORID) error {
 		return fmt.Errorf("Load Record %s should only return one record. Returned: %d", oschemaRID, len(docs))
 	}
 
+	db := dbc.getCurrDB()
+
 	// ---[ schemaVersion ]---
-	dbc.currDb.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
+	db.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
 
 	/* ---[ globalProperties ]--- */
 	globalPropsFld := docs[0].GetField("globalProperties")
@@ -232,7 +236,7 @@ func (dbc *Client) loadSchema(oschemaRID oschema.ORID) error {
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
 		pdoc := pfield.(*oschema.ODocument)
 		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
-		dbc.currDb.GlobalProperties[int(globalProperty.Id)] = globalProperty
+		db.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
 	/* ---[ classes ]--- */
@@ -241,7 +245,7 @@ func (dbc *Client) loadSchema(oschemaRID oschema.ORID) error {
 	for _, cfield := range classesFld.Value.([]interface{}) {
 		cdoc := cfield.(*oschema.ODocument)
 		oclass = oschema.NewOClassFromDocument(cdoc)
-		dbc.currDb.Classes[oclass.Name] = oclass
+		db.Classes[oclass.Name] = oclass
 	}
 
 	return nil
@@ -264,7 +268,9 @@ func (dbc *Client) CloseDatabase() (err error) {
 	// remove session, token and currDb info
 	dbc.sessionId = noSessionId
 	dbc.token = nil
+	dbc.currmu.Lock()
 	dbc.currDb = nil // TODO: anything in currDB that needs to be closed?
+	dbc.currmu.Unlock()
 
 	return nil
 }
@@ -397,7 +403,7 @@ func (dbc *Client) GetRecordByRID(orid oschema.ORID, fetchPlan string) (docs []*
 
 			// the first byte specifies record serialization version
 			// use it to look up serializer
-			serde := dbc.currDb.RecordSerDes[int(databytes[0])]
+			serde := dbc.getCurrDB().RecordSerDes[int(databytes[0])]
 			// then strip off the version byte and send the data to the serde
 			err = serde.Deserialize(dbc, doc, bytes.NewReader(databytes[1:]))
 			if err != nil {
@@ -424,14 +430,14 @@ func (dbc *Client) ReloadSchema() error {
 func (dbc *Client) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
 	defer catch(&err)
 
-	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(clusterName))
 	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a FetchClusterRangeById(dbc, clusterID)
 		return begin, end,
-			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+			fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
 	}
 
 	buf := dbc.writeCommandAndSessionId(requestDataClusterDATARANGE)
@@ -466,6 +472,9 @@ func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
 
 	rw.WriteShort(buf, -1) // -1 means generate new cluster id
 
+	dbc.mutex.Lock()
+	defer dbc.mutex.Unlock()
+
 	// send to the OrientDB server
 	rw.WriteRawBytes(dbc.conx, buf.Bytes())
 
@@ -477,7 +486,8 @@ func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
 
 	clusterID = rw.ReadShort(dbc.conx)
 
-	dbc.currDb.Clusters = append(dbc.currDb.Clusters, OCluster{cname, clusterID})
+	db := dbc.getCurrDB()
+	db.Clusters = append(db.Clusters, OCluster{cname, clusterID})
 	return clusterID, err
 }
 
@@ -487,13 +497,13 @@ func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
 // If nil is returned, then the action succeeded.
 func (dbc *Client) DropCluster(clusterName string) (err error) {
 	defer catch(&err)
-	clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(clusterName))
+	clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(clusterName))
 	if clusterID < 0 {
 		// TODO: This is problematic - someone else may add the cluster not through this
 		//       driver session and then this would fail - so options:
 		//       1) do a lookup of all clusters on the DB
 		//       2) provide a DropClusterById(dbc, clusterID)
-		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.currDb.Name)
+		return fmt.Errorf("No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
 	}
 
 	buf := dbc.writeCommandAndSessionId(requestDataClusterDROP)
@@ -712,14 +722,14 @@ func (dbc *Client) getClusterCount(countTombstones bool, clusterNames []string) 
 
 	clusterIDs := make([]int16, len(clusterNames))
 	for i, name := range clusterNames {
-		clusterID := findClusterWithName(dbc.currDb.Clusters, strings.ToLower(name))
+		clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(name))
 		if clusterID < 0 {
 			// TODO: This is problematic - someone else may add the cluster not through this
 			//       driver session and then this would fail - so options:
 			//       1) do a lookup of all clusters on the DB
 			//       2) provide a FetchClusterCountById(dbc, clusterID)
 			return int64(0),
-				fmt.Errorf("No cluster with name %s is known in database %s\n", name, dbc.currDb.Name)
+				fmt.Errorf("No cluster with name %s is known in database %s\n", name, dbc.getCurrDB().Name)
 		}
 		clusterIDs[i] = clusterID
 	}

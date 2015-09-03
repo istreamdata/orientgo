@@ -55,11 +55,6 @@ The golang `database/sql` API has some constraints that can be make it painful t
 Also, since I don't yet support OrientDB transactions, the `Tx` portion of the `database/sql` API is not yet implemented.
 
 <br/>
-## Next TODO
-
-* transactions - transactions in OrientDB are done via optimistic concurrency control (version checking), so the client has to do most of the work; thus, this will take some time
-
-<br/>
 ## Timeline
 
 I have no projection for when this will be in a ready state.

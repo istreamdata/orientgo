@@ -18,64 +18,12 @@ var (
 	FetchPlanFollowAllLinks = &FetchPlan{"*:-1"}
 )
 
-type Manager interface {
-	DatabaseExists(name string, storageType StorageType) (bool, error)
-	CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error
-	DropDatabase(name string, storageType StorageType) error
-	ListDatabases() (map[string]string, error)
-	Close() error
-}
-
-type Client interface {
-	Auth(user, pass string) (Manager, error)
-	Open(name string, dbType DatabaseType, user, pass string) (Database, error)
-	Close() error
-}
-
-type Database interface {
-	Size() (int64, error)
-	Close() error
-	ReloadSchema() error
-	GetCurDB() *ODatabase
-
-	AddCluster(clusterName string) (clusterID int16, err error)
-	DropCluster(clusterName string) (err error)
-	GetClusterDataRange(clusterName string) (begin, end int64, err error)
-	CountClusters(withDeleted bool, clusterNames ...string) (int64, error)
-
-	CreateRecord(doc *oschema.ODocument) (err error)
-	DeleteRecordByRID(rid string, recVersion int32) error
-	DeleteRecordByRIDAsync(rid string, recVersion int32) error
-	GetRecordByRID(rid oschema.ORID, fetchPlan string) (docs []*oschema.ODocument, err error)
-	UpdateRecord(doc *oschema.ODocument) error
-	CountRecords() (int64, error)
-
-	CreateScriptFunc(fnc Function) error
-	DeleteScriptFunc(name string) error
-	UpdateScriptFunc(name string, script string) error
-	CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error)
-	CallScriptFuncJSON(result interface{}, name string, params ...interface{}) error
-	InitScriptFunc(fncs ...Function) (err error)
-
-	SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
-	SQLCommand(result interface{}, sql string, params ...interface{}) (recs Records, err error)
-	SQLBatch(result interface{}, sql string, params ...interface{}) (Records, error)
-
-	SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error)
-	SQLCommandExpect(expected int, sql string, params ...interface{}) error
-	SQLCommandOne(result interface{}, sql string, params ...interface{}) (Record, error)
-	SQLBatchExpect(expected int, sql string, params ...interface{}) error
-	SQLBatchOne(result interface{}, sql string, params ...interface{}) (Record, error)
-
-	ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
-}
-
-func Dial(addr string) (Client, error) {
+func Dial(addr string) (*Client, error) {
 	dial := protos[ProtoBinary]
 	if dial == nil {
 		return nil, fmt.Errorf("orientgo: no protocols are active; forgot to import obinary package?")
 	}
-	cli := &client{
+	cli := &Client{
 		dial: func() (DBConnection, error) {
 			return dial(addr)
 		},
@@ -153,12 +101,12 @@ loop:
 	}
 }
 
-type client struct {
+type Client struct {
 	mconn DBConnection
 	dial  func() (DBConnection, error)
 }
 
-func (c *client) Auth(user, pass string) (Manager, error) {
+func (c *Client) Auth(user, pass string) (*Manager, error) {
 	if c.mconn == nil {
 		conn, err := c.dial()
 		if err != nil {
@@ -169,10 +117,10 @@ func (c *client) Auth(user, pass string) (Manager, error) {
 	if err := c.mconn.ConnectToServer(user, pass); err != nil {
 		return nil, err
 	}
-	return &manager{c}, nil
+	return &Manager{c}, nil
 }
-func (c *client) Open(name string, dbType DatabaseType, user, pass string) (Database, error) {
-	db := &database{newConnPool(poolLimit, func() (DBConnection, error) {
+func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Database, error) {
+	db := &Database{newConnPool(poolLimit, func() (DBConnection, error) {
 		conn, err := c.dial()
 		if err != nil {
 			return nil, err
@@ -190,39 +138,39 @@ func (c *client) Open(name string, dbType DatabaseType, user, pass string) (Data
 	db.pool.putConn(conn)
 	return db, nil
 }
-func (c *client) Close() error {
+func (c *Client) Close() error {
 	if c.mconn != nil {
 		c.mconn.Close()
 	}
 	return nil
 }
 
-type manager struct {
-	cli *client
+type Manager struct {
+	cli *Client
 }
 
-func (mgr *manager) DatabaseExists(name string, storageType StorageType) (bool, error) {
+func (mgr *Manager) DatabaseExists(name string, storageType StorageType) (bool, error) {
 	return mgr.cli.mconn.DatabaseExists(name, storageType)
 }
-func (mgr *manager) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
+func (mgr *Manager) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
 	return mgr.cli.mconn.CreateDatabase(name, dbType, storageType)
 }
-func (mgr *manager) DropDatabase(name string, storageType StorageType) error {
+func (mgr *Manager) DropDatabase(name string, storageType StorageType) error {
 	return mgr.cli.mconn.DropDatabase(name, storageType)
 }
-func (mgr *manager) ListDatabases() (map[string]string, error) {
+func (mgr *Manager) ListDatabases() (map[string]string, error) {
 	return mgr.cli.mconn.ListDatabases()
 }
-func (mgr *manager) Close() error {
+func (mgr *Manager) Close() error {
 	return mgr.cli.mconn.Close()
 }
 
-type database struct {
+type Database struct {
 	pool *connPool
-	cli  *client
+	cli  *Client
 }
 
-func (db *database) Size() (int64, error) {
+func (db *Database) Size() (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
@@ -230,11 +178,11 @@ func (db *database) Size() (int64, error) {
 	defer db.pool.putConn(conn)
 	return conn.Size()
 }
-func (db *database) Close() error {
+func (db *Database) Close() error {
 	db.pool.clear()
 	return nil
 }
-func (db *database) ReloadSchema() error {
+func (db *Database) ReloadSchema() error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -242,7 +190,7 @@ func (db *database) ReloadSchema() error {
 	defer db.pool.putConn(conn)
 	return conn.ReloadSchema()
 }
-func (db *database) GetCurDB() *ODatabase {
+func (db *Database) GetCurDB() *ODatabase {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil
@@ -251,7 +199,7 @@ func (db *database) GetCurDB() *ODatabase {
 	return conn.GetCurDB()
 }
 
-func (db *database) AddCluster(name string) (int16, error) {
+func (db *Database) AddCluster(name string) (int16, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
@@ -259,7 +207,7 @@ func (db *database) AddCluster(name string) (int16, error) {
 	defer db.pool.putConn(conn)
 	return conn.AddCluster(name)
 }
-func (db *database) DropCluster(name string) error {
+func (db *Database) DropCluster(name string) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -267,7 +215,7 @@ func (db *database) DropCluster(name string) error {
 	defer db.pool.putConn(conn)
 	return conn.DropCluster(name)
 }
-func (db *database) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
+func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, 0, err
@@ -275,7 +223,7 @@ func (db *database) GetClusterDataRange(clusterName string) (begin, end int64, e
 	defer db.pool.putConn(conn)
 	return conn.GetClusterDataRange(clusterName)
 }
-func (db *database) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
+func (db *Database) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
@@ -284,7 +232,7 @@ func (db *database) CountClusters(withDeleted bool, clusterNames ...string) (int
 	return conn.CountClusters(withDeleted, clusterNames...)
 }
 
-func (db *database) CreateRecord(doc *oschema.ODocument) error {
+func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -292,7 +240,7 @@ func (db *database) CreateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.CreateRecord(doc)
 }
-func (db *database) DeleteRecordByRID(rid string, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid string, recVersion int32) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -300,7 +248,7 @@ func (db *database) DeleteRecordByRID(rid string, recVersion int32) error {
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRID(rid, recVersion)
 }
-func (db *database) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
+func (db *Database) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -308,7 +256,7 @@ func (db *database) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRIDAsync(rid, recVersion)
 }
-func (db *database) GetRecordByRID(rid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
+func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
@@ -316,7 +264,7 @@ func (db *database) GetRecordByRID(rid oschema.ORID, fetchPlan string) ([]*osche
 	defer db.pool.putConn(conn)
 	return conn.GetRecordByRID(rid, fetchPlan)
 }
-func (db *database) UpdateRecord(doc *oschema.ODocument) error {
+func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -324,7 +272,7 @@ func (db *database) UpdateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.UpdateRecord(doc)
 }
-func (db *database) CountRecords() (int64, error) {
+func (db *Database) CountRecords() (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
@@ -332,7 +280,7 @@ func (db *database) CountRecords() (int64, error) {
 	defer db.pool.putConn(conn)
 	return conn.CountRecords()
 }
-func (db *database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (Records, error) {
+func (db *Database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (Records, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
@@ -347,7 +295,7 @@ func (db *database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql strin
 	}
 	return recs, err
 }
-func (db *database) SQLCommand(result interface{}, sql string, params ...interface{}) (Records, error) {
+func (db *Database) SQLCommand(result interface{}, sql string, params ...interface{}) (Records, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
@@ -363,7 +311,7 @@ func (db *database) SQLCommand(result interface{}, sql string, params ...interfa
 	return recs, err
 }
 
-func (db *database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
+func (db *Database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
@@ -379,30 +327,30 @@ func (db *database) ExecScript(result interface{}, lang ScriptLang, script strin
 	return recs, err
 }
 
-func (db *database) SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error) {
+func (db *Database) SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error) {
 	recs, err := db.SQLQuery(result, nil, sql, params...)
 	if err != nil {
 		return nil, err
 	}
 	return recs.One()
 }
-func (db *database) SQLCommandExpect(expected int, sql string, params ...interface{}) error {
+func (db *Database) SQLCommandExpect(expected int, sql string, params ...interface{}) error {
 	return checkExpected(expected)(db.SQLCommand(nil, sql, params...))
 }
-func (db *database) SQLCommandOne(result interface{}, sql string, params ...interface{}) (Record, error) {
+func (db *Database) SQLCommandOne(result interface{}, sql string, params ...interface{}) (Record, error) {
 	recs, err := db.SQLCommand(result, sql, params...)
 	if err != nil {
 		return nil, err
 	}
 	return recs.One()
 }
-func (db *database) SQLBatch(result interface{}, sql string, params ...interface{}) (Records, error) {
+func (db *Database) SQLBatch(result interface{}, sql string, params ...interface{}) (Records, error) {
 	return db.ExecScript(result, LangSQL, sql, params...)
 }
-func (db *database) SQLBatchExpect(expected int, sql string, params ...interface{}) error {
+func (db *Database) SQLBatchExpect(expected int, sql string, params ...interface{}) error {
 	return checkExpected(expected)(db.SQLBatch(nil, sql, params...))
 }
-func (db *database) SQLBatchOne(result interface{}, sql string, params ...interface{}) (Record, error) {
+func (db *Database) SQLBatchOne(result interface{}, sql string, params ...interface{}) (Record, error) {
 	recs, err := db.SQLBatch(result, sql, params...)
 	if err != nil {
 		return nil, err
@@ -416,7 +364,7 @@ func sqlEscape(s string) string { // TODO: escape things in a right way
 	return `"` + s + `"`
 }
 
-func (db *database) CreateScriptFunc(fnc Function) error {
+func (db *Database) CreateScriptFunc(fnc Function) error {
 	sql := `CREATE FUNCTION ` + fnc.Name + ` ` + sqlEscape(fnc.Code)
 	if len(fnc.Params) > 0 {
 		sql += ` PARAMETERS [` + strings.Join(fnc.Params, ", ") + `]`
@@ -429,17 +377,17 @@ func (db *database) CreateScriptFunc(fnc Function) error {
 	return err
 }
 
-func (db *database) DeleteScriptFunc(name string) error {
+func (db *Database) DeleteScriptFunc(name string) error {
 	_, err := db.SQLCommand(nil, `DELETE FROM OFunction WHERE name = ?`, name)
 	return err
 }
 
-func (db *database) UpdateScriptFunc(name string, script string) error {
+func (db *Database) UpdateScriptFunc(name string, script string) error {
 	_, err := db.SQLCommand(nil, `UPDATE OFunction SET code = ? WHERE name = ?`, script, name)
 	return err
 }
 
-func (db *database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
+func (db *Database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
 	sparams := make([]string, 0, len(params))
 	for _, p := range params {
 		data, _ := json.Marshal(p)
@@ -449,7 +397,7 @@ func (db *database) CallScriptFunc(result interface{}, name string, params ...in
 }
 
 // CallScriptFuncJSON is a workaround for driver bug. It allow to return pure JS objects from DB functions.
-func (db *database) CallScriptFuncJSON(result interface{}, name string, params ...interface{}) error {
+func (db *Database) CallScriptFuncJSON(result interface{}, name string, params ...interface{}) error {
 	sparams := make([]string, 0, len(params))
 	for _, p := range params {
 		data, _ := json.Marshal(p)
@@ -462,7 +410,7 @@ func (db *database) CallScriptFuncJSON(result interface{}, name string, params .
 	}
 	return json.Unmarshal([]byte(jsonData), result)
 }
-func (db *database) InitScriptFunc(fncs ...Function) (err error) {
+func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 	for _, fnc := range fncs {
 		if fnc.Lang == "" {
 			err = fmt.Errorf("no language provided for function '%s'", fnc.Name)

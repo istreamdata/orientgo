@@ -14,6 +14,10 @@ import (
 const (
 	orientVersion = "2.1.1"
 
+	dbName = "default"
+	dbUser = "admin"
+	dbPass = "admin"
+
 	srvUser = "root"
 	srvPass = "root"
 )
@@ -39,7 +43,7 @@ func TestDBConnectionToServer(t *testing.T) {
 	}
 }
 
-func SpinOrient(t *testing.T) (orient.Client, func()) {
+func SpinOrientServer(t *testing.T) (string, func()) {
 	const port = 2424
 
 	dport_api := docker.Port("2424/tcp")
@@ -81,7 +85,12 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 		t.Skip(err)
 	}
 
-	cli, err := orient.Dial(fmt.Sprintf("%s:%d", info.NetworkSettings.IPAddress, port))
+	return fmt.Sprintf("%s:%d", info.NetworkSettings.IPAddress, port), rm
+}
+
+func SpinOrient(t *testing.T) (*orient.Client, func()) {
+	addr, rm := SpinOrientServer(t)
+	cli, err := orient.Dial(addr)
 	if err != nil {
 		rm()
 		t.Fatal(err)
@@ -92,13 +101,13 @@ func SpinOrient(t *testing.T) (orient.Client, func()) {
 	}
 }
 
-func SpinOrientAndOpenDB(t *testing.T, graph bool) (orient.Database, func()) {
+func SpinOrientAndOpenDB(t *testing.T, graph bool) (*orient.Database, func()) {
 	cli, closer := SpinOrient(t)
 	tp := orient.DocumentDB
 	if graph {
 		tp = orient.GraphDB
 	}
-	db, err := cli.Open("default", tp, "admin", "admin")
+	db, err := cli.Open(dbName, tp, dbUser, dbPass)
 	if err != nil {
 		closer()
 		t.Fatal(err)
@@ -115,7 +124,7 @@ var DocumentDBSeeds = []string{
 	"INSERT INTO Cat (name, age, caretaker) VALUES ('Linus', 15, 'Michael'), ('Keiko', 10, 'Anna')",
 }
 
-func SeedDB(t *testing.T, db orient.Database) {
+func SeedDB(t *testing.T, db *orient.Database) {
 	for _, seed := range DocumentDBSeeds {
 		if _, err := db.SQLCommand(nil, seed); err != nil {
 			t.Fatal(err)

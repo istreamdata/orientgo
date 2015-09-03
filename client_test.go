@@ -1233,7 +1233,7 @@ func TestConcurrentClients(t *testing.T) {
 	Equals(t, beforeCount, afterCount)
 }
 
-func doQueriesAndInsertions(t *testing.T, db orient.Database, id int) {
+func doQueriesAndInsertions(t *testing.T, db *orient.Database, id int) {
 	rnd := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	nreps := 1000
 	ridsToDelete := make([]string, 0, nreps)

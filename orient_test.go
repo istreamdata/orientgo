@@ -242,7 +242,7 @@ func TestSelectSaveFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if len(recs) != 3 {
-		t.Error("wrong docs count")
+		t.Error("wrong docs count: ", len(recs), recs)
 	}
 	//t.Logf("docs[%d]: %+v", len(recs), recs)
 }
@@ -277,7 +277,7 @@ func TestSelectSaveFunc2(t *testing.T) {
 	var res struct {
 		Params []string
 	}
-	err := cli.CallScriptFuncJSON(&res, name, "some", "one")
+	_, err := cli.CallScriptFunc(&res, name, "some", "one")
 	if err != nil {
 		t.Fatal(err)
 	} else if len(res.Params) != 2 {
@@ -301,17 +301,9 @@ func TestSelectSaveFuncResult(t *testing.T) {
 		Name  string
 		Props map[string]interface{}
 	}
-	recs, err := cli.CallScriptFunc(nil, name, "some")
+	_, err := cli.CallScriptFunc(&result, name, "some")
 	if err != nil {
 		t.Fatal(err)
-	}
-	err = recs.DeserializeAll(&result)
-	if err != nil {
-		t.Logf("recs: %d", len(recs))
-		for _, r := range recs {
-			t.Logf("rec: %T: %+v", r, r)
-		}
-		t.Skip(err) // TODO: replace after fix
 	} else if result.Name != "ori" {
 		t.Fatal("wrong object name property")
 	} else if len(result.Props) == 0 {
@@ -336,7 +328,7 @@ func TestSelectSaveFuncResultJSON(t *testing.T) {
 		Name  string
 		Props map[string]interface{}
 	}
-	err := cli.CallScriptFuncJSON(&result, name, "some")
+	_, err := cli.CallScriptFunc(&result, name, "some")
 	if err != nil {
 		t.Fatal(err)
 	} else if result.Name != "ori" {

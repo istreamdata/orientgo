@@ -386,24 +386,20 @@ func (db *Database) CallScriptFunc(result interface{}, name string, params ...in
 	sparams := make([]string, 0, len(params))
 	for _, p := range params {
 		data, _ := json.Marshal(p)
+
 		sparams = append(sparams, string(data))
 	}
-	return db.ExecScript(result, LangJS, name+`(`+strings.Join(sparams, ",")+`)`)
+	//return db.ExecScript(result, LangSQL, `SELECT `+name+`(`+strings.Join(sparams, ",")+`)`)
+	return db.ExecScript(result, LangJS, fmt.Sprintf(`var out = %s(%s); (out.toString() == "[object Object]" ? (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON(JSON.stringify(out)) : out)`,
+		name, strings.Join(sparams, ",")))
 }
 
 // CallScriptFuncJSON is a workaround for driver bug. It allow to return pure JS objects from DB functions.
+//
+// DEPRECATED. Use CallScriptFunc instead.
 func (db *Database) CallScriptFuncJSON(result interface{}, name string, params ...interface{}) error {
-	sparams := make([]string, 0, len(params))
-	for _, p := range params {
-		data, _ := json.Marshal(p)
-		sparams = append(sparams, string(data))
-	}
-	var jsonData string
-	_, err := db.ExecScript(&jsonData, LangJS, `JSON.stringify(`+name+`(`+strings.Join(sparams, ",")+`))`)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(jsonData), result)
+	_, err := db.CallScriptFunc(result, name, params...)
+	return err
 }
 func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 	for _, fnc := range fncs {

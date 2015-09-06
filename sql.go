@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/istreamdata/orientgo/oerror"
 	"github.com/istreamdata/orientgo/oschema"
 )
 
@@ -103,7 +102,7 @@ func (db *Database) Begin() (driver.Tx, error) {
 func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error) {
 	glog.V(10).Infoln("ogoConn.Exec")
 	if db == nil {
-		return nil, oerror.ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
+		return nil, ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
 	}
 	recs, err := db.SQLCommand(nil, cmd, driverArgs(args)...)
 	if err != nil {
@@ -132,11 +131,14 @@ func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error)
 func (db *Database) Query(query string, args []driver.Value) (driver.Rows, error) {
 	glog.V(10).Infoln("ogoConn.Query")
 	if db == nil {
-		return nil, oerror.ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
+		return nil, ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
 	}
 	var docs []*oschema.ODocument
 	_, err := db.SQLQuery(&docs, nil, query, driverArgs(args)...)
-	return newRows(docs), err
+	if err != nil {
+		return nil, err
+	}
+	return newRows(docs), nil
 }
 
 func driverArgs(args []driver.Value) []interface{} {
@@ -276,7 +278,7 @@ func (st *ogonoriStmt) NumInput() int {
 func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 	glog.V(10).Infoln("ogonoriStmt.Exec")
 	if st.db == nil {
-		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Exec"}
+		return nil, ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Exec"}
 	}
 	return st.db.Exec(st.query, args)
 }
@@ -285,7 +287,7 @@ func (st *ogonoriStmt) Exec(args []driver.Value) (driver.Result, error) {
 func (st *ogonoriStmt) Query(args []driver.Value) (driver.Rows, error) {
 	glog.V(10).Infoln("ogonoriStmt.Query")
 	if st.db == nil {
-		return nil, oerror.ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Query"}
+		return nil, ErrInvalidConn{Msg: "obinary.DBClient not initialized in ogonoriStmt#Query"}
 	}
 	return st.db.Query(st.query, args)
 }

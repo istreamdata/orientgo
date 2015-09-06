@@ -1,6 +1,7 @@
 package obinary
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/istreamdata/orientgo"
@@ -13,6 +14,19 @@ var (
 	_ orient.Record = (*NullRecord)(nil)
 	_ orient.Record = (*RIDRecord)(nil)
 )
+
+type RawRecord []byte
+
+func (r RawRecord) String() string {
+	//return "RAW["+string(r)+"]"
+	return "RAW"
+}
+func (r RawRecord) Deserialize(o interface{}) error {
+	return fmt.Errorf("RawRecord deserialization is not supported for now") // TODO: need example from server to know how to handle this
+}
+func (r RawRecord) GetRID() oschema.ORID {
+	return oschema.NewORID()
+}
 
 type SerializedRecord []byte
 
@@ -41,14 +55,21 @@ func (r NullRecord) GetRID() oschema.ORID {
 
 type RIDRecord struct {
 	RID oschema.ORID
-	dbc *Client
+	db  *Database
 }
 
 func (r RIDRecord) String() string {
 	return r.RID.String()
 }
 func (r RIDRecord) Deserialize(o interface{}) error {
-	return fmt.Errorf("cant deserialize RID to %T for now", o)
+	if r.db == nil {
+		return fmt.Errorf("cant deserialize RID %s without DB connection", r.RID)
+	}
+	recs, err := r.db.GetRecordByRID(r.RID, "*:0", true, false)
+	if err != nil {
+		return err
+	}
+	return recs.DeserializeAll(o)
 }
 func (r RIDRecord) GetRID() oschema.ORID {
 	return r.RID
@@ -58,41 +79,41 @@ type RecordData struct {
 	RID     oschema.ORID
 	Version int32
 	Data    []byte
-	dbc     *Client
+	db      *Database
 }
 
 func (r RecordData) String() string {
-	return fmt.Sprintf("{%s %d %d}", r.RID, r.Version, len(r.Data))
+	return fmt.Sprintf("{%s %d %d}:%s", r.RID, r.Version, len(r.Data), base64.StdEncoding.EncodeToString(r.Data))
 }
 func (r RecordData) Deserialize(o interface{}) error {
 	switch obj := o.(type) {
 	case *map[string]interface{}:
-		mp, err := r.dbc.createMapFromBytes(r.RID, r.Data)
+		mp, err := r.db.createMapFromBytes(r.RID, r.Data)
 		if err != nil {
 			return err
 		}
 		*obj = mp
 		return nil
 	case *oschema.ODocument:
-		doc, err := r.dbc.createDocumentFromBytes(r.RID, r.Version, r.Data)
+		doc, err := r.db.createDocumentFromBytes(r.RID, r.Version, r.Data)
 		if err != nil {
 			return err
 		}
 		*obj = *doc
 		return nil
 	case **oschema.ODocument:
-		doc, err := r.dbc.createDocumentFromBytes(r.RID, r.Version, r.Data)
+		doc, err := r.db.createDocumentFromBytes(r.RID, r.Version, r.Data)
 		if err != nil {
 			return err
 		}
 		*obj = doc
 		return nil
 	}
-	mapDecoder, err := r.dbc.NewMapDecoder(o)
+	mapDecoder, err := NewMapDecoder(o)
 	if err != nil {
 		return err
 	}
-	props, err := r.dbc.createMapFromBytes(r.RID, r.Data)
+	props, err := r.db.createMapFromBytes(r.RID, r.Data)
 	if err != nil {
 		return err
 	}

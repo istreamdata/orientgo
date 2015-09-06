@@ -1,16 +1,15 @@
 package binserde
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"reflect"
 
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
+	"io"
 )
 
-//
 // There is apparently a second "binary serialization" system
 // in OrientDB that has inconsistent type constants with the
 // other one.
@@ -18,7 +17,6 @@ import (
 // Until I understand it better, for now I'm calling it, the
 // "typeserializer" though that is misleading since the binserde.go
 // Serializer also reads/writes (de/serializes) types.
-//
 
 // from Java client code base where all these extend
 // com.orientechnologies.common.serialization.types.OBinarySerializer
@@ -48,7 +46,7 @@ const (
 )
 
 type OBinaryTypeSerializer interface {
-	Deserialize(buf *bytes.Buffer) (interface{}, error)
+	Deserialize(r io.Reader) (interface{}, error)
 	Serialize(val interface{}) ([]byte, error)
 }
 
@@ -56,23 +54,24 @@ var TypeSerializers [21]OBinaryTypeSerializer
 
 type OLinkSerializer struct{}
 
-func (ols OLinkSerializer) Deserialize(buf *bytes.Buffer) (v interface{}, err error) {
+func (ols OLinkSerializer) Deserialize(r io.Reader) (v interface{}, err error) {
+	return ols.DeserializeLink(r)
+}
+func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v *oschema.OLink, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("deserialize error: %v", r)
 		}
 	}()
-	clusterID := rw.ReadShort(buf)
-	clusterPos := rw.ReadLong(buf)
+	clusterID := rw.ReadShort(r)
+	clusterPos := rw.ReadLong(r)
 	rid := oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
 	return &oschema.OLink{RID: rid}, nil
 }
 
-//
-// Serialize serilializes a *oschema.OLink into the binary format
+// Serialize serializes a *oschema.OLink into the binary format
 // required by the OrientDB server.  If the `val` passed in is
 // not a *oschema.OLink, the method will panic.
-//
 func (ols OLinkSerializer) Serialize(val interface{}) ([]byte, error) {
 	lnk, ok := val.(*oschema.OLink)
 	if !ok {

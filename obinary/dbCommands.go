@@ -11,174 +11,114 @@ import (
 	"github.com/istreamdata/orientgo/obinary/binserde"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
+	"io"
 )
+
+func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pass string) (sess *session, db *ODatabase, err error) {
+	defer catch(&err)
+
+	var (
+		sessId int32
+		//token []byte
+		clusters   []OCluster
+		clusterCfg []byte
+		//serverVers string
+	)
+	err = c.root.sendCmd(requestDbOpen, func(w io.Writer) {
+		rw.WriteStrings(w, driverName, driverVersion) // driver info
+		rw.WriteShort(w, CurrentProtoVersion)         // protocol version
+		rw.WriteNull(w)                               // client id (needed only for cluster config)
+		rw.WriteString(w, c.serializer.Class())
+		rw.WriteBool(w, false) // use token (true) or session (false)
+		rw.WriteStrings(w, dbname, string(dbtype), user, pass)
+	}, func(r io.Reader) {
+		sessId = rw.ReadInt(r) // new session id
+		_ = rw.ReadBytes(r)    // token - may ignore this in session mode (is nil)
+
+		n := int(rw.ReadShort(r))
+		clusters = make([]OCluster, n)
+		for i := range clusters {
+			name := rw.ReadString(r)
+			id := rw.ReadShort(r)
+			clusters[i] = OCluster{Name: name, Id: id}
+		}
+		clusterCfg = rw.ReadBytes(r)
+		_ = rw.ReadString(r) // serverVers - unused, OrientDB release info
+	})
+	if err != nil {
+		return nil, nil, err
+	} else if sessId <= 0 {
+		return nil, nil, fmt.Errorf("wrong session id returned: %d", sessId)
+	}
+	sess = c.newSess(sessId)
+	db = NewDatabase(dbname, dbtype)
+	db.Clusters = clusters
+	db.ClustCfg = clusterCfg
+	return sess, db, nil
+}
+
+type Database struct {
+	sess *session
+	db   *ODatabase
+}
 
 // OpenDatabase sends the REQUEST_DB_OPEN command to the OrientDb server to
 // open the db in read/write mode.  The database name and type are required, plus
 // username and password.  Database type should be one of the obinary constants:
 // DocumentDbType or GraphDbType.
-func (dbc *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, username, passw string) (err error) {
+func (c *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, user, pass string) (db *Database, err error) {
 	defer catch(&err)
-	buf := dbc.writeBuffer()
-
-	// first byte specifies request type
-	rw.WriteByte(buf, requestDbOpen)
-
-	// session-id - send a negative number to create a new server-side conx
-	rw.WriteInt(buf, requestNewSession)
-	rw.WriteStrings(buf, driverName, driverVersion)
-	rw.WriteShort(buf, dbc.binaryProtocolVersion)
-
-	// dbclient id - send as null, but cannot be null if clustered config
-	rw.WriteNull(buf)
-
-	// serialization-impl
-	rw.WriteString(buf, dbc.serializationType)
-
-	// token-session, hardcoded as false for now -> change later based on ClientOptions settings
-	rw.WriteBool(buf, false)
-
-	// dbname, dbtype, username, password
-	rw.WriteStrings(buf, dbname, string(dbtype), username, passw)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	/* ---[ read back response ]--- */
-
-	// first byte indicates success/error
-	status := rw.ReadByte(dbc.conx)
-
-	db := NewDatabase(dbname, dbtype)
-	dbc.currmu.Lock()
-	dbc.currDb = db
-	dbc.currmu.Unlock()
-
-	// the first int returned is the session id sent - which was the `RequestNewSession` sentinel
-	sessionValSent := rw.ReadInt(dbc.conx)
-
-	if sessionValSent != requestNewSession {
-		return fmt.Errorf("Unexpected Error: Server did not return expected session-request-val that was sent")
-	}
-
-	// if status returned was ERROR, then the rest of server data is the exception info
-	if status != responseStatusOk {
-		exceptions := rw.ReadErrorResponse(dbc.conx)
-		return fmt.Errorf("Server Error(s): %v", exceptions)
-	}
-
-	// for the REQUEST_DB_OPEN case, another int is returned which is the new sessionId
-	sessionId := rw.ReadInt(dbc.conx)
-	dbc.sessionId = sessionId
-
-	// next is the token, which may be null
-	tokenBytes := rw.ReadBytes(dbc.conx)
-	dbc.token = tokenBytes
-
-	// array of cluster info in this db // TODO: do we need to retain all this in memory?
-	numClusters := rw.ReadShort(dbc.conx)
-
-	clusters := make([]OCluster, 0, numClusters)
-
-	for i := 0; i < int(numClusters); i++ {
-		clusterName := rw.ReadString(dbc.conx)
-		clusterId := rw.ReadShort(dbc.conx)
-		clusters = append(clusters, OCluster{Name: clusterName, Id: clusterId})
-	}
-	db.Clusters = clusters
-
-	// cluster-config - bytes - null unless running server in clustered config
-	// TODO: treating this as an opaque blob for now
-	clusterCfg := rw.ReadBytes(dbc.conx)
-	db.ClustCfg = clusterCfg
-
-	// orientdb server release - throwing away for now // TODO: need this?
-	_ = rw.ReadString(dbc.conx)
-
-	// ---[ load #0:0 - config record ]---
-	oschemaRID, err := dbc.loadConfigRecord()
+	// TODO: close previous DB? will connection drop in this case?
+	var (
+		sess *session
+		odb  *ODatabase
+	)
+	sess, odb, err = c.openDBSess(dbname, dbtype, user, pass)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	db = &Database{sess: sess, db: odb}
+	c.currmu.Lock()
+	c.currdb = db
+	c.currmu.Unlock()
+	err = db.refreshGlobalProperties()
+	return db, err
+}
 
-	// ---[ load #0:1 - oschema record ]---
-	err = dbc.loadSchema(oschemaRID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (c *Client) Open(dbname string, dbtype orient.DatabaseType, user, pass string) (orient.DBSession, error) {
+	return c.OpenDatabase(dbname, dbtype, user, pass)
 }
 
 // loadConfigRecord loads record #0:0 for the current database, caching
 // some of the information returned into OStorageConfiguration
-func (dbc *Client) loadConfigRecord() (oschemaRID oschema.ORID, err error) {
+func (db *Database) loadConfigRecord() (oschemaRID oschema.ORID, err error) {
 	defer catch(&err)
 	// The config record comes back as type 'b' (raw bytes), which should
 	// just be converted to a string then tokenized by the pipe char
-
-	var (
-		clusterId  int16 = 0
-		clusterPos int64 = 0
-	)
-
-	buf := dbc.writeCommandAndSessionId(requestRecordLOAD)
-
-	rw.WriteShort(buf, clusterId)
-	rw.WriteLong(buf, clusterPos)
-
-	fetchPlan := "*:-1 index:0"
-	rw.WriteString(buf, fetchPlan)
-
-	ignoreCache := true
-	rw.WriteBool(buf, ignoreCache)
-
-	loadTombstones := true // based on Java client code
-	rw.WriteBool(buf, loadTombstones)
-
-	// Driver supports only synchronous requests, so we need to wait until previous request is finished
-	dbc.mutex.Lock()
-	defer dbc.mutex.Unlock()
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return oschemaRID, err
-	}
-
-	payloadStatus := rw.ReadByte(dbc.conx)
-	if payloadStatus == byte(0) {
-		return oschemaRID, fmt.Errorf("Payload status for #0:0 load was 0. No config data returned.")
-	}
-
-	rectype := rw.ReadByte(dbc.conx)
-
-	// this is the record version - don't see a reason to check or cache it right now
-	_ = rw.ReadInt(dbc.conx)
-
-	databytes := rw.ReadBytes(dbc.conx)
-
-	if rectype != 'b' {
-		if err != nil {
-			return oschemaRID, fmt.Errorf("Expected rectype %d, but was: %d", 'b', rectype)
-		}
-	}
-
-	payloadStatus = rw.ReadByte(dbc.conx)
-	if payloadStatus != byte(0) {
-		return oschemaRID,
-			fmt.Errorf("Second Payload status for #0:0 load was not 0. More than one record returned unexpectedly")
-	}
-
-	db := dbc.getCurrDB()
-	err = parseConfigRecord(db, string(databytes))
+	var recs orient.Records
+	rid := oschema.ORID{ClusterID: 0, ClusterPos: 0}
+	recs, err = db.GetRecordByRID(rid, "*:-1 index:0", true, true) // based on Java client code
 	if err != nil {
-		return oschemaRID, err
+		return
 	}
 
-	oschemaRID = db.StorageCfg.schemaRID
+	var rec orient.Record
+	rec, err = recs.One()
+	if err != nil {
+		return
+	}
+	raw, ok := rec.(RawRecord)
+	if !ok {
+		err = fmt.Errorf("expected raw record for config")
+		return
+	} else if s := string([]byte(raw)); s == "" {
+		err = fmt.Errorf("config record is empty")
+		return
+	} else if err = parseConfigRecord(db.db, s); err != nil {
+		err = fmt.Errorf("config parse error: %s", err)
+		return
+	}
+	oschemaRID = db.db.StorageCfg.schemaRID
 	return oschemaRID, err
 }
 
@@ -198,9 +138,9 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 
 	sc.version = byte(version)
 	sc.name = strings.TrimSpace(toks[1])
-	sc.schemaRID = oschema.NewORIDFromString(strings.TrimSpace(toks[2]))
+	sc.schemaRID = oschema.NewORIDFromString(toks[2])
 	sc.dictionaryRID = strings.TrimSpace(toks[3])
-	sc.idxMgrRID = oschema.NewORIDFromString(strings.TrimSpace(toks[4]))
+	sc.idxMgrRID = oschema.NewORIDFromString(toks[4])
 	sc.localeLang = strings.TrimSpace(toks[5])
 	sc.localeCountry = strings.TrimSpace(toks[6])
 	sc.dateFmt = strings.TrimSpace(toks[7])
@@ -215,39 +155,43 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // loadSchema loads record #0:1 for the current database, caching the
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
-func (dbc *Client) loadSchema(oschemaRID oschema.ORID) error {
-	docs, err := dbc.GetRecordByRID(oschemaRID, "*:-1 index:0") // fetchPlan used by the Java client
+func (db *Database) loadSchema(rid oschema.ORID) error {
+	recs, err := db.GetRecordByRID(rid, "*:-1 index:0", true, false) // TODO: GetRecordByRIDIfChanged
 	if err != nil {
 		return err
 	}
-	if len(docs) != 1 {
-		return fmt.Errorf("Load Record %s should only return one record. Returned: %d", oschemaRID, len(docs))
+	rec, err := recs.One()
+	if err != nil {
+		return err
+	}
+	var doc *oschema.ODocument
+	if err = rec.Deserialize(&doc); err != nil {
+		return err
 	}
 
-	db := dbc.getCurrDB()
+	odb := db.db
 
 	// ---[ schemaVersion ]---
-	db.SchemaVersion = docs[0].GetField("schemaVersion").Value.(int32)
+	odb.SchemaVersion = doc.GetField("schemaVersion").Value.(int32)
 
-	/* ---[ globalProperties ]--- */
-	globalPropsFld := docs[0].GetField("globalProperties")
+	// ---[ globalProperties ]---
+	globalPropsFld := doc.GetField("globalProperties")
 
 	var globalProperty oschema.OGlobalProperty
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
 		pdoc := pfield.(*oschema.ODocument)
 		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
-		db.GlobalProperties[int(globalProperty.Id)] = globalProperty
+		odb.GlobalProperties[int(globalProperty.Id)] = globalProperty
 	}
 
-	/* ---[ classes ]--- */
+	// ---[ classes ]---
 	var oclass *oschema.OClass
-	classesFld := docs[0].GetField("classes")
+	classesFld := doc.GetField("classes")
 	for _, cfield := range classesFld.Value.([]interface{}) {
 		cdoc := cfield.(*oschema.ODocument)
 		oclass = oschema.NewOClassFromDocument(cdoc)
-		db.Classes[oclass.Name] = oclass
+		odb.Classes[oclass.Name] = oclass
 	}
-
 	return nil
 }
 
@@ -255,206 +199,121 @@ func (dbc *Client) loadSchema(oschemaRID oschema.ORID) error {
 // has already been opened (via OpenDatabase). This should be called
 // when exiting an app or before starting a connection to a different
 // OrientDB database.
-func (dbc *Client) CloseDatabase() (err error) {
+func (db *Database) Close() (err error) {
 	defer catch(&err)
-
-	buf := dbc.writeCommandAndSessionId(requestDbClose)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// the server has no response to a DB_CLOSE
-
-	// remove session, token and currDb info
-	dbc.sessionId = noSessionId
-	dbc.token = nil
-	dbc.currmu.Lock()
-	dbc.currDb = nil // TODO: anything in currDB that needs to be closed?
-	dbc.currmu.Unlock()
-
-	return nil
+	if db == nil || db.db == nil || db.sess == nil {
+		return
+	}
+	err = db.sess.sendCmd(requestDbClose, nil, nil)
+	db.sess.cli.closeSess(db.sess.id, db)
+	db.sess = nil
+	db.db = nil
+	return
 }
 
 // FetchDatabaseSize retrieves the size of the current database in bytes.
 // It is a database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
-func (dbc *Client) getDbSize() (dbSize int64, err error) {
-	return dbc.getLongFromDB(requestDbSIZE)
+func (db *Database) Size() (int64, error) {
+	return db.getLongFromDB(requestDbSIZE)
 }
 
 // FetchNumRecordsInDatabase retrieves the number of records of the current
 // database. It is a database-level operation, so OpenDatabase must have
 // already been called first in order to start a session with the database.
-func (dbc *Client) CountRecords() (int64, error) {
-	return dbc.getLongFromDB(requestDbCOUNTRECORDS)
-}
-
-func (dbc *Client) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
-	return dbc.deleteByRID(rid, recVersion, true)
+func (db *Database) CountRecords() (int64, error) {
+	return db.getLongFromDB(requestDbCOUNTRECORDS)
 }
 
 // DeleteRecordByRID deletes a record specified by its RID and its version.
-// This is the synchronous version where the server confirms whether the
-// delete was successful and the client reports that back to the caller.
-// See DeleteRecordByRIDAsync for the async version.
 //
 // If nil is returned, delete succeeded.
 // If error is returned, delete request was either never issued, or there was
 // a problem on the server end or the record did not exist in the database.
-func (dbc *Client) DeleteRecordByRID(rid string, recVersion int32) error {
-	return dbc.deleteByRID(rid, recVersion, false)
-}
-
-func (dbc *Client) deleteByRID(rid string, recVersion int32, async bool) error {
-	orid := oschema.NewORIDFromString(rid)
-
-	buf := dbc.writeCommandAndSessionId(requestRecordDELETE)
-
-	rw.WriteShort(buf, orid.ClusterID)
-
-	rw.WriteLong(buf, orid.ClusterPos)
-
-	rw.WriteInt(buf, recVersion)
-
-	// sync mode ; 0 = synchronous; 1 = asynchronous
-	var syncMode byte
-	if async {
-		syncMode = byte(1)
-	}
-	rw.WriteByte(buf, syncMode)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err := dbc.readStatusCodeAndError(); err != nil {
+func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error {
+	var status byte
+	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
+		rw.WriteShort(w, rid.ClusterID)
+		rw.WriteLong(w, rid.ClusterPos)
+		rw.WriteInt(w, recVersion)
+		rw.WriteByte(w, 0) // sync mode ; 0 = synchronous; 1 = asynchronous
+	}, func(r io.Reader) {
+		status = rw.ReadByte(r)
+	})
+	if err != nil {
 		return err
 	}
-
-	payloadStatus := rw.ReadByte(dbc.conx)
-
 	// status 1 means record was deleted;
 	// status 0 means record was not deleted (either failed or didn't exist)
-	if payloadStatus == byte(0) {
-		return fmt.Errorf("Server reports record %s was not deleted. Either failed or did not exist.",
-			rid)
+	if status == byte(0) {
+		return fmt.Errorf("Record %s was not deleted. Either failed or did not exist.", rid)
 	}
-
 	return nil
 }
 
-// GetRecordByRID takes an ORID and reads that record from the database.
-// NOTE: for now I'm assuming all records are Documents (they can also be "raw bytes" or "flat data")
-// and for some reason I don't understand, multiple records can be returned, so I'm returning
-// a slice of ODocument
+// GetRecordByRID takes an RID and reads that record from the database.
 //
-// TODO: may also want to expose options: ignoreCache, loadTombstones bool
 // TODO: need to properly handle fetchPlan
-func (dbc *Client) GetRecordByRID(orid oschema.ORID, fetchPlan string) (docs []*oschema.ODocument, err error) {
-	defer catch(&err)
-
-	buf := dbc.writeCommandAndSessionId(requestRecordLOAD)
-
-	rw.WriteShort(buf, orid.ClusterID)
-	rw.WriteLong(buf, orid.ClusterPos)
-
-	rw.WriteString(buf, fetchPlan)
-
-	ignoreCache := true // hardcoding for now
-	rw.WriteBool(buf, ignoreCache)
-
-	loadTombstones := false // hardcoding for now
-	rw.WriteBool(buf, loadTombstones)
-
-	// Driver supports only synchronous requests, so we need to wait until previous request is finished
-	dbc.mutex.Lock()
-	defer func() {
-		dbc.mutex.Unlock()
-	}()
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return nil, err
-	}
-
-	// this query can return multiple records (though I don't understand why)
-	// so must do this in a loop
-	docs = make([]*oschema.ODocument, 0, 1)
-	for {
-		payloadStatus := rw.ReadByte(dbc.conx)
-		if payloadStatus == byte(0) {
-			break
-		}
-
-		rectype := rw.ReadByte(dbc.conx)
-		recversion := rw.ReadInt(dbc.conx)
-
-		databytes := rw.ReadBytes(dbc.conx)
-
-		if rectype == 'd' {
-			// we don't know the classname so set empty value
-			doc := oschema.NewDocument("")
-			doc.RID = orid
-			doc.Version = recversion
-
-			// the first byte specifies record serialization version
-			// use it to look up serializer
-			serde := dbc.getCurrDB().RecordSerDes[int(databytes[0])]
-			// then strip off the version byte and send the data to the serde
-			err = serde.Deserialize(dbc, doc, bytes.NewReader(databytes[1:]))
-			if err != nil {
-				return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", orid, err)
+// ignoreCache = true
+// loadTombstones = false
+func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (recs orient.Records, err error) {
+	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
+		rw.WriteShort(w, rid.ClusterID)
+		rw.WriteLong(w, rid.ClusterPos)
+		rw.WriteString(w, fetchPlan)
+		rw.WriteBool(w, ignoreCache)
+		rw.WriteBool(w, loadTombstones)
+	}, func(r io.Reader) {
+		// TODO: this query can return multiple records (supplementary only?)
+		recs = make(orient.Records, 0, 1)
+		for {
+			status := rw.ReadByte(r)
+			if status == byte(0) {
+				break
 			}
-			docs = append(docs, doc)
-
-		} else {
-			return nil,
-				fmt.Errorf("Only `document` records are currently supported by the client. Record returned was type: %v", rectype)
+			recType := rw.ReadByte(r)
+			switch tp := rune(recType); tp {
+			case 'd':
+				//recs = append(recs, db.readSingleDocument(r))
+				recVersion := rw.ReadInt(r)
+				recBytes := rw.ReadBytes(r)
+				recs = append(recs, &RecordData{
+					RID:     rid,
+					Version: recVersion,
+					Data:    recBytes,
+					db:      db,
+				})
+			case 'b':
+				_ = rw.ReadInt(r) // record version
+				data := rw.ReadBytes(r)
+				recs = append(recs, RawRecord(data))
+			default:
+				panic(ErrBrokenProtocol{fmt.Errorf("GetRecordByRID: unknown record type: %d(%s)", tp, string(tp))})
+			}
 		}
-	}
-
-	return docs, nil
+	})
+	return recs, err
 }
 
 // ReloadSchema should be called after a schema is altered, such as properties
 // added, deleted or renamed.
-func (dbc *Client) ReloadSchema() error {
-	return dbc.loadSchema(oschema.ORID{ClusterID: 0, ClusterPos: 1})
+func (db *Database) ReloadSchema() error {
+	return db.loadSchema(oschema.ORID{ClusterID: 0, ClusterPos: 1})
 }
 
 // FetchClusterDataRange returns the range of record ids for a cluster
-func (dbc *Client) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
-	defer catch(&err)
-
-	clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(clusterName))
-	if clusterID < 0 {
-		// TODO: This is problematic - someone else may add the cluster not through this
-		//       driver session and then this would fail - so options:
-		//       1) do a lookup of all clusters on the DB
-		//       2) provide a FetchClusterRangeById(dbc, clusterID)
-		return begin, end,
-			fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
+func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
+	var clusterID int16
+	clusterID, err = db.findClusterWithName(clusterName)
+	if err != nil {
+		return
 	}
-
-	buf := dbc.writeCommandAndSessionId(requestDataClusterDATARANGE)
-
-	rw.WriteShort(buf, clusterID)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return begin, end, err
-	}
-
-	begin = rw.ReadLong(dbc.conx)
-	end = rw.ReadLong(dbc.conx)
+	err = db.sess.sendCmd(requestDataClusterDATARANGE, func(w io.Writer) {
+		rw.WriteShort(w, clusterID)
+	}, func(r io.Reader) {
+		begin = rw.ReadLong(r)
+		end = rw.ReadLong(r)
+	})
 	return begin, end, err
 }
 
@@ -462,32 +321,17 @@ func (dbc *Client) GetClusterDataRange(clusterName string) (begin, end int64, er
 // database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
 // The clusterID is returned if the command is successful.
-func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
-	defer catch(&err)
-	buf := dbc.writeCommandAndSessionId(requestDataClusterADD)
-
-	cname := strings.ToLower(clusterName)
-
-	rw.WriteString(buf, cname)
-
-	rw.WriteShort(buf, -1) // -1 means generate new cluster id
-
-	dbc.mutex.Lock()
-	defer dbc.mutex.Unlock()
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return int16(0), err
+func (db *Database) AddCluster(name string) (clusterID int16, err error) {
+	name = strings.ToLower(name)
+	err = db.sess.sendCmd(requestDataClusterADD, func(w io.Writer) {
+		rw.WriteString(w, name)
+		rw.WriteShort(w, -1) // -1 means generate new cluster id
+	}, func(r io.Reader) {
+		clusterID = rw.ReadShort(r)
+	})
+	if err == nil {
+		db.db.Clusters = append(db.db.Clusters, OCluster{name, clusterID})
 	}
-
-	clusterID = rw.ReadShort(dbc.conx)
-
-	db := dbc.getCurrDB()
-	db.Clusters = append(db.Clusters, OCluster{cname, clusterID})
 	return clusterID, err
 }
 
@@ -495,38 +339,21 @@ func (dbc *Client) AddCluster(clusterName string) (clusterID int16, err error) {
 // database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
 // If nil is returned, then the action succeeded.
-func (dbc *Client) DropCluster(clusterName string) (err error) {
-	defer catch(&err)
-	clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(clusterName))
-	if clusterID < 0 {
-		// TODO: This is problematic - someone else may add the cluster not through this
-		//       driver session and then this would fail - so options:
-		//       1) do a lookup of all clusters on the DB
-		//       2) provide a DropClusterById(dbc, clusterID)
-		return fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", clusterName, dbc.getCurrDB().Name)
-	}
-
-	buf := dbc.writeCommandAndSessionId(requestDataClusterDROP)
-
-	rw.WriteShort(buf, clusterID)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
+func (db *Database) DropCluster(clusterName string) error {
+	clusterID, err := db.findClusterWithName(clusterName)
+	if err != nil {
 		return err
 	}
-
-	delStatus := rw.ReadByte(dbc.conx)
-
-	if delStatus != byte(1) {
-		return fmt.Errorf("Drop cluster action failed. Return code from server was not '1', but %d",
-			delStatus)
+	var status byte
+	err = db.sess.sendCmd(requestDataClusterDROP, func(w io.Writer) {
+		rw.WriteShort(w, clusterID)
+	}, func(r io.Reader) {
+		status = rw.ReadByte(r)
+	})
+	if err == nil && status != byte(1) {
+		err = fmt.Errorf("Drop cluster failed. Return code: %d.", status)
 	}
-
-	return nil
+	return err
 }
 
 // FetchEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
@@ -534,70 +361,47 @@ func (dbc *Client) DropCluster(clusterName string) (err error) {
 // of the passed in OLinkBag, rather than returning the new links. The Links
 // will have RIDs only, not full Records (ODocuments).  If you then want the
 // Records filled in, call the ResolveLinks function.
-func (dbc *Client) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusive bool) (err error) {
+func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusive bool) (err error) {
 	defer catch(&err)
 	var (
 		firstLink *oschema.OLink
-		linkSerde = binserde.TypeSerializers[binserde.LinkSerializer] // the OLinkSerializer
+		linkSerde = binserde.OLinkSerializer{}
 	)
-
-	firstLink, err = dbc.GetFirstKeyOfRemoteLinkBag(linkBag)
+	firstLink, err = db.GetFirstKeyOfRemoteLinkBag(linkBag)
 	if err != nil {
 		return err
 	}
-
-	buf := dbc.writeCommandAndSessionId(requestSBTREE_BONSAI_GET_ENTRIES_MAJOR)
-
-	writeLinkBagCollectionPointer(buf, linkBag)
-
 	linkBytes, err := linkSerde.Serialize(firstLink)
 	if err != nil {
 		return err
 	}
 
-	rw.WriteBytes(buf, linkBytes)
-
-	rw.WriteBool(buf, inclusive)
-
-	// copied from Java client OSBTreeBonsaiRemote#fetchEntriesMajor
-	if dbc.binaryProtocolVersion >= 21 {
-		rw.WriteInt(buf, 128)
+	var linkEntryBytes []byte
+	err = db.sess.sendCmd(requestSBTREE_BONSAI_GET_ENTRIES_MAJOR, func(w io.Writer) {
+		writeLinkBagCollectionPointer(w, linkBag)
+		rw.WriteBytes(w, linkBytes)
+		rw.WriteBool(w, inclusive)
+		rw.WriteInt(w, 128) // if protoVers >= 21 from Java client OSBTreeBonsaiRemote#fetchEntriesMajor
+	}, func(r io.Reader) {
+		linkEntryBytes = rw.ReadBytes(r)
+	})
+	if err != nil {
+		return
 	}
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return err
-	}
-
-	linkEntryBytes := rw.ReadBytes(dbc.conx)
-
-	// all the rest of the response from the server in in this byte slice so
-	// we can reset the dbc.buf and reuse it to deserialize the serialized links
-	buf.Reset()
-	// ignoring error since doc says this method panics rather than return
-	// non-nil error
-	rw.WriteRawBytes(buf, linkEntryBytes)
-
-	nrecs := rw.ReadInt(buf)
-
-	var result interface{}
-	nr := int(nrecs)
-	// loop over all the serialized links
-	for i := 0; i < nr; i++ {
-		result, err = linkSerde.Deserialize(buf)
+	r := bytes.NewReader(linkEntryBytes)
+	n := int(rw.ReadInt(r))
+	var lnk *oschema.OLink
+	for i := 0; i < n; i++ { // loop over all the serialized links
+		lnk, err = linkSerde.DeserializeLink(r)
 		if err != nil {
 			return err
 		}
-		linkBag.AddLink(result.(*oschema.OLink))
+		linkBag.AddLink(lnk)
 
 		// FIXME: for some reason the server returns a serialized link
 		//        followed by an integer (so far always a 1 in my expts).
 		//        Not sure what to do with this int, so ignore for now
-		intval := rw.ReadInt(buf)
+		intval := rw.ReadInt(r)
 
 		if intval != int32(1) {
 			glog.Warningf("Found a use case where the val pair of a link was not 1: %d", intval)
@@ -612,73 +416,53 @@ func (dbc *Client) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusiv
 // called by end users. Instead, end users should call FetchEntriesOfRemoteLinkBag
 //
 // TODO: make this an unexported func?
-func (dbc *Client) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk *oschema.OLink, err error) {
+func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk *oschema.OLink, err error) {
 	defer catch(&err)
-	buf := dbc.writeCommandAndSessionId(requestSBTREE_BONSAI_FIRST_KEY)
+
+	var firstKeyBytes []byte
+	err = db.sess.sendCmd(requestSBTREE_BONSAI_FIRST_KEY, func(w io.Writer) {
+		writeLinkBagCollectionPointer(w, linkBag)
+	}, func(r io.Reader) {
+		firstKeyBytes = rw.ReadBytes(r)
+	})
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	writeLinkBagCollectionPointer(buf, linkBag)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return nil, err
+	r := bytes.NewReader(firstKeyBytes)
+	typeByte := rw.ReadByte(r)
+	if typeByte != binserde.LinkSerializer {
+		err = fmt.Errorf("GetFirstKeyOfRemoteLinkBag: unknown entry type: %d", typeByte)
+		return
 	}
-
-	firstKeyBytes := rw.ReadBytes(dbc.conx)
-
-	var (
-		typeByte  byte
-		typeSerde binserde.OBinaryTypeSerializer
-	)
-
-	typeByte = firstKeyBytes[0]
-	typeSerde = binserde.TypeSerializers[typeByte]
-	result, err := typeSerde.Deserialize(bytes.NewBuffer(firstKeyBytes[1:]))
-	if err != nil {
-		return nil, err
-	}
-
-	firstLink, ok := result.(*oschema.OLink)
-
-	if !ok {
-		return nil, fmt.Errorf("Typecast error. Expected *oschema.OLink but is %T", result)
-	}
-
-	return firstLink, nil
+	return binserde.OLinkSerializer{}.DeserializeLink(r)
 }
 
-func writeLinkBagCollectionPointer(buf *bytes.Buffer, linkBag *oschema.OLinkBag) {
+func writeLinkBagCollectionPointer(w io.Writer, linkBag *oschema.OLinkBag) {
 	// (treePointer:collectionPointer)(changes)
 	// where collectionPtr = (fileId:long)(pageIndex:long)(pageOffset:int)
-	rw.WriteLong(buf, linkBag.GetFileID())
-
-	rw.WriteLong(buf, linkBag.GetPageIndex())
-
-	rw.WriteInt(buf, linkBag.GetPageOffset())
+	rw.WriteLong(w, linkBag.GetFileID())
+	rw.WriteLong(w, linkBag.GetPageIndex())
+	rw.WriteInt(w, linkBag.GetPageOffset())
 }
 
 // ResolveLinks iterates over all the OLinks passed in and does a
 // FetchRecordByRID for each one that has a null Record.
 // TODO: maybe include a fetchplan here?
-func (dbc *Client) ResolveLinks(links []*oschema.OLink) error {
+// TODO: remove it from obinary
+func (db *Database) ResolveLinks(links []*oschema.OLink) error {
 	fetchPlan := ""
 	for i := 0; i < len(links); i++ {
 		if links[i].Record == nil {
-			docs, err := dbc.GetRecordByRID(links[i].RID, fetchPlan)
+			recs, err := db.GetRecordByRID(links[i].RID, fetchPlan, true, false)
 			if err != nil {
 				return err
 			}
-			// DEBUG
-			if len(docs) > 1 {
+			docs, err := recs.AsDocuments()
+			if err != nil {
+				return err
+			} else if len(docs) != 1 {
 				glog.Warningf("More than one record returned from GetRecordByRID. Please report this use case!")
 			}
-			// END DEBUG
 			links[i].Record = docs[0]
 		}
 	}
@@ -689,141 +473,63 @@ func (dbc *Client) ResolveLinks(links []*oschema.OLink) error {
 // size requires a call to the database.  The size is returned.  Note that the
 // Size field of the linkBag is NOT updated.  That is left for the caller to
 // decide whether to do.
-func (dbc *Client) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, err error) {
-	defer catch(&err)
-	buf := dbc.writeCommandAndSessionId(requestRIDBAG_GET_SIZE)
-
-	writeLinkBagCollectionPointer(buf, linkBag)
-
-	// changes => TODO: right now not supporting any change -> just writing empty changes
-	rw.WriteBytes(buf, []byte{0, 0, 0, 0})
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return 0, err
-	}
-
-	size := rw.ReadInt(dbc.conx)
-
-	return int(size), nil
+func (db *Database) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, err error) {
+	err = db.sess.sendCmd(requestRIDBAG_GET_SIZE, func(w io.Writer) {
+		writeLinkBagCollectionPointer(w, linkBag)
+		rw.WriteBytes(w, []byte{0, 0, 0, 0}) // changes => TODO: right now not supporting any change -> just writing empty changes
+	}, func(r io.Reader) {
+		val = int(rw.ReadInt(r))
+	})
+	return
 }
 
-// CountClusters gets the number of records in all the clusters specified.
-func (dbc *Client) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
-	return dbc.getClusterCount(withDeleted, clusterNames)
-}
-
-func (dbc *Client) getClusterCount(countTombstones bool, clusterNames []string) (count int64, err error) {
-	defer catch(&err)
-
+// ClustersCount gets the number of records in all the clusters specified.
+func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (val int64, err error) {
 	clusterIDs := make([]int16, len(clusterNames))
 	for i, name := range clusterNames {
-		clusterID := findClusterWithName(dbc.getCurrDB().Clusters, strings.ToLower(name))
-		if clusterID < 0 {
-			// TODO: This is problematic - someone else may add the cluster not through this
-			//       driver session and then this would fail - so options:
-			//       1) do a lookup of all clusters on the DB
-			//       2) provide a FetchClusterCountById(dbc, clusterID)
-			return int64(0),
-				fmt.Errorf("fixme: No cluster with name %s is known in database %s\n", name, dbc.getCurrDB().Name)
+		clusterID, err := db.findClusterWithName(name)
+		if err != nil {
+			return 0, err
 		}
 		clusterIDs[i] = clusterID
 	}
-
-	buf := dbc.writeCommandAndSessionId(requestDataClusterCOUNT)
-	if err != nil {
-		return int64(0), err
-	}
-
-	// specify number of clusterIDs being sent and then write the clusterIDs
-	rw.WriteShort(buf, int16(len(clusterIDs)))
-
-	for _, cid := range clusterIDs {
-		rw.WriteShort(buf, cid)
-	}
-
-	// count-tombstones
-	var ct byte
-	if countTombstones {
-		ct = byte(1)
-	}
-	rw.WriteByte(buf, ct) // presuming that 0 means "false" // TODO: replace with WriteBool?
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return int64(0), err
-	}
-
-	nrecs := rw.ReadLong(dbc.conx)
-
-	return nrecs, err
+	err = db.sess.sendCmd(requestDataClusterCOUNT, func(w io.Writer) {
+		rw.WriteShort(w, int16(len(clusterIDs)))
+		for _, id := range clusterIDs {
+			rw.WriteShort(w, id)
+		}
+		rw.WriteBool(w, withDeleted)
+	}, func(r io.Reader) {
+		val = rw.ReadLong(r)
+	})
+	return
 }
 
-func (dbc *Client) writeBuffer() *bytes.Buffer {
-	buf := new(bytes.Buffer)
-	buf.Reset()
-	return buf
-}
-
-func (dbc *Client) writeCommandAndSessionId(cmd byte) *bytes.Buffer {
-	if dbc.sessionId == noSessionId {
-		panic(fmt.Errorf("Session not initialized"))
-	}
-	buf := dbc.writeBuffer()
-	rw.WriteByte(buf, cmd)
-	rw.WriteInt(buf, dbc.sessionId)
-	return buf
-}
-
-func (dbc *Client) getLongFromDB(cmd byte) (val int64, err error) {
-	defer catch(&err)
+func (db *Database) getLongFromDB(cmd byte) (val int64, err error) {
 	val = -1
-	buf := dbc.writeCommandAndSessionId(cmd)
-
-	// send to the OrientDB server
-	rw.WriteRawBytes(dbc.conx, buf.Bytes())
-
-	// ---[ Read Response ]---
-
-	if err = dbc.readStatusCodeAndError(); err != nil {
-		return
-	}
-
-	// the answer to the query
-	longFromDB := rw.ReadLong(dbc.conx)
-
-	return longFromDB, nil
+	err = db.sess.sendCmd(cmd, func(w io.Writer) {
+		// nothing extra to send
+	}, func(r io.Reader) {
+		val = rw.ReadLong(r)
+	})
+	return
 }
 
-//
-// Returns negative number if no cluster with `clusterName` is found
-// in the clusters slice.
-//
-func findClusterWithName(clusters []OCluster, clusterName string) int16 {
-	for _, cluster := range clusters {
-		if cluster.Name == clusterName {
-			return cluster.Id
+// Returns negative number if no cluster with `name` is found in the clusters slice.
+func (db *Database) findClusterWithName(name string) (int16, error) {
+	name = strings.ToLower(name)
+	var id int16 = -1
+	for _, cluster := range db.db.Clusters {
+		if cluster.Name == name {
+			return cluster.Id, nil
 		}
 	}
-	return int16(-1)
-}
-
-func (dbc *Client) readStatusCodeAndError() error {
-	status := rw.ReadByte(dbc.conx)
-	sessionId := rw.ReadInt(dbc.conx)
-	if sessionId != dbc.sessionId {
-		panic(fmt.Errorf("sessionId from server (%v) does not match client sessionId (%v)", sessionId, dbc.sessionId))
+	if id < 0 {
+		// TODO: This is problematic - someone else may add the cluster not through this
+		//       driver session and then this would fail - so options:
+		//       1) do a lookup of all clusters on the DB
+		//       2) provide a FetchClusterCountById(dbc, clusterID)
+		return id, fmt.Errorf("fixme: No cluster with name %s is known in database %s", name, db.db.Name)
 	}
-	if status == responseStatusError {
-		return rw.ReadErrorResponse(dbc.conx)
-	}
-	return nil
+	return id, nil
 }

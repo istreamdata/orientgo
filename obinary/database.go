@@ -3,7 +3,6 @@ package obinary
 import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/oschema"
-	"github.com/mitchellh/mapstructure"
 )
 
 type ODatabase struct {
@@ -15,7 +14,6 @@ type ODatabase struct {
 	SchemaVersion    int32
 	GlobalProperties map[int]oschema.OGlobalProperty
 	Classes          map[string]*oschema.OClass
-	RecordSerDes     []ORecordSerializer
 }
 
 func NewDatabase(name string, dbtype orient.DatabaseType) *ODatabase {
@@ -25,9 +23,6 @@ func NewDatabase(name string, dbtype orient.DatabaseType) *ODatabase {
 		SchemaVersion:    -1,
 		GlobalProperties: make(map[int]oschema.OGlobalProperty),
 		Classes:          make(map[string]*oschema.OClass),
-		RecordSerDes: []ORecordSerializer{
-			ORecordSerializerV0{},
-		},
 	}
 }
 
@@ -50,11 +45,4 @@ type OStorageConfiguration struct {
 type OCluster struct {
 	Name string
 	Id   int16
-}
-
-// ClientOptions should be created by the end user to configure details and
-// options needed when opening a database or connecting to the OrientDB server
-type ClientOptions struct {
-	Addr            string
-	MapDecoderHooks []mapstructure.DecodeHookFunc
 }

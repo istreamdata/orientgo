@@ -3,7 +3,18 @@ package obinary
 import (
 	"bytes"
 	"github.com/istreamdata/orientgo/oschema"
+	"io"
 )
+
+const curSerializerVersion = 0
+
+var serializers = []ORecordSerializer{
+	ORecordSerializerV0{}, // version is 0
+}
+
+func serializer(vers byte) ORecordSerializer {
+	return serializers[vers]
+}
 
 // ORecordSerializer is the interface for the binary Serializer/Deserializer.
 // More than one implementation will be needed if/when OrientDB creates additional
@@ -15,7 +26,7 @@ type ORecordSerializer interface {
 	// passed in for the `doc` field.  The serialization version (the first byte
 	// of the serialized record) should be stripped off (already read) from the
 	// bytes.Reader being passed in
-	Deserialize(dbc *Client, doc *oschema.ODocument, buf *bytes.Reader) error
+	Deserialize(db *Database, doc *oschema.ODocument, buf *bytes.Reader) error
 
 	// Deserialize reads bytes from the bytes.Reader and updates the ODocument object
 	// passed in, but only for the fields specified in the `fields` slice.
@@ -24,14 +35,15 @@ type ORecordSerializer interface {
 	DeserializePartial(doc *oschema.ODocument, buf *bytes.Reader, fields []string) error
 
 	// Serialize reads the ODocument and serializes to bytes into the bytes.Buffer.
-	Serialize(doc *oschema.ODocument, buf *bytes.Buffer) error
+	Serialize(doc *oschema.ODocument, w io.Writer) error
 
 	// SerializeClass gets the class from the ODocument and serializes it to bytes
 	// into the bytes.Buffer.
 	SerializeClass(doc *oschema.ODocument, buf *bytes.Buffer) error
 
 	Version() byte
+	Class() string
 
 	// ToMap reads bytes from the bytes.Buffer and creates an map from them
-	ToMap(dbc *Client, buf *bytes.Reader) (map[string]interface{}, error)
+	ToMap(db *Database, buf *bytes.Reader) (map[string]interface{}, error)
 }

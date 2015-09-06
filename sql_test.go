@@ -264,6 +264,7 @@ func TestSQLDriverPrepare(t *testing.T) {
 
 	// ---[ First use ]---
 	rows, err := stmt.Query("10")
+	Nil(t, err)
 	for rows.Next() {
 		err = rows.Scan(&rCaretaker, &rName, &rAge)
 		names = append(names, rName)

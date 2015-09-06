@@ -82,3 +82,9 @@ func WriteFloat(w io.Writer, f float32) {
 func WriteDouble(w io.Writer, f float64) {
 	write(w, f)
 }
+
+func Copy(w io.Writer, r io.Reader) {
+	if _, err := io.Copy(w, r); err != nil {
+		panic(err)
+	}
+}

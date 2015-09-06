@@ -36,13 +36,13 @@ func Dial(addr string) (*Client, error) {
 	return cli, nil
 }
 
-func newConnPool(size int, dial func() (DBConnection, error)) *connPool {
+func newConnPool(size int, dial func() (DBSession, error)) *connPool {
 	if size <= 0 {
 		size = poolLimit
 	}
 	p := &connPool{
 		dial: dial,
-		ch:   make(chan DBConnection, size),
+		ch:   make(chan DBSession, size),
 		toks: make(chan struct{}, size),
 	}
 	for i := 0; i < size; i++ {
@@ -52,12 +52,12 @@ func newConnPool(size int, dial func() (DBConnection, error)) *connPool {
 }
 
 type connPool struct {
-	dial func() (DBConnection, error)
-	ch   chan DBConnection
+	dial func() (DBSession, error)
+	ch   chan DBSession
 	toks chan struct{}
 }
 
-func (p *connPool) getConn() (DBConnection, error) {
+func (p *connPool) getConn() (DBSession, error) {
 	select {
 	case conn := <-p.ch:
 		return conn, nil
@@ -72,7 +72,7 @@ func (p *connPool) getConn() (DBConnection, error) {
 		return conn, nil
 	}
 }
-func (p *connPool) putConn(conn DBConnection) {
+func (p *connPool) putConn(conn DBSession) {
 	select {
 	case p.ch <- conn:
 	default:
@@ -114,22 +114,24 @@ func (c *Client) Auth(user, pass string) (*Manager, error) {
 		}
 		c.mconn = conn
 	}
-	if err := c.mconn.ConnectToServer(user, pass); err != nil {
+	m, err := c.mconn.Auth(user, pass)
+	if err != nil {
 		return nil, err
 	}
-	return &Manager{c}, nil
+	return &Manager{c, m}, nil
 }
 func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Database, error) {
-	db := &Database{newConnPool(poolLimit, func() (DBConnection, error) {
+	db := &Database{newConnPool(poolLimit, func() (DBSession, error) {
 		conn, err := c.dial()
 		if err != nil {
 			return nil, err
 		}
-		if err := conn.OpenDatabase(name, dbType, user, pass); err != nil {
+		ds, err := conn.Open(name, dbType, user, pass)
+		if err != nil {
 			conn.Close()
 			return nil, err
 		}
-		return conn, nil
+		return ds, nil
 	}), c}
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -147,22 +149,23 @@ func (c *Client) Close() error {
 
 type Manager struct {
 	cli *Client
+	m   DBManager
 }
 
 func (mgr *Manager) DatabaseExists(name string, storageType StorageType) (bool, error) {
-	return mgr.cli.mconn.DatabaseExists(name, storageType)
+	return mgr.m.DatabaseExists(name, storageType)
 }
 func (mgr *Manager) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
-	return mgr.cli.mconn.CreateDatabase(name, dbType, storageType)
+	return mgr.m.CreateDatabase(name, dbType, storageType)
 }
 func (mgr *Manager) DropDatabase(name string, storageType StorageType) error {
-	return mgr.cli.mconn.DropDatabase(name, storageType)
+	return mgr.m.DropDatabase(name, storageType)
 }
 func (mgr *Manager) ListDatabases() (map[string]string, error) {
-	return mgr.cli.mconn.ListDatabases()
+	return mgr.m.ListDatabases()
 }
 func (mgr *Manager) Close() error {
-	return mgr.cli.mconn.Close()
+	return mgr.m.Close()
 }
 
 type Database struct {
@@ -223,13 +226,13 @@ func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, e
 	defer db.pool.putConn(conn)
 	return conn.GetClusterDataRange(clusterName)
 }
-func (db *Database) CountClusters(withDeleted bool, clusterNames ...string) (int64, error) {
+func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.CountClusters(withDeleted, clusterNames...)
+	return conn.ClustersCount(withDeleted, clusterNames...)
 }
 
 func (db *Database) CreateRecord(doc *oschema.ODocument) error {
@@ -240,7 +243,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.CreateRecord(doc)
 }
-func (db *Database) DeleteRecordByRID(rid string, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -248,21 +251,13 @@ func (db *Database) DeleteRecordByRID(rid string, recVersion int32) error {
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRID(rid, recVersion)
 }
-func (db *Database) DeleteRecordByRIDAsync(rid string, recVersion int32) error {
-	conn, err := db.pool.getConn()
-	if err != nil {
-		return err
-	}
-	defer db.pool.putConn(conn)
-	return conn.DeleteRecordByRIDAsync(rid, recVersion)
-}
-func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string) ([]*oschema.ODocument, error) {
+func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (Records, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.GetRecordByRID(rid, fetchPlan)
+	return conn.GetRecordByRID(rid, fetchPlan, ignoreCache, loadTombstones)
 }
 func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()

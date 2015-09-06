@@ -13,11 +13,10 @@ import (
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo/obinary/binserde/varint"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oerror"
 	"github.com/istreamdata/orientgo/oschema"
 )
 
-type embeddedRecordFunc func(dbc *Client, buf *bytes.Reader) (interface{}, error)
+type embeddedRecordFunc func(buf *bytes.Reader) (interface{}, error)
 
 // ORecordSerializerV0 implements the ORecordSerializerBinary
 // interface for version 0.
@@ -27,9 +26,13 @@ func (serde ORecordSerializerV0) Version() byte {
 	return 0
 }
 
+func (serde ORecordSerializerV0) Class() string {
+	return serializeTypeBinary
+}
+
 // The serialization version (the first byte of the serialized record) should
 // be stripped off (already read) from the io.Reader being passed in.
-func (serde ORecordSerializerV0) Deserialize(dbc *Client, doc *oschema.ODocument, buf *bytes.Reader) (err error) {
+func (serde ORecordSerializerV0) Deserialize(db *Database, doc *oschema.ODocument, buf *bytes.Reader) (err error) {
 	defer catch(&err)
 	if doc == nil {
 		return fmt.Errorf("Empty ODocument")
@@ -38,9 +41,9 @@ func (serde ORecordSerializerV0) Deserialize(dbc *Client, doc *oschema.ODocument
 	classname := readClassname(buf)
 	doc.Classname = classname
 
-	ofields, err := serde.deserializeFields(dbc, buf, func(dbc *Client, buf *bytes.Reader) (interface{}, error) {
+	ofields, err := serde.deserializeFields(db, buf, func(buf *bytes.Reader) (interface{}, error) {
 		doc := oschema.NewDocument("")
-		err := serde.Deserialize(dbc, doc, buf)
+		err := serde.Deserialize(db, doc, buf)
 		val := interface{}(doc)
 		return val, err
 	})
@@ -56,22 +59,25 @@ func (serde ORecordSerializerV0) Deserialize(dbc *Client, doc *oschema.ODocument
 	return nil
 }
 
-func (serde ORecordSerializerV0) deserializeFields(dbc *Client, buf *bytes.Reader, eFunc embeddedRecordFunc) (ofields []*oschema.OField, err error) {
+func (serde ORecordSerializerV0) deserializeFields(db *Database, buf *bytes.Reader, eFunc embeddedRecordFunc) (ofields []*oschema.OField, err error) {
 	header, err := readHeader(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := dbc.refreshGlobalPropertiesIfRequired(header); err != nil {
+	if err := db.refreshGlobalPropertiesIfRequired(header); err != nil {
 		return nil, err
 	}
 
 	for _, prop := range header {
 		var ofield *oschema.OField
 		if prop.name == "" {
-			globalProp, ok := dbc.getCurrDB().GlobalProperties[int(prop.id)]
+			if db == nil {
+				return nil, ErrStaleGlobalProperties
+			}
+			globalProp, ok := db.db.GlobalProperties[int(prop.id)]
 			if !ok {
-				return nil, oerror.ErrStaleGlobalProperties
+				return nil, ErrStaleGlobalProperties
 			}
 			ofield = &oschema.OField{
 				Id:   prop.id,
@@ -92,7 +98,7 @@ func (serde ORecordSerializerV0) deserializeFields(dbc *Client, buf *bytes.Reade
 			if err != nil {
 				return nil, err
 			}
-			val, err := serde.readDataValue(dbc, buf, ofield.Type, eFunc)
+			val, err := serde.readDataValue(buf, ofield.Type, eFunc)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +121,7 @@ func (serde ORecordSerializerV0) DeserializePartial(doc *oschema.ODocument, buf 
 // Serialize takes an ODocument and serializes it to bytes in accordance
 // with the OrientDB binary serialization spec and writes them to the
 // bytes.Buffer passed in.
-func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Buffer) (err error) {
+func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, w io.Writer) (err error) {
 	defer catch(&err)
 	// need to create a new buffer for the serialized record for ptr value calculations,
 	// since the incoming buffer (`buf`) already has a lot of stuff written to it (session-id, etc)
@@ -130,7 +136,7 @@ func (serde ORecordSerializerV0) Serialize(doc *oschema.ODocument, buf *bytes.Bu
 		return err
 	}
 
-	rw.WriteRawBytes(buf, serdebuf.Bytes()[1:]) // remove the version byte at the beginning
+	rw.WriteRawBytes(w, serdebuf.Bytes()[1:]) // remove the version byte at the beginning
 	return nil
 }
 
@@ -409,7 +415,7 @@ type headerProperty struct {
 	ptr  int32
 }
 
-func readClassname(buf *bytes.Reader) string { // TODO: replace with just varint.ReadBytes?
+func readClassname(buf varint.ByteReader) string { // TODO: replace with just varint.ReadBytes?
 	cnameLen := int(varint.ReadVarint(buf))
 	if cnameLen < 0 {
 		panic(fmt.Errorf("Varint for classname len in binary serialization was negative: %d", cnameLen))
@@ -419,7 +425,7 @@ func readClassname(buf *bytes.Reader) string { // TODO: replace with just varint
 	return string(cnameBytes)
 }
 
-func readHeader(buf *bytes.Reader) (hdr []headerProperty, err error) {
+func readHeader(buf varint.ByteReader) (hdr []headerProperty, err error) {
 	defer catch(&err)
 	hdr = make([]headerProperty, 0, 8)
 
@@ -465,7 +471,7 @@ func readHeader(buf *bytes.Reader) (hdr []headerProperty, err error) {
 // readDataValue reads the next data section from `buf` according
 // to the type of the property (property.Typ) and updates the OField object
 // to have the value.
-func (serde ORecordSerializerV0) readDataValue(dbc *Client, buf *bytes.Reader, datatype oschema.OType, eFunc embeddedRecordFunc) (val interface{}, err error) {
+func (serde ORecordSerializerV0) readDataValue(buf *bytes.Reader, datatype oschema.OType, eFunc embeddedRecordFunc) (val interface{}, err error) {
 	defer catch(&err)
 
 	switch datatype {
@@ -490,13 +496,13 @@ func (serde ORecordSerializerV0) readDataValue(dbc *Client, buf *bytes.Reader, d
 	case oschema.BINARY:
 		val = varint.ReadBytes(buf)
 	case oschema.EMBEDDED:
-		val, err = eFunc(dbc, buf)
+		val, err = eFunc(buf)
 	case oschema.EMBEDDEDLIST:
-		val = serde.readEmbeddedCollection(dbc, buf, eFunc)
+		val = serde.readEmbeddedCollection(buf, eFunc)
 	case oschema.EMBEDDEDSET:
-		val = serde.readEmbeddedCollection(dbc, buf, eFunc) // TODO: may need to create a set type as well
+		val = serde.readEmbeddedCollection(buf, eFunc) // TODO: may need to create a set type as well
 	case oschema.EMBEDDEDMAP:
-		val = serde.readEmbeddedMap(dbc, buf, eFunc)
+		val = serde.readEmbeddedMap(buf, eFunc)
 	case oschema.LINK:
 		// a link is two int64's (cluster:record) - we translate it here to a string RID
 		val = serde.readLink(buf)
@@ -549,7 +555,7 @@ func writeDateTime(buf *bytes.Buffer, value interface{}) error {
 		millisEpoch = tt.UnixNano() / (1000 * 1000)
 
 	default:
-		return oerror.ErrDataTypeMismatch{
+		return ErrDataTypeMismatch{
 			ExpectedDataType: oschema.DATETIME,
 			ExpectedGoType:   "time.Time | int64 | int",
 			ActualValue:      value,
@@ -588,7 +594,7 @@ func (serde ORecordSerializerV0) readDateTime(buf io.ByteReader) time.Time {
 func writeDate(buf *bytes.Buffer, value interface{}) error {
 	tm, ok := value.(time.Time)
 	if !ok {
-		return oerror.ErrDataTypeMismatch{
+		return ErrDataTypeMismatch{
 			ExpectedDataType: oschema.DATE,
 			ExpectedGoType:   "time.Time",
 			ActualValue:      value,
@@ -706,12 +712,12 @@ func readTreeBasedLinkBag(buf *bytes.Reader) *oschema.OLinkBag {
 	fileid := rw.ReadLong(buf)
 
 	buf.Seek(off+DURABLE_OFFSET, 0)
-	durable := rw.ReadBool(buf)
+	_ = rw.ReadBool(buf) // durable
 
 	buf.Seek(off+EMBEDDED_OFFSET, 0)
 	embedded := rw.ReadBool(buf)
 
-	fmt.Printf("fileId: %v, durable: %v, emb: %v\n", fileid, durable, embedded)
+	//fmt.Printf("fileId: %v, durable: %v, emb: %v\n", fileid, durable, embedded)
 	if embedded {
 		buf.Seek(off+EMBEDDED_SIZE_OFFSET, 0)
 		size := rw.ReadInt(buf)
@@ -796,7 +802,7 @@ func getDataType(val interface{}) oschema.OType { // TODO: oschema.OTypeForValue
 // types for the map keys, so that is an assumption of this method as well.
 //
 // TODO: change return type to (*oschema.OEmbeddedMap, error) {  ???
-func (serde ORecordSerializerV0) readEmbeddedMap(dbc *Client, buf *bytes.Reader, eFunc embeddedRecordFunc) map[string]interface{} {
+func (serde ORecordSerializerV0) readEmbeddedMap(buf *bytes.Reader, eFunc embeddedRecordFunc) map[string]interface{} {
 	nrecs := int(varint.ReadVarint(buf))
 	m := make(map[string]interface{}) // final map to be returned
 
@@ -838,7 +844,7 @@ func (serde ORecordSerializerV0) readEmbeddedMap(dbc *Client, buf *bytes.Reader,
 		if _, err := buf.Seek(it.Ptr-1, 0); err != nil {
 			panic(fmt.Errorf("cannot seek in buffer: %s", err))
 		}
-		val, err := serde.readDataValue(dbc, buf, it.Type, eFunc)
+		val, err := serde.readDataValue(buf, it.Type, eFunc)
 		if err != nil {
 			panic(err)
 		}
@@ -878,12 +884,14 @@ func (serde ORecordSerializerV0) serializeEmbeddedCollection(buf *bytes.Buffer, 
 // Java client API:
 //     Collection<?> readEmbeddedCollection(BytesContainer bytes, Collection<Object> found, ODocument document) {
 //     `found`` gets added to during the recursive iterations
-func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *Client, buf *bytes.Reader, eFunc embeddedRecordFunc) []interface{} {
+func (serde ORecordSerializerV0) readEmbeddedCollection(buf *bytes.Reader, eFunc embeddedRecordFunc) []interface{} {
 	nrecs := int(varint.ReadVarint(buf))
 
 	datatype := oschema.OType(rw.ReadByte(buf))
 	if datatype != oschema.ANY {
+		//debug.PrintStack()
 		panic(fmt.Errorf("ReadEmbeddedList got a datatype %v - currently that datatype is not supported", datatype))
+		//return nil // TODO: it founds CUSTOM type sometimes
 	}
 
 	arr := make([]interface{}, nrecs)
@@ -896,7 +904,7 @@ func (serde ORecordSerializerV0) readEmbeddedCollection(dbc *Client, buf *bytes.
 			continue
 		}
 
-		val, err := serde.readDataValue(dbc, buf, itemtype, eFunc)
+		val, err := serde.readDataValue(buf, itemtype, eFunc)
 		if err != nil {
 			panic(err)
 		}
@@ -960,7 +968,6 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 	return propertyId
 }
 
-//
 // refreshGlobalPropertiesIfRequired iterates through all the fields
 // of the binserde header. If any of the fieldIds are NOT in the GlobalProperties
 // map of the current ODatabase object, then the GlobalProperties are
@@ -969,53 +976,34 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 //
 // If the GlobalProperties data is stale, then it must be refreshed, so
 // refreshGlobalProperties is called.
-//
-func (dbc *Client) refreshGlobalPropertiesIfRequired(hdr []headerProperty) error {
-	if dbc.getCurrDB() == nil {
-		return nil
-	}
-	if dbc.getCurrDB().GlobalProperties == nil {
+func (db *Database) refreshGlobalPropertiesIfRequired(hdr []headerProperty) error {
+	if db == nil || db.db == nil || db.db.GlobalProperties == nil {
 		return nil
 	}
 	for _, prop := range hdr {
 		if prop.name == "" {
-			_, ok := dbc.getCurrDB().GlobalProperties[int(prop.id)]
-			if !ok {
-				return dbc.refreshGlobalProperties()
+			if _, ok := db.db.GlobalProperties[int(prop.id)]; !ok {
+				return db.refreshGlobalProperties()
 			}
 		}
 	}
 	return nil
 }
 
-func (dbc *Client) defaultSerde() ORecordSerializer {
-	return dbc.RecordSerDes[int(dbc.serializationVersion)]
-}
-
-//
 // refreshGlobalProperties is called when it is discovered,
-// *while in the middle* of reading the response from the OrientDB
-// server, that the GlobalProperties are stale.  The solution
-// chosen to get around this is to open a new client connection
-// via OpenDatabase, which will automatically read in the
-// current state of the GlobalProperties.  The GlobalProperties
-// are then copied from the new DBClient.currDb to the old one,
-// and the new connection (DBClient) is closed.  This allows
-// the code that called this to resume reading from its data
-// stream where it left off.
-//
-func (dbc *Client) refreshGlobalProperties() error { // TODO: should not start new connection
-	dbctmp, err := NewClient(dbc.opts.Addr)
+// while in the middle of reading the response from the OrientDB
+// server, that the GlobalProperties are stale.
+func (db *Database) refreshGlobalProperties() error {
+	// ---[ load #0:0 - config record ]---
+	oschemaRID, err := db.loadConfigRecord()
 	if err != nil {
 		return err
 	}
-	defer dbctmp.Close() // TODO: remove hardcoded username and password
-	if err = dbctmp.OpenDatabase(dbc.getCurrDB().Name, dbc.getCurrDB().Type, "admin", "admin"); err != nil {
+	// ---[ load #0:1 - oschema record ]---
+	err = db.loadSchema(oschemaRID)
+	if err != nil {
 		return err
 	}
-	dbc.currmu.Lock()
-	dbc.currDb = dbctmp.getCurrDB()
-	dbc.currmu.Unlock()
 	return nil
 }
 
@@ -1033,13 +1021,13 @@ type bonsaiBucketPtr struct {
 	Offset int32
 }
 
-func (serde ORecordSerializerV0) ToMap(dbc *Client, buf *bytes.Reader) (result map[string]interface{}, err error) {
+func (serde ORecordSerializerV0) ToMap(db *Database, buf *bytes.Reader) (result map[string]interface{}, err error) {
 	defer catch(&err)
 	result = make(map[string]interface{})
 	_ = readClassname(buf)
 
-	ofields, err := serde.deserializeFields(dbc, buf, func(dbc *Client, buf *bytes.Reader) (interface{}, error) {
-		return serde.ToMap(dbc, buf)
+	ofields, err := serde.deserializeFields(db, buf, func(buf *bytes.Reader) (interface{}, error) {
+		return serde.ToMap(db, buf)
 	})
 	if err != nil {
 		return nil, err

@@ -3,6 +3,8 @@ package orient_test
 import (
 	"fmt"
 	"math/rand"
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 	"time"
 
@@ -24,6 +26,9 @@ const (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	go func() {
+		fmt.Println("pprof: ", http.ListenAndServe(":6060", nil))
+	}()
 }
 
 func TestBuild(t *testing.T) {
@@ -35,11 +40,19 @@ func TestNewDB(t *testing.T) {
 	defer closer()
 }
 
-func TestDBConnectionToServer(t *testing.T) {
+func TestDBAuth(t *testing.T) {
 	db, closer := SpinOrient(t)
 	defer closer()
 	if _, err := db.Auth(srvUser, srvPass); err != nil {
 		t.Fatal("Connection to database failed")
+	}
+}
+
+func TestDBAuthWrong(t *testing.T) {
+	db, closer := SpinOrient(t)
+	defer closer()
+	if _, err := db.Auth(srvUser, srvPass+"pass"); err == nil {
+		t.Fatal("auth error expected")
 	}
 }
 
@@ -292,12 +305,12 @@ func TestSelectSaveFuncResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("recs: %d", len(recs))
-	for _, r := range recs {
-		t.Logf("rec: %T: %+v", r, r)
-	}
 	err = recs.DeserializeAll(&result)
 	if err != nil {
+		t.Logf("recs: %d", len(recs))
+		for _, r := range recs {
+			t.Logf("rec: %T: %+v", r, r)
+		}
 		t.Skip(err) // TODO: replace after fix
 	} else if result.Name != "ori" {
 		t.Fatal("wrong object name property")

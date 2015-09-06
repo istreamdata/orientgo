@@ -4,15 +4,14 @@ package obinary
 
 // internal client constants
 const (
-	noSessionId                       = -1
-	MaxSupportedBinaryProtocolVersion = 31 // max protocol supported by this client
-	MinSupportedBinaryProtocolVersion = 28 // min protocol supported by this client
-	minBinarySerializerVersion        = 22 // if server protocol version is less, use csv serde, not binary serde
-	requestNewSession                 = -4 // arbitrary negative number sent to start session
-	driverName                        = "OrientDB Go client"
-	driverVersion                     = "1.0"
-	serializeTypeBinary               = "ORecordSerializerBinary" // do not change: required by server
-	serializeTypeCsv                  = "ORecordDocument2csv"     // do not change: required by server
+	noSessionId                = -1
+	MaxProtocolVersion         = 31 // max protocol supported by this client
+	MinProtocolVersion         = 28 // min protocol supported by this client
+	minBinarySerializerVersion = 22 // if server protocol version is less, use csv serde, not binary serde
+	driverName                 = "OrientDB Go client"
+	driverVersion              = "1.0"
+	serializeTypeBinary        = "ORecordSerializerBinary" // do not change: required by server
+	serializeTypeCsv           = "ORecordDocument2csv"     // do not change: required by server
 )
 
 const (
@@ -83,7 +82,7 @@ const (
 	// INCOMING
 	responseStatusOk    = 0
 	responseStatusError = 1
-	pushData            = 3
+	responseStatusPush  = 3
 
 	// FOR MORE INFO:
 	// https://github.com/orientechnologies/orientdb/wiki/Network-Binary-Protocol#wiki-Compatibility
@@ -92,5 +91,5 @@ const (
 	ProtoVersion25      = 25
 	ProtoVersion26      = 26
 	ProtoVersion27      = 27
-	CurrentProtoVersion = 28 // SENT AS SHORT AS FIRST PACKET AFTER SOCKET CONNECTION
+	CurrentProtoVersion = 28
 )

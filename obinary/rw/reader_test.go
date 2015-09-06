@@ -3,8 +3,6 @@ package rw
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/istreamdata/orientgo/oerror"
 	"testing"
 )
 
@@ -196,58 +194,4 @@ func TestReadStringWithNullString(t *testing.T) {
 
 	outstr = ReadString(buf)
 	equals(t, "", outstr)
-}
-
-func TestReadErrorResponseWithSingleException(t *testing.T) {
-	buf := new(bytes.Buffer)
-	WriteByte(buf, byte(1)) // indicates continue of exception class/msg array
-
-	WriteStrings(buf, "org.foo.BlargException", "wibble wibble!!")
-
-	WriteByte(buf, byte(0)) // indicates end of exception class/msg array
-
-	WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
-
-	var serverExc error
-	serverExc = ReadErrorResponse(buf)
-
-	e, ok := serverExc.(oerror.OServerException)
-	if !ok {
-		t.Fatal("wrong exception type")
-	}
-	equals(t, 1, len(e.Exceptions))
-
-	equals(t, "org.foo.BlargException", e.Exceptions[0].ExcClass())
-	equals(t, "wibble wibble!!", e.Exceptions[0].ExcMessage())
-}
-
-func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
-	buf := new(bytes.Buffer)
-	WriteByte(buf, byte(1)) // indicates more exceptions to come
-
-	WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
-
-	WriteByte(buf, byte(1)) // indicates more exceptions to come
-
-	WriteStrings(buf, "org.foo.FeebleException", "Not enough juice")
-
-	WriteByte(buf, byte(1)) // indicates more exceptions to come
-
-	WriteStrings(buf, "org.foo.WobbleException", "Orbital decay")
-
-	WriteByte(buf, byte(0)) // indicates end of exceptions
-
-	WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
-
-	serverExc := ReadErrorResponse(buf)
-
-	e, ok := serverExc.(oerror.OServerException)
-	if !ok {
-		t.Fatal("wrong exception type")
-	}
-
-	equals(t, "org.foo.BlargException", e.Exceptions[0].ExcClass())
-	equals(t, "Not enough juice", e.Exceptions[1].ExcMessage())
-	equals(t, "org.foo.WobbleException", e.Exceptions[2].ExcClass())
-	equals(t, "Orbital decay", e.Exceptions[2].ExcMessage())
 }

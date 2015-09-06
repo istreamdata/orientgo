@@ -41,6 +41,7 @@ func (r ORID) String() string {
 // as this function panics if any error occurs.
 //
 func NewORIDFromString(s string) ORID {
+	s = strings.TrimSpace(s)
 	noPrefix := s
 	if strings.HasPrefix(s, "#") {
 		noPrefix = s[1:]

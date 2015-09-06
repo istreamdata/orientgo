@@ -1,4 +1,3 @@
-//
 // rw is the read-write package for reading and writing types
 // from the OrientDB binary network protocol.  Reading is done
 // via io.Reader and writing is done to bytes.Buffer (since the
@@ -6,14 +5,11 @@
 // OrientDB types are represented here for non-encoded forms.
 // For varint and zigzag encoding/decoding handling use the
 // obinary/varint package instead.
-//
 package rw
 
 import (
 	"encoding/binary"
 	"io"
-
-	"github.com/istreamdata/orientgo/oerror"
 )
 
 var endianness = binary.BigEndian
@@ -102,39 +98,4 @@ func ReadBool(r io.Reader) bool {
 	b := ReadByte(r)
 	// non-zero is true
 	return b != byte(0)
-}
-
-// ReadErrorResponse reads an "Exception" message from the OrientDB server.
-// The OrientDB server can return multiple exceptions, all of which are
-// incorporated into a single OServerException Error struct.
-// If error (the second return arg) is not nil, then there was a
-// problem reading the server exception on the wire.
-func ReadErrorResponse(r io.Reader) (serverException error) {
-	var (
-		exClass, exMsg string
-	)
-	exc := make([]oerror.Exception, 0, 1) // usually only one ?
-	for {
-		// before class/message combo there is a 1 (continue) or 0 (no more)
-		marker := ReadByte(r)
-		if marker == byte(0) {
-			break
-		}
-		exClass = ReadString(r)
-		exMsg = ReadString(r)
-		exc = append(exc, oerror.UnknownException{Class: exClass, Message: exMsg})
-	}
-
-	// Next there *may* a serialized exception of bytes, but it is only
-	// useful to Java clients, so read and ignore if present.
-	// If there is no serialized exception, EOF will be returned
-	_ = ReadBytes(r) // TODO: catch EOFs?
-
-	for _, e := range exc {
-		switch e.ExcClass() {
-		case "com.orientechnologies.orient.core.storage.ORecordDuplicatedException":
-			return oerror.ODuplicatedRecordException{OServerException: oerror.OServerException{Exceptions: exc}}
-		}
-	}
-	return oerror.OServerException{Exceptions: exc}
 }

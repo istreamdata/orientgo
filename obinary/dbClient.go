@@ -2,7 +2,6 @@ package obinary
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -11,12 +10,58 @@ import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
+	"time"
 )
 
 func init() {
 	orient.RegisterProto(orient.ProtoBinary, func(addr string) (orient.DBConnection, error) {
-		return NewClient(addr)
+		return Dial(addr)
 	})
+}
+
+func validateAddr(addr string) (string, error) {
+	var host, port string
+	if addr != "" {
+		var err error
+		host, port, err = net.SplitHostPort(addr)
+		if err != nil {
+			return "", err
+		}
+	}
+	if host == "" {
+		host = "localhost"
+	}
+	if port == "" {
+		port = "2424" // binary port range is: 2424-2430
+	}
+	return net.JoinHostPort(host, port), nil
+}
+
+// Dial creates a new binary connection to OrientDB server.
+// The Client returned is ready to make calls to the OrientDB but has not
+// yet established a database session or a session with the OrientDB server.
+// After this, the user needs to call either OpenDatabase or CreateServerSession.
+func Dial(addr string) (*Client, error) {
+	addr, err := validateAddr(addr)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialTimeout("tcp", addr, time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{
+		addr: addr, conn: conn,
+		serializer: serializer(curSerializerVersion), // TODO: need to detect if server is using a higher version
+	}
+	if err := c.handshakeVersion(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	c.sess = make(map[int32]*session)
+	c.root = c.newSess(noSessionId)
+	go c.run()
+	return c, nil
 }
 
 // Client encapsulates the active TCP connection to an OrientDB server
@@ -26,171 +71,293 @@ func init() {
 // followed immediately by ConnectToServer, to connect to the OrientDB server,
 // or OpenDatabase, to connect to a database on the server.
 type Client struct {
-	opts ClientOptions
-	conx net.Conn
-	//buf                   *bytes.Buffer
-	sessionId             int32
-	token                 []byte       // orientdb token when not using sessionId
-	currmu                sync.RWMutex // guards currDb
-	currDb                *ODatabase   // only one db session open at a time
-	serializationType     string
-	binaryProtocolVersion int16
-	serializationVersion  byte
-	mutex                 sync.Mutex
-	RecordSerDes          []ORecordSerializer
+	addr string
+
+	conn net.Conn
+	cmuw sync.Mutex
+
+	root *session
+
+	sessmu sync.RWMutex
+	sess   map[int32]*session
+
+	currmu sync.RWMutex
+	currdb *Database // only one db session open at a time
+
+	protoVers  int16
+	serializer ORecordSerializer
 }
 
-func (dbc *Client) getCurrDB() *ODatabase {
+func (c *Client) handshakeVersion() (err error) {
+	defer catch(&err)
+
+	c.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	defer c.conn.SetReadDeadline(time.Time{})
+
+	c.protoVers = rw.ReadShort(c.conn)
+	if c.protoVers < MinProtocolVersion || c.protoVers > MaxProtocolVersion {
+		return ErrUnsupportedVersion(c.protoVers)
+	} else if c.protoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
+		return ErrUnsupportedVersion(c.protoVers)
+	}
+	return nil
+}
+
+func (c *Client) write(data io.Reader) {
+	c.cmuw.Lock()
+	defer c.cmuw.Unlock()
+	rw.Copy(c.conn, data)
+}
+
+func (c *Client) newSess(id int32) *session {
+	c.sessmu.Lock()
+	s := c.sess[id]
+	if s == nil {
+		s = &session{id: id, cli: c, in: make(chan resp)}
+		c.sess[id] = s
+	}
+	c.sessmu.Unlock()
+	return s
+}
+
+func (c *Client) closeSess(id int32, ref *Database) {
+	c.sessmu.Lock()
+	delete(c.sess, id)
+	c.sessmu.Unlock()
+	c.currmu.Lock()
+	if c.currdb == ref {
+		c.currdb = nil
+	}
+	c.currmu.Unlock()
+}
+
+func newReadChanCloser(r io.Reader, ch chan struct{}) *readChanCloser {
+	return &readChanCloser{
+		r: r, done: ch,
+	}
+}
+
+type readChanCloser struct {
+	r    io.Reader
+	done chan struct{}
+}
+
+func (r *readChanCloser) Read(p []byte) (int, error) {
+	select {
+	case <-r.done:
+		return 0, ErrClosedConnection
+	default:
+		return r.r.Read(p)
+	}
+}
+func (r *readChanCloser) Close() error {
+	select {
+	case <-r.done:
+	default:
+		close(r.done)
+	}
+	return nil
+}
+
+func (c *Client) pushResp(id int32, r io.Reader, e error) {
+	var to <-chan time.Time
+	c.sessmu.Lock()
+	s := c.sess[id]
+	c.sessmu.Unlock()
+	if s == nil {
+		to = time.After(time.Second)
+		s = c.newSess(id)
+	}
+	if r == nil { // no reader, error returned
+		select {
+		case <-to:
+		case s.in <- resp{err: e}:
+		}
+		return
+	}
+	done := make(chan struct{})
+	select {
+	case <-to: // connection expects that response will be read, so stream is broken
+		panic(ErrBrokenProtocol{fmt.Errorf("no session %d found", id)})
+	case s.in <- resp{ReadCloser: newReadChanCloser(r, done)}:
+		<-done
+	}
+}
+
+// ReadErrorResponse reads an "Exception" message from the OrientDB server.
+// The OrientDB server can return multiple exceptions, all of which are
+// incorporated into a single OServerException Error struct.
+// If error (the second return arg) is not nil, then there was a
+// problem reading the server exception on the wire.
+func readErrorResponse(r io.Reader) (serverException error) {
+	var (
+		exClass, exMsg string
+	)
+	exc := make([]orient.Exception, 0, 1) // usually only one ?
+	for {
+		// before class/message combo there is a 1 (continue) or 0 (no more)
+		marker := rw.ReadByte(r)
+		if marker == byte(0) {
+			break
+		}
+		exClass = rw.ReadString(r)
+		exMsg = rw.ReadString(r)
+		exc = append(exc, orient.UnknownException{Class: exClass, Message: exMsg})
+	}
+
+	// Next there *may* a serialized exception of bytes, but it is only
+	// useful to Java clients, so read and ignore if present.
+	// If there is no serialized exception, EOF will be returned
+	_ = rw.ReadBytes(r) // TODO: catch EOFs?
+
+	for _, e := range exc {
+		switch e.ExcClass() {
+		case "com.orientechnologies.orient.core.storage.ORecordDuplicatedException":
+			return ODuplicatedRecordException{OServerException: orient.OServerException{Exceptions: exc}}
+		}
+	}
+	return orient.OServerException{Exceptions: exc}
+}
+
+func (c *Client) run() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch rr := r.(type) {
+			case ErrBrokenProtocol:
+				panic(r)
+			case error:
+				err = rr
+			default:
+				err = fmt.Errorf("%v", r)
+			}
+		}
+	}()
+	var (
+		status byte
+		sessId int32
+	)
+	for { // TODO: close safely
+		status = rw.ReadByte(c.conn)
+		sessId = rw.ReadInt(c.conn)
+		switch status {
+		case responseStatusOk:
+			c.pushResp(sessId, c.conn, nil)
+		case responseStatusError:
+			e := readErrorResponse(c.conn)
+			c.pushResp(sessId, nil, e)
+		case responseStatusPush:
+			return ErrBrokenProtocol{fmt.Errorf("server push is not supported yet")}
+		default:
+			return ErrBrokenProtocol{fmt.Errorf("unknown resp status: %d", status)}
+		}
+	}
+	//return
+}
+
+type resp struct {
+	io.ReadCloser
+	err error
+}
+
+type session struct {
+	mu  sync.Mutex
+	id  int32
+	in  chan resp
+	cli *Client
+}
+
+func (s *session) catch(err *error) {
+	if r := recover(); r != nil {
+		switch rr := r.(type) {
+		case error:
+			*err = rr
+		default:
+			*err = fmt.Errorf("%v", r)
+		}
+		go s.cli.Close() // panic means that stream is likely to be broken
+	}
+}
+
+func (s *session) sendCmd(op byte, wr func(io.Writer), rd func(io.Reader)) (err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	defer s.catch(&err)
+	buf := bytes.NewBuffer(nil)
+	rw.WriteByte(buf, op)
+	rw.WriteInt(buf, s.id)
+	if wr != nil {
+		wr(buf)
+	}
+	s.cli.write(buf)
+	if op == requestDbClose {
+		return
+	}
+	resp, ok := <-s.in
+	if !ok {
+		return ErrClosedConnection
+	} else if resp.err != nil {
+		return resp.err
+	}
+	defer resp.Close()
+	if rd != nil {
+		rd(resp)
+	}
+	return nil
+}
+
+func (dbc *Client) getCurrDB() *Database {
 	dbc.currmu.RLock()
 	defer dbc.currmu.RUnlock()
-	return dbc.currDb
+	return dbc.currdb
 }
 
-func (dbc *Client) GetCurDB() *orient.ODatabase {
-	if dbc == nil {
-		return nil
-	} else if db := dbc.getCurrDB(); db == nil {
-		return nil
-	} else {
-		return &orient.ODatabase{
-			Name:    db.Name,
-			Type:    db.Type,
-			Classes: db.Classes,
-		}
-	}
-}
-
-func (dbc *Client) GetClasses() map[string]*oschema.OClass {
-	return dbc.getCurrDB().Classes
-}
-
-func (dbc *Client) GetSessionId() int32 {
-	return dbc.sessionId
-}
-
-// NewDBClient creates a new DBClient after contacting the OrientDB server
-// specified in the ClientOptions and validating that the server and client
-// speak the same binary protocol version.
-// The DBClient returned is ready to make calls to the OrientDB but has not
-// yet established a database session or a session with the OrientDB server.
-// After this, the user needs to call either OpenDatabase or CreateServerSession.
-func NewClient(addr string) (*Client, error) {
-	opts := ClientOptions{Addr: addr}
-	var (
-		host, port string
-	)
-	if addr != "" {
-		var err error
-		host, port, err = net.SplitHostPort(addr)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if host == "" {
-		host = "localhost"
-	}
-	// binary port range is: 2424-2430
-	if port == "" {
-		port = "2424"
-	}
-	addr = net.JoinHostPort(host, port)
-	conx, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	// after connecting the OrientDB server sends back 2 bytes - its binary protocol version
-	readbuf := make([]byte, 2)
-	n, err := conx.Read(readbuf)
-	if err != nil {
-		return nil, err
-	}
-
-	buf := new(bytes.Buffer)
-	_, err = buf.Write(readbuf[0:n])
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		svrProtocolNum int16
-		serde          ORecordSerializer
-		serializerType string
-	)
-	binary.Read(buf, binary.BigEndian, &svrProtocolNum)
-	if svrProtocolNum < MinSupportedBinaryProtocolVersion || svrProtocolNum > MaxSupportedBinaryProtocolVersion {
-		return nil, ErrUnsupportedVersion{serverVersion: svrProtocolNum}
-	}
-
-	serializerType = serializeTypeBinary
-	serde = &ORecordSerializerV0{}
-	if svrProtocolNum < minBinarySerializerVersion {
-		serializerType = serializeTypeCsv
-		return nil, fmt.Errorf("server binary protocol version `%d` is outside client supported version range: >%d",
-			svrProtocolNum, minBinarySerializerVersion)
-	}
-
-	dbc := &Client{
-		opts: opts,
-		conx: conx,
-		//buf:                   new(bytes.Buffer),
-		serializationType:     serializerType,
-		binaryProtocolVersion: svrProtocolNum,
-		serializationVersion:  byte(0), // default is 0 // TODO: need to detect if server is using a higher version
-		sessionId:             noSessionId,
-		RecordSerDes:          []ORecordSerializer{serde},
-	}
-
-	return dbc, nil
-}
-
-func (dbc *Client) Close() error {
-	if dbc == nil {
+func (db *Database) GetCurDB() *orient.ODatabase {
+	if db == nil || db.db == nil {
 		return nil
 	}
-	if db := dbc.getCurrDB(); db != nil {
+	return &orient.ODatabase{
+		Name:    db.db.Name,
+		Type:    db.db.Type,
+		Classes: db.db.Classes,
+	}
+}
+
+func (c *Client) Close() error {
+	if c == nil {
+		return nil
+	}
+	if db := c.getCurrDB(); db != nil {
 		// ignoring any error here, since closing the conx also terminates the session
-		dbc.CloseDatabase()
+		db.Close()
 	}
-	return dbc.conx.Close()
+	return c.conn.Close()
 }
 
-func (dbc *Client) String() string {
-	if db := dbc.getCurrDB(); db == nil {
-		return "DBClient<not-connected-to-db>"
-	} else {
-		return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
-			db.Name, db.Type, len(db.Clusters), dbc.sessionId, db)
-	}
-}
+//func (dbc *Client) String() string {
+//	if db := dbc.getCurrDB(); db == nil {
+//		return "DBClient<not-connected-to-db>"
+//	} else {
+//		return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
+//			db.Name, db.Type, len(db.Clusters), dbc.sessionId, db)
+//	}
+//}
 
-func (dbc *Client) Size() (int64, error) {
-	return dbc.getDbSize()
-}
-
-func (dbc *Client) prepareBuffer(cmd byte) *bytes.Buffer {
-	buf := dbc.writeCommandAndSessionId(cmd)
-	mode := byte('s') // synchronous only supported for now
-	rw.WriteByte(buf, mode)
-	return buf
-}
-
-func (dbc *Client) readSingleRecord(r io.Reader) orient.Record {
+func (db *Database) readSingleRecord(r io.Reader) orient.Record {
 	resultType := rw.ReadShort(r)
 	switch resultType {
 	case RecordNull:
 		return NullRecord{}
 	case RecordRID:
 		rid := readRID(r)
-		return RIDRecord{RID: rid, dbc: dbc}
+		return RIDRecord{RID: rid, db: db}
 	case 0:
-		return dbc.readRecord(r)
+		return db.readRecord(r)
 	default:
 		panic(fmt.Errorf("unexpected result type: %v", resultType))
 	}
 }
 
-func (dbc *Client) readRecord(r io.Reader) orient.Record {
+func (db *Database) readRecord(r io.Reader) orient.Record {
 	// if get here then have a full record, which can be in one of three formats:
 	//  - "flat data"
 	//  - "raw bytes"
@@ -198,39 +365,39 @@ func (dbc *Client) readRecord(r io.Reader) orient.Record {
 	recType := rw.ReadByte(r)
 	switch tp := rune(recType); tp {
 	case 'd':
-		return dbc.readSingleDocument(r)
+		return db.readSingleDocument(r)
 	case 'f':
-		return dbc.readFlatDataRecord(r)
+		return db.readFlatDataRecord(r)
 	case 'b':
-		return dbc.readRawBytesRecord(r)
+		return db.readRawBytesRecord(r)
 	default:
 		panic(fmt.Errorf("unexpected record type: '%v'", tp))
 	}
 }
 
-func (dbc *Client) readSingleDocument(r io.Reader) (doc *RecordData) {
+func (db *Database) readSingleDocument(r io.Reader) (doc *RecordData) {
 	rid := readRID(r)
 	recVersion := rw.ReadInt(r)
 	recBytes := rw.ReadBytes(r)
-	return &RecordData{RID: rid, Version: recVersion, Data: recBytes, dbc: dbc}
+	return &RecordData{RID: rid, Version: recVersion, Data: recBytes, db: db}
 }
 
-func (dbc *Client) readFlatDataRecord(r io.Reader) orient.Record {
+func (db *Database) readFlatDataRecord(r io.Reader) orient.Record {
 	panic(fmt.Errorf("readFlatDataRecord: Non implemented")) // TODO: need example from server to know how to handle this
 }
 
-func (dbc *Client) readRawBytesRecord(r io.Reader) orient.Record {
-	panic(fmt.Errorf("readRawBytesRecord: Non implemented")) // TODO: need example from server to know how to handle this
+func (db *Database) readRawBytesRecord(r io.Reader) orient.Record {
+	return RawRecord(rw.ReadBytes(r))
 }
 
-func (dbc *Client) readResultSet(r io.Reader) orient.Records {
+func (db *Database) readResultSet(r io.Reader) orient.Records {
 	// next val is: (collection-size:int)
 	// and then each record is serialized according to format:
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 	resultSetSize := int(rw.ReadInt(r))
 	docs := make(orient.Records, resultSetSize)
 	for i := range docs {
-		docs[i] = dbc.readSingleRecord(r)
+		docs[i] = db.readSingleRecord(r)
 	}
 	return docs
 }
@@ -242,30 +409,37 @@ func readRID(r io.Reader) oschema.ORID {
 	return oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
 }
 
-func (dbc *Client) createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc []byte) (*oschema.ODocument, error) {
-	var doc *oschema.ODocument
+func extractSerializerVersion(data []byte) (ser ORecordSerializer, out []byte) {
+	if len(data) == 0 {
+		panic(io.ErrUnexpectedEOF)
+	}
+	vers := data[0]
+	ser = serializer(vers)
+	out = data[1:] // need this for pointer arithmetic to work in serialized document
+	return
+}
+
+func (db *Database) createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc []byte) (doc *oschema.ODocument, err error) {
+	defer catch(&err)
+	if len(serializedDoc) == 0 {
+		err = io.ErrUnexpectedEOF
+		return
+	}
 	doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
 	doc.RID = rid
 	doc.Version = recVersion
-	if len(serializedDoc) > 0 {
-		// the first byte specifies record serialization version
-		// use it to look up serializer and strip off that byte
-		serde := dbc.getCurrDB().RecordSerDes[int(serializedDoc[0])]
-		err := serde.Deserialize(dbc, doc, bytes.NewReader(serializedDoc[1:]))
-		if err != nil {
-			return nil, fmt.Errorf("ERROR in Deserialize for rid %v: %v\n", rid, err)
-		}
-	}
-	return doc, nil
+	ser, data := extractSerializerVersion(serializedDoc)
+	err = ser.Deserialize(db, doc, bytes.NewReader(data))
+	return
 }
 
-func (dbc *Client) createMapFromBytes(rid oschema.ORID, serializedDoc []byte) (map[string]interface{}, error) {
-	// the first byte specifies record serialization version
-	// use it to look up serializer and strip off that byte
-	serde := dbc.getCurrDB().RecordSerDes[int(serializedDoc[0])]
-	m, err := serde.ToMap(dbc, bytes.NewReader(serializedDoc[1:]))
-	if err != nil {
-		return nil, fmt.Errorf("ERROR in converting to map for rid %v: %v\n", rid, err)
+func (db *Database) createMapFromBytes(rid oschema.ORID, serializedDoc []byte) (m map[string]interface{}, err error) {
+	defer catch(&err)
+	if len(serializedDoc) == 0 {
+		err = io.ErrUnexpectedEOF
+		return
 	}
-	return m, nil
+	ser, data := extractSerializerVersion(serializedDoc) // TODO: serialize to document first?
+	m, err = ser.ToMap(db, bytes.NewReader(data))
+	return
 }

@@ -33,17 +33,16 @@ type ODatabase struct {
 	Classes map[string]*oschema.OClass
 }
 
-type DBConnection interface {
+type DBManager interface {
 	DatabaseExists(name string, storageType StorageType) (bool, error)
 	CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error
 	DropDatabase(name string, storageType StorageType) error
 	ListDatabases() (map[string]string, error)
-
-	ConnectToServer(user, pass string) error
-	OpenDatabase(name string, dbType DatabaseType, user, pass string) error
-
 	Close() error
-	CloseDatabase() error
+}
+
+type DBSession interface {
+	Close() error
 	Size() (int64, error)
 	ReloadSchema() error
 	GetCurDB() *ODatabase
@@ -51,16 +50,21 @@ type DBConnection interface {
 	AddCluster(clusterName string) (clusterID int16, err error)
 	DropCluster(clusterName string) (err error)
 	GetClusterDataRange(clusterName string) (begin, end int64, err error)
-	CountClusters(withDeleted bool, clusterNames ...string) (int64, error)
+	ClustersCount(withDeleted bool, clusterNames ...string) (int64, error)
 
 	CreateRecord(doc *oschema.ODocument) (err error)
-	DeleteRecordByRID(rid string, recVersion int32) error
-	DeleteRecordByRIDAsync(rid string, recVersion int32) error
-	GetRecordByRID(rid oschema.ORID, fetchPlan string) (docs []*oschema.ODocument, err error)
+	DeleteRecordByRID(rid oschema.ORID, recVersion int32) error
+	GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (recs Records, err error)
 	UpdateRecord(doc *oschema.ODocument) error
 	CountRecords() (int64, error)
 
 	SQLQuery(fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
 	SQLCommand(sql string, params ...interface{}) (recs Records, err error)
 	ExecScript(lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
+}
+
+type DBConnection interface {
+	Auth(user, pass string) (DBManager, error)
+	Open(name string, dbType DatabaseType, user, pass string) (DBSession, error)
+	Close() error
 }

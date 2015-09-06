@@ -390,7 +390,7 @@ func (db *Database) CallScriptFunc(result interface{}, name string, params ...in
 		sparams = append(sparams, string(data))
 	}
 	//return db.ExecScript(result, LangSQL, `SELECT `+name+`(`+strings.Join(sparams, ",")+`)`)
-	return db.ExecScript(result, LangJS, fmt.Sprintf(`var out = %s(%s); (out.toString() == "[object Object]" ? (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON(JSON.stringify(out)) : out)`,
+	return db.ExecScript(result, LangJS, fmt.Sprintf(`var out = %s(%s); (typeof(out) == "object" && out.toString() == "[object Object]" ? (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON(JSON.stringify(out)) : out)`,
 		name, strings.Join(sparams, ",")))
 }
 

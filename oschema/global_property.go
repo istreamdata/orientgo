@@ -6,7 +6,7 @@ package oschema
 // starts up.  (TODO: it will also need to be updated when new fields are added
 // at runtime)
 type OGlobalProperty struct {
-	Id   int32
+	Id   int32 // TODO: change to int?
 	Name string
 	Type OType
 }

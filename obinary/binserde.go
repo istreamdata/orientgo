@@ -75,7 +75,7 @@ func (serde ORecordSerializerV0) deserializeFields(db *Database, buf *bytes.Read
 			if db == nil {
 				return nil, ErrStaleGlobalProperties
 			}
-			globalProp, ok := db.db.GlobalProperties[int(prop.id)]
+			globalProp, ok := db.db.GetGlobalProperty(int(prop.id))
 			if !ok {
 				return nil, ErrStaleGlobalProperties
 			}
@@ -977,12 +977,12 @@ func decodeFieldIdInHeader(decoded int32) int32 {
 // If the GlobalProperties data is stale, then it must be refreshed, so
 // refreshGlobalProperties is called.
 func (db *Database) refreshGlobalPropertiesIfRequired(hdr []headerProperty) error {
-	if db == nil || db.db == nil || db.db.GlobalProperties == nil {
+	if db == nil || db.db == nil {
 		return nil
 	}
 	for _, prop := range hdr {
 		if prop.name == "" {
-			if _, ok := db.db.GlobalProperties[int(prop.id)]; !ok {
+			if _, ok := db.db.GetGlobalProperty(int(prop.id)); !ok {
 				return db.refreshGlobalProperties()
 			}
 		}

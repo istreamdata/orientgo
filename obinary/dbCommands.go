@@ -181,7 +181,7 @@ func (db *Database) loadSchema(rid oschema.ORID) error {
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
 		pdoc := pfield.(*oschema.ODocument)
 		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
-		odb.GlobalProperties[int(globalProperty.Id)] = globalProperty
+		odb.SetGlobalProperty(int(globalProperty.Id), globalProperty)
 	}
 
 	// ---[ classes ]---

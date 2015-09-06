@@ -3,6 +3,7 @@ package obinary
 import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/oschema"
+	"sync"
 )
 
 type ODatabase struct {
@@ -12,17 +13,41 @@ type ODatabase struct {
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
 	SchemaVersion    int32
-	GlobalProperties map[int]oschema.OGlobalProperty
 	Classes          map[string]*oschema.OClass
+	globalPropMu     sync.RWMutex
+	globalProperties map[int]oschema.OGlobalProperty
+}
+
+func (db *ODatabase) SetGlobalProperty(id int, p oschema.OGlobalProperty) {
+	if db == nil {
+		return
+	}
+	db.globalPropMu.Lock()
+	if db.globalProperties == nil {
+		db.globalProperties = make(map[int]oschema.OGlobalProperty)
+	}
+	db.globalProperties[id] = p
+	db.globalPropMu.Unlock()
+}
+func (db *ODatabase) GetGlobalProperty(id int) (p oschema.OGlobalProperty, ok bool) {
+	if db == nil {
+		ok = false
+		return
+	}
+	db.globalPropMu.RLock()
+	if db.globalProperties != nil {
+		p, ok = db.globalProperties[id]
+	}
+	db.globalPropMu.RUnlock()
+	return
 }
 
 func NewDatabase(name string, dbtype orient.DatabaseType) *ODatabase {
 	return &ODatabase{
-		Name:             name,
-		Type:             dbtype,
-		SchemaVersion:    -1,
-		GlobalProperties: make(map[int]oschema.OGlobalProperty),
-		Classes:          make(map[string]*oschema.OClass),
+		Name:          name,
+		Type:          dbtype,
+		SchemaVersion: -1,
+		Classes:       make(map[string]*oschema.OClass),
 	}
 }
 

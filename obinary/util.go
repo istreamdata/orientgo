@@ -24,7 +24,7 @@ func serializeSQLParams(serde ORecordSerializer, params []interface{}, paramsMap
 		return nil, nil
 	}
 
-	doc := oschema.NewDocument("")
+	doc := oschema.NewEmptyDocument()
 
 	// the params must be serialized as an embedded map of form:
 	// {params => {0=>paramVal1, 1=>paramVal2}}
@@ -42,7 +42,7 @@ func serializeSQLParams(serde ORecordSerializer, params []interface{}, paramsMap
 		paramsMap.Put(strconv.Itoa(i), pval, oschema.OTypeForValue(pval))
 	}
 
-	doc.FieldWithType(paramsMapName, paramsMap, oschema.EMBEDDEDMAP)
+	doc.SetFieldWithType(paramsMapName, paramsMap, oschema.EMBEDDEDMAP)
 
 	buf := new(bytes.Buffer)
 	err = buf.WriteByte(serde.Version())
@@ -61,7 +61,7 @@ func driverArgs(args []interface{}) ([]driver.Value, error) {
 	dargs := make([]driver.Value, len(args))
 	for i, arg := range args {
 		switch id := arg.(type) {
-		case oschema.ORID, oschema.OLink, *oschema.OLink:
+		case oschema.RID, oschema.OLink, *oschema.OLink:
 			dargs[i] = id
 		default:
 			var err error

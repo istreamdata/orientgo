@@ -1,13 +1,12 @@
 package binserde
 
 import (
-	"encoding/binary"
 	"fmt"
+	"io"
 	"reflect"
 
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
-	"io"
 )
 
 // There is apparently a second "binary serialization" system
@@ -65,7 +64,7 @@ func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v *oschema.OLink, err e
 	}()
 	clusterID := rw.ReadShort(r)
 	clusterPos := rw.ReadLong(r)
-	rid := oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
+	rid := oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 	return &oschema.OLink{RID: rid}, nil
 }
 
@@ -78,9 +77,9 @@ func (ols OLinkSerializer) Serialize(val interface{}) ([]byte, error) {
 		return nil, fmt.Errorf("Invalid LINK should be oschema.OLink, got %s", reflect.TypeOf(val))
 	}
 
-	bs := make([]byte, 2+8) // sz of short + long
-	binary.BigEndian.PutUint16(bs[0:2], uint16(lnk.RID.ClusterID))
-	binary.BigEndian.PutUint64(bs[2:10], uint64(lnk.RID.ClusterPos))
+	bs := make([]byte, rw.SizeShort+rw.SizeLong)
+	rw.Order.PutUint16(bs[:rw.SizeShort], uint16(lnk.RID.ClusterID))
+	rw.Order.PutUint64(bs[rw.SizeShort:], uint64(lnk.RID.ClusterPos))
 	return bs, nil
 }
 

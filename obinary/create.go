@@ -39,7 +39,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) (err error) {
 		if nCollChanges != 0 {
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
-		doc.RID = oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
+		doc.RID = oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 	})
 	// In the Java client, they now a 'select from XXX' at this point -> would that be useful here?
 	return

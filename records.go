@@ -14,7 +14,7 @@ var (
 
 type Record interface {
 	Deserialize(o interface{}) error
-	GetRID() oschema.ORID
+	GetRID() oschema.RID
 }
 
 type Records []Record
@@ -43,7 +43,7 @@ func (recs Records) LoadSupplementary(docs ...*oschema.ODocument) error {
 		}
 		arr = append(arr, sdoc)
 	}
-	mp := make(map[oschema.ORID]*oschema.ODocument, len(arr))
+	mp := make(map[oschema.RID]*oschema.ODocument, len(arr))
 	for _, doc := range arr {
 		mp[doc.RID] = doc
 	}
@@ -173,6 +173,6 @@ func (r SupplementaryRecord) String() string {
 func (r SupplementaryRecord) Deserialize(o interface{}) error {
 	return r.Record.Deserialize(o)
 }
-func (r SupplementaryRecord) GetRID() oschema.ORID {
+func (r SupplementaryRecord) GetRID() oschema.RID {
 	return r.Record.GetRID()
 }

@@ -1,62 +1,135 @@
 package oschema
 
+// ref: com.orientechnologies.orient.core.id
+
 import (
 	"fmt"
 	"strconv"
 	"strings"
 )
 
-const (
-	// Default ClusterID that maps to the "invalid" value on the OrientDB server
-	ClusterIDInvalid = -1
-	// Default ClusterPos that maps to the "invalid" value on the OrientDB server
-	ClusterPosInvalid = -1
+type OIdentifiable interface {
+	GetIdentity() RID
+}
+
+var (
+	_ OIdentifiable = RID{}
 )
 
-// ORID encapsulates the two aspects of an OrientDB RecordID -
-// ClusterID:ClusterPos
-type ORID struct {
+const (
+	ridPrefix    = '#'
+	ridSeparator = ':'
+
+	clusterIdMax      = 32767
+	clusterIdInvalid  = -1
+	clusterPosInvalid = -1
+)
+
+// RID encapsulates the two aspects of an OrientDB RecordID - ClusterID:ClusterPos.
+// ORecordId in Java world.
+type RID struct {
 	ClusterID  int16
 	ClusterPos int64
 }
 
-//
-// Returns an ORID with the default "invalid" settings.
+// NewEmptyRID returns an RID with the default "invalid" settings.
 // Invalid settings indicate that the Document has not yet been saved
 // to the DB (which assigns it a valid RID) or it indicates that
-// it is not a true Document with a Class
-// (e.g., it is a result of a Property query)
-//
-func NewORID() ORID {
-	return ORID{ClusterID: ClusterIDInvalid, ClusterPos: ClusterPosInvalid}
+// it is not a true Document with a Class (e.g., it is a result of a Property query)
+func NewEmptyRID() RID {
+	return RID{ClusterID: clusterIdInvalid, ClusterPos: clusterPosInvalid}
 }
 
-func (r ORID) String() string {
-	return fmt.Sprintf("#%d:%d", r.ClusterID, r.ClusterPos)
+func (rid RID) checkClusterLimits() {
+	if rid.ClusterID < -2 {
+		panic(fmt.Sprint("RecordId cannot support negative cluster id. You've used:", rid.ClusterID))
+	}
+	if rid.ClusterID > clusterIdMax {
+		panic(fmt.Sprint("RecordId cannot support cluster id major than 32767. You've used:", rid.ClusterID))
+	}
 }
 
-//
-// NewORIDFromString converts a string of form #N:M or N:M
-// to an ORID struct. Make sure to get the string format correctly,
-// as this function panics if any error occurs.
-//
-func NewORIDFromString(s string) ORID {
+// NewRID creates a RID with given ClusterId and ClusterPos. It will check value for validity.
+func NewRID(cid int16, pos int64) RID {
+	rid := RID{ClusterID: cid, ClusterPos: pos}
+	rid.checkClusterLimits()
+	return rid
+}
+
+// NewRIDInCluster creates an empty RID inside specified cluster
+func NewRIDInCluster(cid int16) RID {
+	rid := RID{ClusterID: cid, ClusterPos: clusterPosInvalid}
+	rid.checkClusterLimits()
+	return rid
+}
+
+// GetIdentity implements OIdentifiable interface on RID
+func (r RID) GetIdentity() RID {
+	return r
+}
+
+// String converts RID to #N:M string format
+func (rid RID) String() string {
+	return fmt.Sprintf(
+		string(ridPrefix)+"%d"+string(ridSeparator)+"%d",
+		rid.ClusterID, rid.ClusterPos,
+	)
+}
+
+func (r RID) IsValid() bool {
+	return r.ClusterID != clusterIdInvalid
+}
+func (rid RID) IsPersistent() bool {
+	return rid.ClusterID > -1 && rid.ClusterPos > clusterPosInvalid
+}
+func (rid RID) IsNew() bool {
+	return rid.ClusterPos < 0
+}
+func (rid RID) IsTemporary() bool {
+	return rid.ClusterID != -1 && rid.ClusterPos < clusterPosInvalid
+}
+
+// Next is a shortcut for rid.NextRID().String()
+func (rid RID) Next() string {
+	return rid.NextRID().String()
+}
+
+// NextRID returns next RID in current cluster
+func (rid RID) NextRID() RID {
+	rid.checkClusterLimits()
+	rid.ClusterPos++ // uses local copy of rid
+	return rid
+}
+
+// ParseRID converts a string of form #N:M or N:M to a RID.
+func ParseRID(s string) (RID, error) {
 	s = strings.TrimSpace(s)
-	noPrefix := s
-	if strings.HasPrefix(s, "#") {
-		noPrefix = s[1:]
+	if s == "" {
+		return NewEmptyRID(), nil
+	} else if !strings.Contains(s, string(ridSeparator)) {
+		return NewEmptyRID(), fmt.Errorf("Argument '%s' is not a RecordId in form of string. Format must be: <cluster-id>:<cluster-position>", s)
 	}
-	toks := strings.Split(noPrefix, ":")
-	if len(toks) != 2 {
-		panic(fmt.Errorf("Invalid RID string to NewORIDFromString: %s", s))
+	s = strings.TrimLeft(s, string(ridPrefix))
+	parts := strings.Split(s, string(ridSeparator))
+	if len(parts) != 2 {
+		return NewEmptyRID(), fmt.Errorf("Argument received '%s' is not a RecordId in form of string. Format must be: #<cluster-id>:<cluster-position>. Example: #3:12", s)
 	}
-	id, err := strconv.ParseInt(toks[0], 10, 16)
+	id, err := strconv.ParseInt(parts[0], 10, 16)
 	if err != nil {
-		panic(fmt.Errorf("Invalid RID string to NewORIDFromString: %s", s))
+		return NewEmptyRID(), fmt.Errorf("Invalid RID string to ParseRID: %s", s)
 	}
-	pos, err := strconv.ParseInt(toks[1], 10, 64)
+	pos, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		panic(fmt.Errorf("Invalid RID string to NewORIDFromString: %s", s))
+		return NewEmptyRID(), fmt.Errorf("Invalid RID string to ParseRID: %s", s)
 	}
-	return ORID{ClusterID: int16(id), ClusterPos: pos}
+	return NewRID(int16(id), int64(pos)), nil
+}
+
+// MustParseRID is a version of ParseRID which panics on errors
+func MustParseRID(s string) RID {
+	rid, err := ParseRID(s)
+	if err != nil {
+		panic(err)
+	}
+	return rid
 }

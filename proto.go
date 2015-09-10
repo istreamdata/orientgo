@@ -53,8 +53,8 @@ type DBSession interface {
 	ClustersCount(withDeleted bool, clusterNames ...string) (int64, error)
 
 	CreateRecord(doc *oschema.ODocument) (err error)
-	DeleteRecordByRID(rid oschema.ORID, recVersion int32) error
-	GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (recs Records, err error)
+	DeleteRecordByRID(rid oschema.RID, recVersion int32) error
+	GetRecordByRID(rid oschema.RID, fetchPlan string, ignoreCache, loadTombstones bool) (recs Records, err error)
 	UpdateRecord(doc *oschema.ODocument) error
 	CountRecords() (int64, error)
 

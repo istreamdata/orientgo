@@ -18,6 +18,7 @@ import (
 const DriverNameSQL = "orient"
 
 var (
+	_ driver.Driver  = (*orientDriver)(nil)
 	_ driver.Conn    = (*Database)(nil)
 	_ driver.Execer  = (*Database)(nil)
 	_ driver.Queryer = (*Database)(nil)
@@ -158,6 +159,8 @@ func driverArgs(args []driver.Value) []interface{} {
 	return out
 }
 
+var _ driver.Result = (*ogonoriResult)(nil)
+
 // ogonoriResult implements the sql/driver.Result inteface.
 type ogonoriResult struct {
 	affectedRows int64
@@ -174,6 +177,8 @@ func (res ogonoriResult) LastInsertId() (int64, error) {
 func (res ogonoriResult) RowsAffected() (int64, error) {
 	return res.affectedRows, nil
 }
+
+var _ driver.Rows = (*ogonoriRows)(nil)
 
 // ogonoriRows implements the sql/driver.Rows interface.
 type ogonoriRows struct {
@@ -260,6 +265,8 @@ func (rows *ogonoriRows) Close() error {
 	glog.V(10).Infoln("ogonoriRows.Close")
 	return nil
 }
+
+var _ driver.Stmt = (*ogonoriStmt)(nil)
 
 // ogonoriStmt implements the Go sql/driver.Stmt interface.
 type ogonoriStmt struct {

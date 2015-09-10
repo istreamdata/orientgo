@@ -1,8 +1,12 @@
 package oschema
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/golang/glog"
+	"reflect"
+)
 
-// OType is an enum for the various datatypes supported by OrientDB.
+// OType is an enum for the various data types supported by OrientDB.
 type OType byte
 
 // in alignment with: http://orientdb.com/docs/last/Types.html
@@ -88,6 +92,7 @@ func (t OType) String() string { // do not change - it may be used as field type
 }
 
 func OTypeForValue(val interface{}) (ftype OType) {
+	ftype = UNKNOWN
 	// TODO: need to add more types: LINKSET, LINKLIST, LINKBAG, etc. ...
 	switch val.(type) {
 	case string:
@@ -102,7 +107,7 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = SHORT
 	case byte, int8:
 		ftype = BYTE
-	case *ODocument:
+	case *ODocument: // TODO: and DocumentSerializable?
 		ftype = EMBEDDED
 	case float32:
 		ftype = FLOAT
@@ -114,13 +119,20 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = EMBEDDEDLIST
 	case OEmbeddedMap:
 		ftype = EMBEDDEDMAP
-	case *OLink:
+	case OIdentifiable:
 		ftype = LINK
-	case []*OLink:
+	case []*OLink, []OIdentifiable:
 		ftype = LINKLIST
 	// TODO: more types need to be added
 	default:
-		ftype = ANY // TODO: no idea if this is correct
+		switch reflect.TypeOf(val).Kind() {
+		case reflect.Map:
+			ftype = EMBEDDEDMAP
+		case reflect.Slice, reflect.Array:
+			ftype = EMBEDDEDLIST
+		default:
+			glog.Warningf("unknown type in serialization: %T", val)
+		}
 	}
 	return
 }

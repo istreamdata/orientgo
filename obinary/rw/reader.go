@@ -12,10 +12,10 @@ import (
 	"io"
 )
 
-var endianness = binary.BigEndian
+var Order = binary.BigEndian
 
 func read(r io.Reader, v interface{}) {
-	if err := binary.Read(r, endianness, v); err != nil {
+	if err := binary.Read(r, Order, v); err != nil {
 		panic(err)
 	}
 }

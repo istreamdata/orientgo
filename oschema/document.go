@@ -10,13 +10,15 @@ import (
 	"time"
 )
 
+var _ OIdentifiable = (*ODocument)(nil)
+
 type ODocument struct {
-	RID        ORID
-	Version    int32
-	entryOrder []string // field names in the order they were added to the ODocument
-	Fields     map[string]*OField
-	Classname  string // TODO: probably needs to change *OClass (once that is built)
-	dirty      bool
+	RID         RID
+	Version     int32
+	fieldsOrder []string // field names in the order they were added to the ODocument
+	Fields      map[string]*OField
+	Classname   string // TODO: probably needs to change *OClass (once that is built)
+	dirty       bool
 }
 
 // NewDocument should be called to create new ODocument objects,
@@ -32,9 +34,16 @@ func NewDocument(className string) *ODocument {
 func NewEmptyDocument() *ODocument {
 	return &ODocument{
 		Fields:  make(map[string]*OField),
-		RID:     NewORID(),
+		RID:     NewEmptyRID(),
 		Version: int32(-1),
 	}
+}
+
+func (doc *ODocument) GetIdentity() RID {
+	if doc == nil {
+		return NewEmptyRID()
+	}
+	return doc.RID
 }
 
 // Implements database/sql.Scanner interface
@@ -73,10 +82,8 @@ func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
 // FieldNames returns the names of all the fields currently in this ODocument
 // in "entry order". These fields may not have already been committed to the database.
 func (doc *ODocument) FieldNames() []string {
-	names := make([]string, 0, len(doc.entryOrder))
-	for _, name := range doc.entryOrder {
-		names = append(names, name)
-	}
+	names := make([]string, len(doc.fieldsOrder))
+	copy(names, doc.fieldsOrder)
 	return names
 }
 
@@ -85,8 +92,8 @@ func (doc *ODocument) FieldNames() []string {
 // don't care about that order, just access the Fields field of the
 // ODocument struct directly.
 func (doc *ODocument) GetFields() []*OField {
-	fields := make([]*OField, len(doc.entryOrder))
-	for i, name := range doc.entryOrder {
+	fields := make([]*OField, len(doc.fieldsOrder))
+	for i, name := range doc.fieldsOrder {
 		fields[i] = doc.Fields[name]
 	}
 	return fields
@@ -114,7 +121,7 @@ func (doc *ODocument) GetField(fname string) *OField {
 // The same *ODocument is returned to allow call chaining.
 func (doc *ODocument) AddField(name string, field *OField) *ODocument {
 	doc.Fields[name] = field
-	doc.entryOrder = append(doc.entryOrder, name)
+	doc.fieldsOrder = append(doc.fieldsOrder, name)
 	doc.dirty = true
 	return doc
 }
@@ -123,12 +130,12 @@ func (doc *ODocument) SetDirty(b bool) {
 	doc.dirty = b
 }
 
-// Field is used to add a new field to a document. This will usually be done just
+// SetField is used to add a new field to a document. This will usually be done just
 // before calling Save and sending it to the database.  The field type will be inferred
 // via type switch analysis on `val`.  Use FieldWithType to specify the type directly.
 // The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) Field(name string, val interface{}) *ODocument {
-	return doc.FieldWithType(name, val, OTypeForValue(val))
+func (doc *ODocument) SetField(name string, val interface{}) *ODocument {
+	return doc.SetFieldWithType(name, val, OTypeForValue(val))
 }
 
 // FieldWithType is used to add a new field to a document. This will usually be done just
@@ -136,7 +143,7 @@ func (doc *ODocument) Field(name string, val interface{}) *ODocument {
 // one of the OrientDB type in the schema pkg constants.  It will follow the same list
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
 // The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) FieldWithType(name string, val interface{}, fieldType OType) *ODocument {
+func (doc *ODocument) SetFieldWithType(name string, val interface{}, fieldType OType) *ODocument {
 	fld := &OField{
 		Name:  name,
 		Value: val,

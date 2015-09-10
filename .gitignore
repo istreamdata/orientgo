@@ -21,6 +21,7 @@ travis/environment
 doc/pprof*
 obinary/binserdeORIG
 tmp/
+.tmp/
 obinary/writer
 obinary/playground/writer-playground
 

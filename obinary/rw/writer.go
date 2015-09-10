@@ -6,8 +6,17 @@ import (
 	"io"
 )
 
+const (
+	SizeByte   = 1
+	SizeShort  = 2
+	SizeInt    = 4
+	SizeLong   = 8
+	SizeFloat  = SizeInt
+	SizeDouble = SizeLong
+)
+
 func write(w io.Writer, o interface{}) {
-	if err := binary.Write(w, endianness, o); err != nil {
+	if err := binary.Write(w, Order, o); err != nil {
 		panic(err)
 	}
 }
@@ -17,22 +26,28 @@ func WriteNull(w io.Writer) {
 }
 
 func WriteByte(w io.Writer, b byte) {
-	write(w, b)
+	WriteRawBytes(w, []byte{b})
 }
 
 // WriteShort writes a int16 in big endian order to the wfer
 func WriteShort(w io.Writer, n int16) {
-	write(w, n)
+	buf := make([]byte, SizeShort)
+	Order.PutUint16(buf, uint16(n))
+	WriteRawBytes(w, buf)
 }
 
 // WriteInt writes a int32 in big endian order to the wfer
 func WriteInt(w io.Writer, n int32) {
-	write(w, n)
+	buf := make([]byte, SizeInt)
+	Order.PutUint32(buf, uint32(n))
+	WriteRawBytes(w, buf)
 }
 
 // WriteLong writes a int64 in big endian order to the wfer
 func WriteLong(w io.Writer, n int64) {
-	write(w, n)
+	buf := make([]byte, SizeLong)
+	Order.PutUint64(buf, uint64(n))
+	WriteRawBytes(w, buf)
 }
 
 func WriteStrings(w io.Writer, ss ...string) {

@@ -56,7 +56,7 @@ func (db *Database) rawCommand(class string, payload []byte) (recs orient.Record
 // that does not being with "SELECT" should be sent here.  All SELECT
 // statements should go to the SQLQuery function.
 //
-// Commands can be optionally paramterized using ?, such as:
+// Commands can be optionally parametrized using ?, such as:
 //
 //     INSERT INTO Foo VALUES(a, b, c) (?, ?, ?)
 //
@@ -67,13 +67,11 @@ func (db *Database) rawCommand(class string, payload []byte) (recs orient.Record
 // 2. cmds with lists of parameters ("complex") NOT allowed
 // 3. parameter types allowed: string only for now
 func (db *Database) SQLCommand(sql string, params ...interface{}) (recs orient.Records, err error) {
-	// SQLCommand
-	var payload []byte
-	payload, err = sqlPayload(db.serializer(), sql, params...)
-	if err != nil {
+	buf := bytes.NewBuffer(nil)
+	if err = NewOCommandSQL(sql, params...).ToStream(buf); err != nil {
 		return
 	}
-	return db.rawCommand("c", payload)
+	return db.rawCommand("c", buf.Bytes())
 }
 
 func (db *Database) SQLQuery(fetchPlan *orient.FetchPlan, sql string, params ...interface{}) (recs orient.Records, err error) {

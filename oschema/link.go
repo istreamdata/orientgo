@@ -2,6 +2,13 @@ package oschema
 
 import "fmt"
 
+var _ OIdentifiable = (*OLink)(nil)
+
+type OIdentifiableCollection interface {
+	Len() int
+	OIdentifiableIterator() <-chan OIdentifiable
+}
+
 // This file holds LINK type datastructures.
 // Namely, for LINK, LINKLIST (LINKSET), LINKMAP and LINKBAG (aka RidBag)
 
@@ -9,8 +16,15 @@ import "fmt"
 // It holds a RID and optionally a Record pointer to
 // the ODocument that the RID points to.
 type OLink struct {
-	RID    ORID       // required
+	RID    RID        // required
 	Record *ODocument // optional
+}
+
+func (lnk *OLink) GetIdentity() RID {
+	if lnk == nil {
+		return NewEmptyRID()
+	}
+	return lnk.RID
 }
 
 func (lnk *OLink) String() string {

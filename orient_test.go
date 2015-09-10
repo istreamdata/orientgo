@@ -11,6 +11,7 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/istreamdata/orientgo"
 	_ "github.com/istreamdata/orientgo/obinary"
+	"net"
 )
 
 const (
@@ -90,12 +91,27 @@ func SpinOrientServer(t *testing.T) (string, func()) {
 		rm()
 		t.Skip(err)
 	}
-	time.Sleep(time.Second * 5) // TODO: wait for input from container?
 
 	info, err := cl.InspectContainer(cont.ID)
 	if err != nil {
 		rm()
 		t.Skip(err)
+	}
+	{
+		start := time.Now()
+		ok := false
+		for time.Since(start) < time.Second*5 {
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(info.NetworkSettings.IPAddress, fmt.Sprint(port)), time.Second/4)
+			if err == nil {
+				ok = true
+				conn.Close()
+				break
+			}
+		}
+		if !ok {
+			rm()
+			t.Fatal("Orient container did not come up in time")
+		}
 	}
 
 	return fmt.Sprintf("%s:%d", info.NetworkSettings.IPAddress, port), rm
@@ -162,7 +178,7 @@ func TestSelectCommand(t *testing.T) {
 	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
-	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser")
+	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser LIMIT ?", 3)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(recs) != 3 {
@@ -337,4 +353,24 @@ func TestSelectSaveFuncResultJSON(t *testing.T) {
 		t.Fatal("empty object props")
 	}
 	//t.Logf("doc: %+v", result)
+}
+
+func TestScriptParams(t *testing.T) {
+	cli, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+
+	name := "tempFuncOne"
+	code := `return one`
+	if err := cli.CreateScriptFunc(orient.Function{
+		Name: name, Code: code, Idemp: false,
+		Lang: orient.LangJS, Params: []string{"one"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var o interface{}
+	_, err := cli.CallScriptFunc(&o, name, "some")
+	if err != nil {
+		t.Fatal(err)
+	}
+	//t.Logf("%T: %+v\n",o,o)
 }

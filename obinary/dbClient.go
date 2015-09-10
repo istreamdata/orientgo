@@ -402,11 +402,11 @@ func (db *Database) readResultSet(r io.Reader) orient.Records {
 	return docs
 }
 
-func readRID(r io.Reader) oschema.ORID {
+func readRID(r io.Reader) oschema.RID {
 	// svr response: (-3:short)(cluster-id:short)(cluster-position:long)
 	clusterID := rw.ReadShort(r)
 	clusterPos := rw.ReadLong(r)
-	return oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
+	return oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 }
 
 func extractSerializerVersion(data []byte) (ser ORecordSerializer, out []byte) {
@@ -419,7 +419,7 @@ func extractSerializerVersion(data []byte) (ser ORecordSerializer, out []byte) {
 	return
 }
 
-func (db *Database) createDocumentFromBytes(rid oschema.ORID, recVersion int32, serializedDoc []byte) (doc *oschema.ODocument, err error) {
+func (db *Database) createDocumentFromBytes(rid oschema.RID, recVersion int32, serializedDoc []byte) (doc *oschema.ODocument, err error) {
 	defer catch(&err)
 	if len(serializedDoc) == 0 {
 		err = io.ErrUnexpectedEOF
@@ -433,7 +433,7 @@ func (db *Database) createDocumentFromBytes(rid oschema.ORID, recVersion int32, 
 	return
 }
 
-func (db *Database) createMapFromBytes(rid oschema.ORID, serializedDoc []byte) (m map[string]interface{}, err error) {
+func (db *Database) createMapFromBytes(rid oschema.RID, serializedDoc []byte) (m map[string]interface{}, err error) {
 	defer catch(&err)
 	if len(serializedDoc) == 0 {
 		err = io.ErrUnexpectedEOF

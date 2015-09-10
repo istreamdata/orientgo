@@ -92,9 +92,9 @@ func testRecordsNativeAPI(t *testing.T) { // TODO: disabled due to serialization
 	// ---[ creation ]---
 
 	winston := oschema.NewDocument("Cat")
-	winston.Field("name", "Winston").
-		Field("caretaker", "Churchill").
-		FieldWithType("age", 7, oschema.INTEGER)
+	winston.SetField("name", "Winston").
+		SetField("caretaker", "Churchill").
+		SetFieldWithType("age", 7, oschema.INTEGER)
 	Equals(t, -1, int(winston.RID.ClusterID))
 	Equals(t, -1, int(winston.RID.ClusterPos))
 	Equals(t, -1, int(winston.Version))
@@ -108,9 +108,9 @@ func testRecordsNativeAPI(t *testing.T) { // TODO: disabled due to serialization
 
 	versionBefore := winston.Version
 
-	winston.Field("caretaker", "Lolly") // this updates the field locally
-	winston.Field("age", 8)             // this updates the field locally
-	err = db.UpdateRecord(winston)      // update the field in the remote DB
+	winston.SetField("caretaker", "Lolly") // this updates the field locally
+	winston.SetField("age", 8)             // this updates the field locally
+	err = db.UpdateRecord(winston)         // update the field in the remote DB
 	Nil(t, err)
 	True(t, versionBefore < winston.Version, "version should have incremented")
 
@@ -127,12 +127,12 @@ func testRecordsNativeAPI(t *testing.T) { // TODO: disabled due to serialization
 	// ---[ next creation ]---
 
 	daemon := oschema.NewDocument("Cat")
-	daemon.Field("name", "Daemon").Field("caretaker", "Matt").Field("age", 4)
+	daemon.SetField("name", "Daemon").SetField("caretaker", "Matt").SetField("age", 4)
 	err = db.CreateRecord(daemon)
 	Nil(t, err)
 
 	indy := oschema.NewDocument("Cat")
-	indy.Field("name", "Indy").Field("age", 6)
+	indy.SetField("name", "Indy").SetField("age", 6)
 	err = db.CreateRecord(indy)
 	Nil(t, err)
 
@@ -211,7 +211,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 	linusDocRID := docs[0].RID
 
-	True(t, linusDocRID.ClusterID != oschema.ClusterIDInvalid, "linusDocRID should not be nil")
+	True(t, linusDocRID.IsValid(), "linusDocRID should not be nil")
 	True(t, docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
 	Equals(t, 3, len(docs[0].FieldNames()))
 	Equals(t, "Cat", docs[0].Classname)
@@ -294,7 +294,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, "Anna", keiko.GetField("caretaker").Value)
 	Equals(t, oschema.STRING, keiko.GetField("caretaker").Type)
 	True(t, keiko.Version > int32(0), "Version should be greater than zero")
-	True(t, keiko.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
+	True(t, keiko.RID.IsValid(), "RID should be filled in")
 
 	linus := docs[1]
 	Equals(t, "Linus", linus.GetField("name").Value)
@@ -308,7 +308,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, oschema.STRING, zed.GetField("caretaker").Type)
 	Equals(t, oschema.INTEGER, zed.GetField("age").Type)
 	True(t, zed.Version > int32(0), "Version should be greater than zero")
-	True(t, zed.RID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
+	True(t, zed.RID.IsValid(), "RID should be filled in")
 
 	sql = "select name, caretaker from Cat order by caretaker"
 	docs = nil
@@ -965,7 +965,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	tomRID := docs[0].RID
-	True(t, tomRID.ClusterID != oschema.ClusterIDInvalid, "RID should be filled in")
+	True(t, tomRID.IsValid(), "RID should be filled in")
 
 	sql = `INSERT INTO Cat SET name='Nick', age=4, buddy=?`
 	docs = nil

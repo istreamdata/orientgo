@@ -2,6 +2,20 @@
 
 **Ogonori** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
+# Important Status Update
+
+**Ownership of the ogonori library is being transferred to the istreamdata team:** https://github.com/istreamdata
+
+In Sept 2015, this library will transfer to their ownership.  They have already advanced the codebase, added new features and changed some of the API.  You can get a view of what they have done here:  [https://github.com/istreamdata/orientgo](https://github.com/istreamdata/orientgo).
+
+I have marked this last commit to quux00/ogonori with a "v1" tag, so if you need pull that down for a transition period, you can use that tag.
+
+Thanks for the support and help from those that have contributed ideas and ocde.  I will likely be contributing to the istreamdata ogonori codebase in the near future, so my vote is that we rally around their repo as the canonical Golang OrientDB driver.  Once it gets to a solid production state, we can recommend that OrientDB post it on their website as the recommend Go driver for OrientDB.
+
+-Michael Peterson
+
+----
+
 [![Build Status](https://travis-ci.org/quux00/ogonori.svg?branch=master)](https://travis-ci.org/quux00/ogonori)
 
 <br/>
@@ -9,9 +23,9 @@
 
 The primary focus of ogonori is to build a Go (golang) client supporting the OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
 
-The ogonori driver is under active development: it is in an alpha-state for the core features and the API is potentially unstable (though getting more stable now).
+The quux00/ogonori driver is **no longer** under active development.
 
-Here's what you can do with it right now:
+As of the v1 tag, here's what you can do with it:
 
 1. Do most any OrientDB SQL statements via `obinary.SQLQuery` and `obinary.SQLCommand`, including support for OrientDB fetch plans.
 2. Create `oschema.ODocument` objects and create them in the DB via `obinary.CreateRecord`.

@@ -947,18 +947,6 @@ func toFloat64(value interface{}) float64 {
 	}
 }
 
-func toInt64(value interface{}) int64 {
-	v1, ok := value.(int64)
-	if ok {
-		return v1
-	}
-	v2, ok := value.(int)
-	if ok {
-		return int64(v2)
-	}
-	panic("types missmatch")
-}
-
 func encodeFieldIDForHeader(id int32) int32 {
 	return (id + 1) * -1
 }

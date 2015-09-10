@@ -14,8 +14,9 @@ type FetchPlan struct {
 }
 
 var (
-	DefaultFetchPlan        = &FetchPlan{"*:0"}
-	FetchPlanFollowAllLinks = &FetchPlan{"*:-1"}
+	DefaultFetchPlan   = &FetchPlan{""}
+	FetchPlanNoFollow  = &FetchPlan{"*:0"}
+	FetchPlanFollowAll = &FetchPlan{"*:-1"}
 )
 
 func Dial(addr string) (*Client, error) {

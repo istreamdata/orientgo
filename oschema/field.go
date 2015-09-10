@@ -3,6 +3,7 @@ package oschema
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"math/big"
 	"reflect"
 )
 
@@ -123,15 +124,33 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = LINK
 	case []*OLink, []OIdentifiable:
 		ftype = LINKLIST
+	case big.Int, *big.Int:
+		ftype = DECIMAL
 	// TODO: more types need to be added
 	default:
 		switch reflect.TypeOf(val).Kind() {
 		case reflect.Map:
 			ftype = EMBEDDEDMAP
 		case reflect.Slice, reflect.Array:
-			ftype = EMBEDDEDLIST
+			if reflect.TypeOf(val).Elem() == reflect.TypeOf(byte(0)) {
+				ftype = BINARY
+			} else {
+				ftype = EMBEDDEDLIST
+			}
+		case reflect.Bool:
+			ftype = BOOLEAN
+		case reflect.Uint8:
+			ftype = BYTE
+		case reflect.Int16:
+			ftype = SHORT
+		case reflect.Int32:
+			ftype = INTEGER
+		case reflect.Int64:
+			ftype = LONG
+		case reflect.String:
+			ftype = STRING
 		default:
-			glog.Warningf("unknown type in serialization: %T", val)
+			glog.Warningf("unknown type in serialization: %T, kind: %v", val, reflect.TypeOf(val).Kind())
 		}
 	}
 	return

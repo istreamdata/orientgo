@@ -3,6 +3,7 @@ package obinary
 import (
 	"bytes"
 	"encoding/base64"
+	"math/big"
 	"testing"
 
 	"github.com/istreamdata/orientgo/oschema"
@@ -149,4 +150,10 @@ func TestSerializeDocumentFieldMapAndArr(t *testing.T) {
 		doc,
 		"AAAGbWFwAAAAFQwGYXJyAAAAJAoAAgcGb25lAAAAIAcGdHdvBhcHAmEHAmIHAmM=",
 	)
+}
+
+func TestSerializeDecimalV0(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	binaryRecordFormatV0{}.writeSingleValue(buf, 0, big.NewInt(123456789), oschema.DECIMAL, oschema.UNKNOWN)
+	testBase64Compare(t, buf.Bytes(), "AAAAAAAAAAQHW80V")
 }

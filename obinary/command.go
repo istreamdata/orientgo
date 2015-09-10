@@ -75,19 +75,14 @@ func (db *Database) SQLCommand(sql string, params ...interface{}) (recs orient.R
 }
 
 func (db *Database) SQLQuery(fetchPlan *orient.FetchPlan, sql string, params ...interface{}) (recs orient.Records, err error) {
-	// SQLQuery
-	var payload []byte
 	if fetchPlan == nil {
 		fetchPlan = orient.DefaultFetchPlan
 	}
-	//	if fetchPlan != DefaultFetchPlan {
-	//		return nil, fmt.Errorf("non-default fetch plan is not supported for now") // TODO: related to supplementary records parsing
-	//	}
-	payload, err = sqlSelectPayload(db.serializer(), sql, fetchPlan.Plan, params...)
-	if err != nil {
+	buf := bytes.NewBuffer(nil)
+	if err = NewOSQLQuery(sql, params...).FetchPlan(fetchPlan.Plan).ToStream(buf); err != nil {
 		return
 	}
-	return db.rawCommand("q", payload)
+	return db.rawCommand("q", buf.Bytes())
 }
 
 func (db *Database) execScriptRaw(lang orient.ScriptLang, data []byte) (recs orient.Records, err error) {

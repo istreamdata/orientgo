@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
+	"reflect"
 	"time"
 
 	"github.com/istreamdata/orientgo/obinary/binserde/varint"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
-	"reflect"
 )
 
 func init() {
@@ -239,28 +240,19 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w io.Writer, off int, o interface
 func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface{}, tp, linkedType oschema.OType) (written bool) {
 	switch tp {
 	case oschema.BYTE:
-		rw.WriteByte(w, o.(byte))
+		rw.WriteByte(w, toByte(o))
 		written = true
 	case oschema.BOOLEAN:
-		rw.WriteBool(w, o.(bool))
+		rw.WriteBool(w, toBool(o))
 		written = true
 	case oschema.SHORT:
-		written = varint.WriteVarint(w, int64(o.(int16))) != 0
+		written = varint.WriteVarint(w, int64(toInt16(o))) != 0
 	case oschema.INTEGER:
-		written = varint.WriteVarint(w, int64(o.(int32))) != 0
+		written = varint.WriteVarint(w, int64(toInt32(o))) != 0
 	case oschema.LONG:
-		var val int64
-		switch v := o.(type) {
-		case int:
-			val = int64(v)
-		case uint:
-			val = int64(v)
-		default:
-			val = o.(int64)
-		}
-		written = varint.WriteVarint(w, val) != 0
+		written = varint.WriteVarint(w, int64(toInt64(o))) != 0
 	case oschema.STRING:
-		written = f.writeString(w, o.(string)) != 0
+		written = f.writeString(w, toString(o)) != 0
 	case oschema.FLOAT:
 		rw.WriteFloat(w, o.(float32))
 		written = true
@@ -308,12 +300,20 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 		}
 	case oschema.EMBEDDEDSET, oschema.EMBEDDEDLIST:
 		written = true
-		//TODO: check type, implement some type conversion
 		f.writeEmbeddedCollection(w, off, o, linkedType)
-	case oschema.DECIMAL: // TODO: implement
+	case oschema.DECIMAL:
+		var d *big.Int
+		switch v := o.(type) {
+		case big.Int:
+			d = &v
+		case *big.Int:
+			d = v
+		default: // TODO: implement for big.Float in 1.5
+			panic(ErrTypeSerialization{Val: o, Serializer: f})
+		}
 		written = true
-		rw.WriteInt(w, 0)           // scale value
-		rw.WriteBytes(w, []byte{0}) // unscaled value
+		rw.WriteInt(w, 0)           // scale value, 0 for ints
+		rw.WriteBytes(w, d.Bytes()) // unscaled value
 	case oschema.BINARY:
 		written = f.writeBinary(w, o.([]byte)) != 0
 	case oschema.LINKSET, oschema.LINKLIST:
@@ -363,11 +363,9 @@ func (f binaryRecordFormatV0) writeEmbeddedCollection(w io.Writer, off int, o in
 			f.writeOType(buf, oschema.ANY)
 			continue
 		}
-		var tp oschema.OType = oschema.UNKNOWN
-		if linkedType == oschema.UNKNOWN {
+		var tp oschema.OType = linkedType
+		if tp == oschema.UNKNOWN {
 			tp = f.getTypeFromValueEmbedded(item)
-		} else {
-			tp = linkedType
 		}
 		if tp != oschema.UNKNOWN {
 			f.writeOType(buf, tp)
@@ -407,4 +405,66 @@ func (f binaryRecordFormatV0) getTypeFromValueEmbedded(o interface{}) oschema.OT
 		}
 	}
 	return tp
+}
+
+func toByte(o interface{}) byte {
+	switch v := o.(type) {
+	case byte:
+		return v
+	default:
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(byte(0))).Interface().(byte)
+	}
+}
+
+func toBool(o interface{}) bool {
+	switch v := o.(type) {
+	case bool:
+		return v
+	default:
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(bool(false))).Interface().(bool)
+	}
+}
+
+func toInt16(o interface{}) int16 {
+	switch v := o.(type) {
+	case int16:
+		return v
+	default:
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(int16(0))).Interface().(int16)
+	}
+}
+
+func toInt32(o interface{}) int32 {
+	switch v := o.(type) {
+	case int32:
+		return v
+	case int:
+		return int32(v)
+	default:
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(int32(0))).Interface().(int32)
+	}
+}
+
+func toInt64(o interface{}) int64 {
+	switch v := o.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case uint:
+		return int64(v)
+	default:
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(int64(0))).Interface().(int64)
+	}
+}
+
+func toString(o interface{}) string {
+	switch v := o.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	default: // TODO: use Stringer interface in case of failure?
+		return reflect.ValueOf(o).Convert(reflect.TypeOf(string(""))).Interface().(string)
+	}
 }

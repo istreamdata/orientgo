@@ -715,7 +715,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL`
 	docs = nil
-	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	True(t, len(docs) > 0)
 	doc = docs[0]
@@ -795,7 +795,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	// now query with fetchPlan that retrieves all links
 	sql = `SELECT FROM Cat WHERE notes IS NOT NULL ORDER BY name`
 	docs = nil
-	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, "Charlie", docs[0].GetField("name").Value)
@@ -865,7 +865,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	// ---[ queries with extended fetchPlan (simple case) ]---
 	sql = `select * from Cat where name = 'Tilde'`
 	docs = nil
-	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
 	doc = docs[0]
@@ -884,7 +884,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	sql = `SELECT FROM Cat where buddy is not null ORDER BY name`
 
 	docs = nil
-	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, "Linus", docs[0].GetField("name").Value)
@@ -910,7 +910,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	// Felix.buddies links Linux and Keiko
 	sql = `SELECT FROM Cat WHERE name = 'Linus' OR name = 'Felix' ORDER BY name DESC`
 	docs = nil
-	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	linusBuddy = docs[0].GetField("buddy").Value.(*oschema.OLink)
@@ -931,7 +931,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 	sql = `select * from Cat where buddies is not null ORDER BY name`
 	docs = nil
-	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql)
+	_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	felixDoc = docs[0]
@@ -983,7 +983,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	// in this case the buddy links should be filled in with full Documents
 	sql = `SELECT FROM Cat WHERE name=? OR name=? ORDER BY name desc`
 	docs = nil
-	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAllLinks, sql, "Tom", "Nick")
+	recs, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql, "Tom", "Nick")
 	Nil(t, err)
 	Equals(t, 2, len(docs))
 	tomDoc := docs[0]

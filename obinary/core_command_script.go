@@ -77,3 +77,46 @@ func NewOCommandSQL(sql string, params ...interface{}) OCommandSQL {
 type OCommandSQL struct {
 	OCommandTextReq
 }
+
+func NewOSQLQuery(sql string, params ...interface{}) OSQLQuery {
+	return OSQLQuery{text: sql, params: params, limit: -1}
+}
+
+type OSQLQuery struct {
+	text   string
+	limit  int
+	plan   string
+	params []interface{}
+}
+
+func (rq OSQLQuery) Limit(n int) OSQLQuery {
+	rq.limit = n
+	return rq
+}
+
+func (rq OSQLQuery) FetchPlan(plan string) OSQLQuery {
+	rq.plan = plan
+	return rq
+}
+
+func (rq OSQLQuery) ToStream(w io.Writer) (err error) {
+	defer catch(&err)
+	rw.WriteString(w, rq.text)
+	rw.WriteInt(w, int32(rq.limit))
+	rw.WriteString(w, rq.plan)
+	rw.WriteBytes(w, rq.serializeQueryParameters(rq.params))
+	return
+}
+
+func (rq OSQLQuery) serializeQueryParameters(params []interface{}) []byte {
+	if len(params) == 0 {
+		return nil
+	}
+	doc := oschema.NewEmptyDocument()
+	doc.SetField("params", arrayToParamsMap(params)) // TODO: convertToRIDsIfPossible
+	buf := bytes.NewBuffer(nil)
+	if err := GetDefaultRecordFormat().ToStream(buf, doc); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}

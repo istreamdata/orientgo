@@ -10,7 +10,7 @@
 - User can omit deserialization of query/command results to `ODocument` and provide custom values for deserialization (array/struct)
 - Connection pooling, `orient.Database` is safe for concurrent use
 - Supports Orient functions ( SQL/JS(/Groovy?) )
-- Works with OrientDB 2.1.1
+- Works with OrientDB 2.1.2
 
 # Status
 
@@ -25,7 +25,7 @@ Here's what you can do with it right now:
 - Update fields on `oschema.ODocument` objects and update them in the DB via `UpdateRecord`.
 - Use the ogonori driver for the golang `database/sql` API, with some cautions (see below).
 - Use it with either document or graph databases.
-- Use it with the OrientDB 2.0.x-2.1.x series. OrientDB 1.x is not supported.
+- Supports OrientDB 2.1.x series. OrientDB 1.x and 2.0 is not supported.
 
 Early adopters are welcome to try it out and report any problems found.  You are also welcome to suggest a more user-friendly API on top of the low-level `obinary` one.
 
@@ -57,7 +57,7 @@ Also, since I don't yet support OrientDB transactions, the `Tx` portion of the `
 
 1) Install Docker
 
-2) Pull OrientDB image: `docker pull dennwc/orientdb:2.1.1`
+2) Pull OrientDB image: `docker pull dennwc/orientdb:2.1.2`
 
 3) `go test -v ./...`
 

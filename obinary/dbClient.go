@@ -346,7 +346,7 @@ func (db *Database) readSingleRecord(r io.Reader) orient.Record {
 	resultType := rw.ReadShort(r)
 	switch resultType {
 	case RecordNull:
-		return NullRecord{}
+		return nil
 	case RecordRID:
 		rid := readRID(r)
 		return RIDRecord{RID: rid, db: db}
@@ -395,11 +395,13 @@ func (db *Database) readResultSet(r io.Reader) orient.Records {
 	// and then each record is serialized according to format:
 	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
 	resultSetSize := int(rw.ReadInt(r))
-	docs := make(orient.Records, resultSetSize)
-	for i := range docs {
-		docs[i] = db.readSingleRecord(r)
+	recs := make(orient.Records, 0, resultSetSize)
+	for i := 0; i < resultSetSize; i++ {
+		if rec := db.readSingleRecord(r); rec != nil {
+			recs = append(recs, rec)
+		}
 	}
-	return docs
+	return recs
 }
 
 func readRID(r io.Reader) oschema.RID {

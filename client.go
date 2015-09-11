@@ -384,6 +384,19 @@ func (db *Database) UpdateScriptFunc(name string, script string) error {
 }
 
 func (db *Database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
+	//		conn, err := db.pool.getConn()
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		defer db.pool.putConn(conn)
+	//		recs, err := conn.CallScriptFunc(name, params...)
+	//		if err != nil {
+	//			return recs, err
+	//		}
+	//		if result != nil {
+	//			err = recs.DeserializeAll(result)
+	//		}
+	//		return recs, err
 	sparams := make([]string, 0, len(params))
 	for _, p := range params {
 		data, _ := json.Marshal(p)

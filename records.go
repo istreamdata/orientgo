@@ -13,8 +13,8 @@ var (
 )
 
 type Record interface {
+	oschema.OIdentifiable
 	Deserialize(o interface{}) error
-	GetRID() oschema.RID
 }
 
 type Records []Record
@@ -173,6 +173,6 @@ func (r SupplementaryRecord) String() string {
 func (r SupplementaryRecord) Deserialize(o interface{}) error {
 	return r.Record.Deserialize(o)
 }
-func (r SupplementaryRecord) GetRID() oschema.RID {
-	return r.Record.GetRID()
+func (r SupplementaryRecord) GetIdentity() oschema.RID {
+	return r.Record.GetIdentity()
 }

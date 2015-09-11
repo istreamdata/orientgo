@@ -5,7 +5,8 @@ package obinary
 // internal client constants
 const (
 	noSessionId                = -1
-	MaxProtocolVersion         = 31 // max protocol supported by this client
+	MaxProtocolVersion         = 32 // max protocol supported by this client
+	CurrentProtoVersion        = 28
 	MinProtocolVersion         = 28 // min protocol supported by this client
 	minBinarySerializerVersion = 22 // if server protocol version is less, use csv serde, not binary serde
 	driverName                 = "OrientDB Go client"
@@ -86,10 +87,14 @@ const (
 
 	// FOR MORE INFO:
 	// https://github.com/orientechnologies/orientdb/wiki/Network-Binary-Protocol#wiki-Compatibility
-	ProtoVersion21      = 21
-	ProtoVersion24      = 24
-	ProtoVersion25      = 25
-	ProtoVersion26      = 26
-	ProtoVersion27      = 27
-	CurrentProtoVersion = 28
+	ProtoVersion21 = 21
+	ProtoVersion24 = 24
+	ProtoVersion25 = 25
+	ProtoVersion26 = 26
+	ProtoVersion27 = 27
+	ProtoVersion28 = 28
+	ProtoVersion29 = 29
+	ProtoVersion30 = 30
+	ProtoVersion31 = 31
+	ProtoVersion32 = 32
 )

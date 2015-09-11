@@ -61,6 +61,7 @@ type DBSession interface {
 	SQLQuery(fetchPlan *FetchPlan, sql string, params ...interface{}) (recs Records, err error)
 	SQLCommand(sql string, params ...interface{}) (recs Records, err error)
 	ExecScript(lang ScriptLang, script string, params ...interface{}) (recs Records, err error)
+	CallScriptFunc(name string, params ...interface{}) (recs Records, err error)
 }
 
 type DBConnection interface {

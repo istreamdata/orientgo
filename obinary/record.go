@@ -11,7 +11,6 @@ import (
 var (
 	_ orient.Record = (*RecordData)(nil)
 	_ orient.Record = (*SerializedRecord)(nil)
-	_ orient.Record = (*NullRecord)(nil)
 	_ orient.Record = (*RIDRecord)(nil)
 )
 
@@ -24,7 +23,7 @@ func (r RawRecord) String() string {
 func (r RawRecord) Deserialize(o interface{}) error {
 	return fmt.Errorf("RawRecord deserialization is not supported for now") // TODO: need example from server to know how to handle this
 }
-func (r RawRecord) GetRID() oschema.RID {
+func (r RawRecord) GetIdentity() oschema.RID {
 	return oschema.NewEmptyRID()
 }
 
@@ -37,19 +36,7 @@ func (r SerializedRecord) String() string {
 func (r SerializedRecord) Deserialize(o interface{}) error {
 	return json.Unmarshal([]byte(r), o)
 }
-func (r SerializedRecord) GetRID() oschema.RID {
-	return oschema.NewEmptyRID()
-}
-
-type NullRecord struct{}
-
-func (r NullRecord) String() string {
-	return "NULL"
-}
-func (r NullRecord) Deserialize(o interface{}) error {
-	return fmt.Errorf("null record to %T", o)
-}
-func (r NullRecord) GetRID() oschema.RID {
+func (r SerializedRecord) GetIdentity() oschema.RID {
 	return oschema.NewEmptyRID()
 }
 
@@ -71,7 +58,7 @@ func (r RIDRecord) Deserialize(o interface{}) error {
 	}
 	return recs.DeserializeAll(o)
 }
-func (r RIDRecord) GetRID() oschema.RID {
+func (r RIDRecord) GetIdentity() oschema.RID {
 	return r.RID
 }
 
@@ -119,6 +106,6 @@ func (r RecordData) Deserialize(o interface{}) error {
 	}
 	return mapDecoder.Decode(props)
 }
-func (r RecordData) GetRID() oschema.RID {
+func (r RecordData) GetIdentity() oschema.RID {
 	return r.RID
 }

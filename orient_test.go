@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	orientVersion = "2.1.1"
+	orientVersion = "2.1.2"
 
 	dbName = "default"
 	dbUser = "admin"
@@ -360,7 +360,7 @@ func TestScriptParams(t *testing.T) {
 	defer closer()
 
 	name := "tempFuncOne"
-	code := `return one`
+	code := `return {"aaa": one, "bbb": "www"}`
 	if err := cli.CreateScriptFunc(orient.Function{
 		Name: name, Code: code, Idemp: false,
 		Lang: orient.LangJS, Params: []string{"one"},
@@ -368,9 +368,10 @@ func TestScriptParams(t *testing.T) {
 		t.Fatal(err)
 	}
 	var o interface{}
-	_, err := cli.CallScriptFunc(&o, name, "some")
+	recs, err := cli.CallScriptFunc(&o, name, map[string]string{"some": "one"}, "two")
 	if err != nil {
+		t.Logf("%+v\n", recs)
 		t.Fatal(err)
 	}
-	//t.Logf("%T: %+v\n",o,o)
+	//t.Logf("%T: %+v\n%+v\n",o,o,recs)
 }

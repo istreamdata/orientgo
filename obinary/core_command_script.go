@@ -70,6 +70,34 @@ func (rq OCommandTextReq) ToStream(w io.Writer) (err error) {
 	return
 }
 
+func NewOCommandFunction(name string, params ...interface{}) OCommandFunction {
+	return OCommandFunction{
+		OCommandTextReq: newOCommandTextReq(name, params),
+	}
+}
+
+type OCommandFunction struct {
+	OCommandTextReq
+}
+
+func NewOCommandScript(lang string, text string, params ...interface{}) OCommandScript {
+	return OCommandScript{
+		lang:            lang,
+		OCommandTextReq: newOCommandTextReq(text, params),
+	}
+}
+
+type OCommandScript struct {
+	lang string
+	OCommandTextReq
+}
+
+func (rq OCommandScript) ToStream(w io.Writer) (err error) {
+	defer catch(&err)
+	rw.WriteString(w, rq.lang)
+	return rq.OCommandTextReq.ToStream(w)
+}
+
 func NewOCommandSQL(sql string, params ...interface{}) OCommandSQL {
 	return OCommandSQL{newOCommandTextReq(sql, params...)}
 }

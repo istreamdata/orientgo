@@ -27,25 +27,27 @@ func (db *Database) rawCommand(class string, payload []byte) (recs orient.Record
 		rw.WriteBytes(w, fullcmd.Bytes())
 	}, func(r io.Reader) {
 		for {
-			resType := rw.ReadByte(r)
-			if resType == byte(0) {
+			resType := rune(rw.ReadByte(r))
+			if resType == 0 {
 				break
 			}
-			switch resultType := rune(resType); resultType {
+			switch resType {
 			case 'n': // null result
 				// do nothing
 			case 'r': // single record
-				recs = append(recs, db.readSingleRecord(r))
+				if rec := db.readSingleRecord(r); rec != nil {
+					recs = append(recs, rec)
+				}
 			case 'l': // collection of records
 				recs = append(recs, db.readResultSet(r)...)
 			case 'a': // serialized type
 				recs = append(recs, SerializedRecord(rw.ReadBytes(r)))
-			default:
-				if class == "q" && resType == 2 { // TODO: always == 2?
-					recs = append(recs, orient.SupplementaryRecord{Record: db.readSingleRecord(r)})
-				} else {
-					panic(fmt.Errorf("rawCommand: not supported result type %v, class: %s", resultType, class))
+			case 2:
+				if rec := db.readSingleRecord(r); rec != nil {
+					recs = append(recs, orient.SupplementaryRecord{Record: rec})
 				}
+			default:
+				panic(fmt.Errorf("rawCommand: not supported result type %v, class: %s", resType, class))
 			}
 		}
 	})
@@ -85,6 +87,14 @@ func (db *Database) SQLQuery(fetchPlan *orient.FetchPlan, sql string, params ...
 	return db.rawCommand("q", buf.Bytes())
 }
 
+func (db *Database) CallScriptFunc(name string, params ...interface{}) (recs orient.Records, err error) {
+	buf := bytes.NewBuffer(nil)
+	if err = NewOCommandFunction(name, params...).ToStream(buf); err != nil {
+		return
+	}
+	return db.rawCommand("com.orientechnologies.orient.core.command.script.OCommandFunction", buf.Bytes())
+}
+
 func (db *Database) execScriptRaw(lang orient.ScriptLang, data []byte) (recs orient.Records, err error) {
 	defer catch(&err)
 	payload := new(bytes.Buffer)
@@ -95,87 +105,9 @@ func (db *Database) execScriptRaw(lang orient.ScriptLang, data []byte) (recs ori
 
 func (db *Database) ExecScript(lang orient.ScriptLang, script string, params ...interface{}) (recs orient.Records, err error) {
 	defer catch(&err)
-	var data []byte
-	if lang == orient.LangSQL {
-		data, err = sqlPayload(db.serializer(), script, params...)
-	} else {
-		data, err = scriptPayload(db.serializer(), script, params...)
-	}
-	if err != nil {
+	buf := bytes.NewBuffer(nil)
+	if err = NewOCommandScript(string(lang), script, params...).ToStream(buf); err != nil {
 		return
 	}
-	return db.execScriptRaw(lang, data)
-}
-
-func scriptPayload(serde ORecordSerializer, text string, params ...interface{}) (data []byte, err error) {
-	defer catch(&err)
-	if len(params) > 0 {
-		return nil, fmt.Errorf("params in scripts are not yet supported")
-	}
-	//  (text:string)
-	//  (has-simple-parameters:boolean)
-	//  (simple-paremeters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
-	//  (has-complex-parameters:boolean)
-	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
-
-	payload := new(bytes.Buffer)
-	rw.WriteString(payload, text)
-
-	// has-simple-parameters
-	rw.WriteBool(payload, false)
-
-	// has-complex-paramters => HARDCODING FALSE FOR NOW
-	rw.WriteBool(payload, false)
-	return payload.Bytes(), nil
-}
-
-func sqlPayload(serde ORecordSerializer, query string, params ...interface{}) (data []byte, err error) {
-	defer catch(&err)
-	//  (text:string)
-	//  (has-simple-parameters:boolean)
-	//  (simple-paremeters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
-	//  (has-complex-parameters:boolean)
-	//  (complex-parameters:bytes[])  -> serialized Map (EMBEDDEDMAP??)
-
-	payload := new(bytes.Buffer)
-	rw.WriteString(payload, query)
-
-	serializedParams, err := serializeSQLParams(serde, params, "parameters")
-	if err != nil {
-		return nil, err
-	}
-
-	// has-simple-parameters
-	rw.WriteBool(payload, serializedParams != nil)
-
-	if serializedParams != nil {
-		rw.WriteBytes(payload, serializedParams)
-	}
-
-	// has-complex-paramters => HARDCODING FALSE FOR NOW
-	rw.WriteBool(payload, false)
-	return payload.Bytes(), nil
-}
-
-func sqlSelectPayload(serde ORecordSerializer, query string, fetchPlan string, params ...interface{}) (data []byte, err error) {
-	defer catch(&err)
-	//  (text:string)
-	//  (non-text-limit:int)
-	//  (fetch-plan:string)
-	//  (serialized-params:bytes[])  -> serialized Map (EMBEDDEDMAP??)
-	payload := new(bytes.Buffer)
-	rw.WriteString(payload, query)
-
-	// non-text-limit (-1 = use limit from query text)
-	rw.WriteInt(payload, -1)
-
-	// fetch plan
-	rw.WriteString(payload, fetchPlan)
-
-	serializedParams, err := serializeSQLParams(serde, params, "params")
-	if err != nil {
-		return nil, err
-	}
-	rw.WriteBytes(payload, serializedParams)
-	return payload.Bytes(), nil
+	return db.rawCommand("s", buf.Bytes())
 }

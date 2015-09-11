@@ -10,7 +10,7 @@ services:
   - docker
 
 install:
-  - docker pull dennwc/orientdb:2.1.1
+  - docker pull dennwc/orientdb:2.1.2
   - go get golang.org/x/tools/cmd/vet
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/golang/lint/golint

@@ -10,7 +10,7 @@ In Sept 2015, this library will transfer to their ownership.  They have already 
 
 I have marked this last commit to quux00/ogonori with a "v1" tag, so if you need pull that down for a transition period, you can use that tag.
 
-Thanks for the support and help from those that have contributed ideas and code.  I will likely be contributing to the istreamdata ogonori codebase in the near future, so my vote is that we rally around their repo as the canonical Golang OrientDB driver.  Once it gets to a solid production state, we can recommend that OrientDB post it on their website as the recommend Go driver for OrientDB.
+Thanks for the support and help from those that have contributed ideas and code.  I will likely be contributing to the istreamdata ogonori codebase in the near future, so my vote is that we rally around their repo as the canonical Golang OrientDB driver.  Once it gets to a solid production state, we can recommend that OrientDB post it on their website as the recommended Go driver for OrientDB.
 
 -Michael Peterson
 

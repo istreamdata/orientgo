@@ -61,7 +61,7 @@ func driverArgs(args []interface{}) ([]driver.Value, error) {
 	dargs := make([]driver.Value, len(args))
 	for i, arg := range args {
 		switch id := arg.(type) {
-		case oschema.ORID, oschema.OLink, *oschema.OLink:
+		case oschema.RID, oschema.OLink, *oschema.OLink:
 			dargs[i] = id
 		default:
 			var err error

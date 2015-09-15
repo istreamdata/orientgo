@@ -91,12 +91,12 @@ func (c *Client) Open(dbname string, dbtype orient.DatabaseType, user, pass stri
 
 // loadConfigRecord loads record #0:0 for the current database, caching
 // some of the information returned into OStorageConfiguration
-func (db *Database) loadConfigRecord() (oschemaRID oschema.ORID, err error) {
+func (db *Database) loadConfigRecord() (oschemaRID oschema.RID, err error) {
 	defer catch(&err)
 	// The config record comes back as type 'b' (raw bytes), which should
 	// just be converted to a string then tokenized by the pipe char
 	var recs orient.Records
-	rid := oschema.ORID{ClusterID: 0, ClusterPos: 0}
+	rid := oschema.RID{ClusterID: 0, ClusterPos: 0}
 	recs, err = db.GetRecordByRID(rid, "*:-1 index:0", true, true) // based on Java client code
 	if err != nil {
 		return
@@ -155,7 +155,7 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // loadSchema loads record #0:1 for the current database, caching the
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
-func (db *Database) loadSchema(rid oschema.ORID) error {
+func (db *Database) loadSchema(rid oschema.RID) error {
 	recs, err := db.GetRecordByRID(rid, "*:-1 index:0", true, false) // TODO: GetRecordByRIDIfChanged
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (db *Database) CountRecords() (int64, error) {
 // If nil is returned, delete succeeded.
 // If error is returned, delete request was either never issued, or there was
 // a problem on the server end or the record did not exist in the database.
-func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
 	var status byte
 	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
 		rw.WriteShort(w, rid.ClusterID)
@@ -256,7 +256,7 @@ func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error 
 // TODO: need to properly handle fetchPlan
 // ignoreCache = true
 // loadTombstones = false
-func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (recs orient.Records, err error) {
+func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan string, ignoreCache, loadTombstones bool) (recs orient.Records, err error) {
 	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
 		rw.WriteShort(w, rid.ClusterID)
 		rw.WriteLong(w, rid.ClusterPos)
@@ -298,7 +298,7 @@ func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCac
 // ReloadSchema should be called after a schema is altered, such as properties
 // added, deleted or renamed.
 func (db *Database) ReloadSchema() error {
-	return db.loadSchema(oschema.ORID{ClusterID: 0, ClusterPos: 1})
+	return db.loadSchema(oschema.RID{ClusterID: 0, ClusterPos: 1})
 }
 
 // FetchClusterDataRange returns the range of record ids for a cluster

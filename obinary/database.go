@@ -57,9 +57,9 @@ func NewDatabase(name string, dbtype orient.DatabaseType) *ODatabase {
 type OStorageConfiguration struct {
 	version       byte // TODO: of what? (=14 for OrientDB 2.1)
 	name          string
-	schemaRID     oschema.ORID // usually #0:1
+	schemaRID     oschema.RID // usually #0:1
 	dictionaryRID string
-	idxMgrRID     oschema.ORID // usually #0:2
+	idxMgrRID     oschema.RID // usually #0:2
 	localeLang    string
 	localeCountry string
 	dateFmt       string

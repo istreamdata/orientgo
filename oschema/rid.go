@@ -15,7 +15,7 @@ const (
 
 // ORID encapsulates the two aspects of an OrientDB RecordID -
 // ClusterID:ClusterPos
-type ORID struct {
+type RID struct {
 	ClusterID  int16
 	ClusterPos int64
 }
@@ -27,11 +27,11 @@ type ORID struct {
 // it is not a true Document with a Class
 // (e.g., it is a result of a Property query)
 //
-func NewORID() ORID {
-	return ORID{ClusterID: ClusterIDInvalid, ClusterPos: ClusterPosInvalid}
+func NewORID() RID {
+	return RID{ClusterID: ClusterIDInvalid, ClusterPos: ClusterPosInvalid}
 }
 
-func (r ORID) String() string {
+func (r RID) String() string {
 	return fmt.Sprintf("#%d:%d", r.ClusterID, r.ClusterPos)
 }
 
@@ -40,7 +40,7 @@ func (r ORID) String() string {
 // to an ORID struct. Make sure to get the string format correctly,
 // as this function panics if any error occurs.
 //
-func NewORIDFromString(s string) ORID {
+func NewORIDFromString(s string) RID {
 	s = strings.TrimSpace(s)
 	noPrefix := s
 	if strings.HasPrefix(s, "#") {
@@ -58,5 +58,5 @@ func NewORIDFromString(s string) ORID {
 	if err != nil {
 		panic(fmt.Errorf("Invalid RID string to NewORIDFromString: %s", s))
 	}
-	return ORID{ClusterID: int16(id), ClusterPos: pos}
+	return RID{ClusterID: int16(id), ClusterPos: pos}
 }

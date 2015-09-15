@@ -9,7 +9,7 @@ import "fmt"
 // It holds a RID and optionally a Record pointer to
 // the ODocument that the RID points to.
 type OLink struct {
-	RID    ORID       // required
+	RID    RID        // required
 	Record *ODocument // optional
 }
 

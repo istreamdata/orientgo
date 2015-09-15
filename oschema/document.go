@@ -11,7 +11,7 @@ import (
 )
 
 type ODocument struct {
-	RID        ORID
+	RID        RID
 	Version    int32
 	entryOrder []string // field names in the order they were added to the ODocument
 	Fields     map[string]*OField

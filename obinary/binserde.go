@@ -750,7 +750,7 @@ func readTreeBasedLinkBag(buf *bytes.Reader) *oschema.OLinkBag {
 func (serde ORecordSerializerV0) readLink(buf io.ByteReader) *oschema.OLink {
 	clusterId := varint.ReadVarint(buf)
 	clusterPos := varint.ReadVarint(buf)
-	return &oschema.OLink{RID: oschema.ORID{ClusterID: int16(clusterId), ClusterPos: clusterPos}}
+	return &oschema.OLink{RID: oschema.RID{ClusterID: int16(clusterId), ClusterPos: clusterPos}}
 }
 
 func getDataType(val interface{}) oschema.OType { // TODO: oschema.OTypeForValue ?

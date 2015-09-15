@@ -24,7 +24,7 @@ func (r RawRecord) String() string {
 func (r RawRecord) Deserialize(o interface{}) error {
 	return fmt.Errorf("RawRecord deserialization is not supported for now") // TODO: need example from server to know how to handle this
 }
-func (r RawRecord) GetRID() oschema.ORID {
+func (r RawRecord) GetIdentity() oschema.RID {
 	return oschema.NewORID()
 }
 
@@ -37,7 +37,7 @@ func (r SerializedRecord) String() string {
 func (r SerializedRecord) Deserialize(o interface{}) error {
 	return json.Unmarshal([]byte(r), o)
 }
-func (r SerializedRecord) GetRID() oschema.ORID {
+func (r SerializedRecord) GetIdentity() oschema.RID {
 	return oschema.NewORID()
 }
 
@@ -49,12 +49,12 @@ func (r NullRecord) String() string {
 func (r NullRecord) Deserialize(o interface{}) error {
 	return fmt.Errorf("null record to %T", o)
 }
-func (r NullRecord) GetRID() oschema.ORID {
+func (r NullRecord) GetIdentity() oschema.RID {
 	return oschema.NewORID()
 }
 
 type RIDRecord struct {
-	RID oschema.ORID
+	RID oschema.RID
 	db  *Database
 }
 
@@ -71,12 +71,12 @@ func (r RIDRecord) Deserialize(o interface{}) error {
 	}
 	return recs.DeserializeAll(o)
 }
-func (r RIDRecord) GetRID() oschema.ORID {
+func (r RIDRecord) GetIdentity() oschema.RID {
 	return r.RID
 }
 
 type RecordData struct {
-	RID     oschema.ORID
+	RID     oschema.RID
 	Version int32
 	Data    []byte
 	db      *Database
@@ -119,6 +119,6 @@ func (r RecordData) Deserialize(o interface{}) error {
 	}
 	return mapDecoder.Decode(props)
 }
-func (r RecordData) GetRID() oschema.ORID {
+func (r RecordData) GetIdentity() oschema.RID {
 	return r.RID
 }

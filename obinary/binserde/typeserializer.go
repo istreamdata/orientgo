@@ -65,7 +65,7 @@ func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v *oschema.OLink, err e
 	}()
 	clusterID := rw.ReadShort(r)
 	clusterPos := rw.ReadLong(r)
-	rid := oschema.ORID{ClusterID: clusterID, ClusterPos: clusterPos}
+	rid := oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 	return &oschema.OLink{RID: rid}, nil
 }
 

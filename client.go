@@ -243,7 +243,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.CreateRecord(doc)
 }
-func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -251,7 +251,7 @@ func (db *Database) DeleteRecordByRID(rid oschema.ORID, recVersion int32) error 
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRID(rid, recVersion)
 }
-func (db *Database) GetRecordByRID(rid oschema.ORID, fetchPlan string, ignoreCache, loadTombstones bool) (Records, error) {
+func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan string, ignoreCache, loadTombstones bool) (Records, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err

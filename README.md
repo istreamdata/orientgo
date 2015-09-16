@@ -16,7 +16,7 @@ Thanks for the support and help from those that have contributed ideas and code.
 
 ----
 
-[![Build Status](https://travis-ci.org/quux00/ogonori.svg?branch=master)](https://travis-ci.org/quux00/ogonori)
+[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
 <br/>
 # Status

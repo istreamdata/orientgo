@@ -1,12 +1,17 @@
 # Overview
+[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
-**Ogonori** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
+**OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
 # Important Status Update
 
-**Ownership of the ogonori library is being transferred to the istreamdata team:** https://github.com/istreamdata
+**Ownership of the ogonori library transferred to the istreamdata team**
 
-In Sept 2015, this library will transfer to their ownership.  They have already advanced the codebase, added new features and changed some of the API.  You can get a view of what they have done here:  [https://gopkg.in/istreamdata/orientgo.v1](https://gopkg.in/istreamdata/orientgo.v1).
+Soon [orientgo](https://github.com/dennwc/orientgo) will be merged as `v2` version of API. You can still use ogonori API using `gopkg.in/istreamdata/orientgo.v1` import path.
+
+----
+
+In Sept 2015, this library will transfer to their ownership.  They have already advanced the codebase, added new features and changed some of the API.  You can get a view of what they have done here:  [dennwc/orientgo](https://github.com/dennwc/orientgo).
 
 I have marked this last commit to quux00/ogonori with a "v1" tag, so if you need pull that down for a transition period, you can use that tag.
 
@@ -16,14 +21,13 @@ Thanks for the support and help from those that have contributed ideas and code.
 
 ----
 
-[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
 <br/>
 # Status
 
 The primary focus of ogonori is to build a Go (golang) client supporting the OrientDB version 2 Network Binary Protocol for both Document and Graph databases.
 
-The quux00/ogonori driver is **no longer** under active development.
+The istreamdata/orientgo driver is under active development.
 
 As of the v1 tag, here's what you can do with it:
 

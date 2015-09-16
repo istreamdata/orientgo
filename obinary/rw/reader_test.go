@@ -7,6 +7,7 @@ import (
 	"gopkg.in/istreamdata/orientgo.v1/oerror"
 
 	"testing"
+	"io"
 )
 
 const (
@@ -314,7 +315,7 @@ func TestReadStringWithSizeLargerThanString(t *testing.T) {
 
 	outstr, err := ReadString(buf)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, oerror.IncorrectNetworkRead{Expected: 200, Actual: 3}, oerror.ExtractCause(err))
+	equals(t, io.ErrUnexpectedEOF, oerror.ExtractCause(err))
 	equals(t, "", outstr)
 }
 

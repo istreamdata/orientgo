@@ -93,7 +93,6 @@ func TestReadBytesWithTooFewEntries(t *testing.T) {
 
 	bs, err = ReadBytes(rdr)
 	assert(t, err != nil, "err should not be nil")
-	equals(t, oerror.IncorrectNetworkRead{Expected: 12, Actual: 5}, err)
 	assert(t, bs == nil, "bs should be nil")
 }
 

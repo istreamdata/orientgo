@@ -73,7 +73,7 @@ func ReadBytes(rdr io.Reader) ([]byte, error) {
 	}
 
 	readbuf := make([]byte, sz)
-	n, err := rdr.Read(readbuf)
+	n, err := io.ReadFull(rdr, readbuf)
 	if err != nil {
 		return nil, oerror.NewTrace(err)
 	}

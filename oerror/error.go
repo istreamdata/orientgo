@@ -30,6 +30,9 @@ func (e Trace) Error() string {
 
 func (e Trace) traceInfo() string {
 	idx := strings.Index(e.File, "github.com") // strip off abs path
+	if idx < 0 {
+		return fmt.Sprintf("%s:%d", e.File, e.Line)
+	}
 	return fmt.Sprintf("%s:%d", e.File[idx:], e.Line)
 }
 

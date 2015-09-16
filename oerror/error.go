@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 //

@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/ogl"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 func createOgonoriGraphDb(dbc *obinary.DBClient) {
@@ -116,7 +116,7 @@ func graphCommandsNativeAPI(dbc *obinary.DBClient, fullTest bool) {
 	Assert(friendLinkBag.Links[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
 
 	// TODO: this query fails with orientdb-community-2.1-rc5 on Windows (not tested on Linux)
-	//       error is: FATAL: client.go:904: github.com/quux00/ogonori/obinary/qrycmd.go:125; cause: ERROR: readResultSet: expected short value of 0 but is -3
+	//       error is: FATAL: client.go:904: gopkg.in/istreamdata/orientgo.v1/obinary/qrycmd.go:125; cause: ERROR: readResultSet: expected short value of 0 but is -3
 	sql = `TRAVERSE * from ` + abbieRID.String()
 	docs, err = obinary.SQLQuery(dbc, sql, "")
 	Ok(err)

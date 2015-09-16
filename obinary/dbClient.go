@@ -1,4 +1,4 @@
-package obinary
+package obinary // import "gopkg.in/istreamdata/orientgo.v1/obinary"
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/quux00/ogonori/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
 )
 
 //

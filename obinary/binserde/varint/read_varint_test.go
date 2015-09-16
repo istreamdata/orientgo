@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/quux00/ogonori/obuf"
+	"gopkg.in/istreamdata/orientgo.v1/obuf"
 
 	"testing"
 )

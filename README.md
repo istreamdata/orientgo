@@ -6,7 +6,7 @@
 
 **Ownership of the ogonori library is being transferred to the istreamdata team:** https://github.com/istreamdata
 
-In Sept 2015, this library will transfer to their ownership.  They have already advanced the codebase, added new features and changed some of the API.  You can get a view of what they have done here:  [https://github.com/istreamdata/orientgo](https://github.com/istreamdata/orientgo).
+In Sept 2015, this library will transfer to their ownership.  They have already advanced the codebase, added new features and changed some of the API.  You can get a view of what they have done here:  [https://gopkg.in/istreamdata/orientgo.v1](https://gopkg.in/istreamdata/orientgo.v1).
 
 I have marked this last commit to quux00/ogonori with a "v1" tag, so if you need pull that down for a transition period, you can use that tag.
 
@@ -171,10 +171,10 @@ I am testing on Linux and Windows 7.  I do not have access to any Mac OS X machi
 
 Right now I have unit tests for the following packages:
 
-* `github.com/quux00/ogonori/obinary/binserde/varint`
-* `github.com/quux00/ogonori/obinary/rw`
-* `github.com/quux00/ogonori/obuf`
-* `github.com/quux00/ogonori/oschema`
+* `gopkg.in/istreamdata/orientgo.v1/obinary/binserde/varint`
+* `gopkg.in/istreamdata/orientgo.v1/obinary/rw`
+* `gopkg.in/istreamdata/orientgo.v1/obuf`
+* `gopkg.in/istreamdata/orientgo.v1/oschema`
 
 For the higher level functionality I'm using a running functional test - the top-level `client.go`.  Right now to use it you need to have OrientDB 2.x installed and running.
 

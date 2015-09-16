@@ -7,8 +7,8 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
 )
 
 func TestAgainstOrientDBServer(t *testing.T) {

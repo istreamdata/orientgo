@@ -4,8 +4,8 @@ import (
 	_ "database/sql"
 	"database/sql/driver"
 
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
 )
 
 //

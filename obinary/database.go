@@ -1,8 +1,8 @@
 package obinary // TODO: these types need to move into package odb ??
 
 import (
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 // --------

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/quux00/ogonori/constants"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
 )
 
 func TestWriteBytes_GoodData_5Bytes(t *testing.T) {

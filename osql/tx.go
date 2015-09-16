@@ -1,6 +1,6 @@
 package osql
 
-import "github.com/quux00/ogonori/oerror"
+import "gopkg.in/istreamdata/orientgo.v1/oerror"
 
 //
 // ogonoriTx implements the database/sql/driver.Tx interface.

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/quux00/ogonori/constants"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
 )
 
 const (

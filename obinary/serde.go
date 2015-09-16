@@ -3,8 +3,8 @@ package obinary
 import (
 	"io"
 
-	"github.com/quux00/ogonori/obuf"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/obuf"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 //

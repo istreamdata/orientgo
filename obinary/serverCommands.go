@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/obinary/rw"
-	"github.com/quux00/ogonori/obuf"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/obinary/rw"
+	"gopkg.in/istreamdata/orientgo.v1/obuf"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 ///

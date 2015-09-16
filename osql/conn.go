@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/ogl"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 //

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/quux00/ogonori/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
 
 	"testing"
 )

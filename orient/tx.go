@@ -1,8 +1,8 @@
 package orient // TODO: change to ogonori and/or move to top-level
 
 import (
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/oschema"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
 )
 
 /* ---[ types ]--- */

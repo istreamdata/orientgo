@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
 )
 
 var DocumentDBSeeds = []string{

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
 )
 
 //

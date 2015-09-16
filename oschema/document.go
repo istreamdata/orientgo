@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quux00/ogonori/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
 )
 
 type ODocument struct {

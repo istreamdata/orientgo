@@ -19,12 +19,12 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/quux00/ogonori/constants"
-	"github.com/quux00/ogonori/obinary"
-	"github.com/quux00/ogonori/oerror"
-	"github.com/quux00/ogonori/ogl"
-	"github.com/quux00/ogonori/oschema"
-	_ "github.com/quux00/ogonori/osql"
+	"gopkg.in/istreamdata/orientgo.v1/constants"
+	"gopkg.in/istreamdata/orientgo.v1/obinary"
+	"gopkg.in/istreamdata/orientgo.v1/oerror"
+	"gopkg.in/istreamdata/orientgo.v1/ogl"
+	"gopkg.in/istreamdata/orientgo.v1/oschema"
+	_ "gopkg.in/istreamdata/orientgo.v1/osql"
 )
 
 //

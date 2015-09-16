@@ -54,6 +54,7 @@ func Equals(t *testing.T, exp, act interface{}) {
 	}
 }
 
+/*
 func deleteNewRecordsDocDB(db orient.Database) {
 	_, err := db.SQLCommand(nil, "delete from Cat where name <> 'Linus' AND name <> 'Keiko'")
 	if err != nil {
@@ -85,7 +86,7 @@ func deleteNewRecordsGraphDB(db orient.Database) {
 		return
 	}
 }
-
+*/
 func dropDatabase(t *testing.T, dbc orient.Client, dbname string, dbtype orient.StorageType) {
 	//_ = dbc.Close()
 	sess, err := dbc.Auth(srvUser, srvPass)
@@ -1293,12 +1294,12 @@ func createAndUpdateRecordsWithDate(dbc orient.Client) {
 
 func removeProperty(db *orient.Database, class, property string) {
 	sql := fmt.Sprintf("UPDATE %s REMOVE %s", class, property)
-	_, err := db.SQLCommand(nil, sql)
+	err := db.Command(orient.NewSQLCommand(sql)).Err()
 	if err != nil {
 		glog.Warningf("WARN: clean up error: %v\n", err)
 	}
 	sql = fmt.Sprintf("DROP PROPERTY %s.%s", class, property)
-	_, err = db.SQLCommand(nil, sql)
+	err = db.Command(orient.NewSQLCommand(sql)).Err()
 	if err != nil {
 		glog.Warningf("WARN: clean up error: %v\n", err)
 	}
@@ -1307,7 +1308,7 @@ func removeProperty(db *orient.Database, class, property string) {
 // ------
 // Sort OLinks by RID
 
-type byRID []*oschema.OLink
+type byRID []oschema.OIdentifiable
 
 func (slnk byRID) Len() int {
 	return len(slnk)
@@ -1318,7 +1319,7 @@ func (slnk byRID) Swap(i, j int) {
 }
 
 func (slnk byRID) Less(i, j int) bool {
-	return slnk[i].RID.String() < slnk[j].RID.String()
+	return slnk[i].GetIdentity().String() < slnk[j].GetIdentity().String()
 }
 
 // ------

@@ -5,6 +5,7 @@ import (
 	"github.com/golang/glog"
 	"math/big"
 	"reflect"
+	"time"
 )
 
 // OType is an enum for the various data types supported by OrientDB.
@@ -92,6 +93,84 @@ func (t OType) String() string { // do not change - it may be used as field type
 	}
 }
 
+func (t OType) ReflectKind() reflect.Kind {
+	switch t {
+	case BOOLEAN:
+		return reflect.Bool
+	case BYTE:
+		return reflect.Uint8
+	case SHORT:
+		return reflect.Int16
+	case INTEGER:
+		return reflect.Int32
+	case LONG:
+		return reflect.Int64
+	case FLOAT:
+		return reflect.Float32
+	case DOUBLE:
+		return reflect.Float64
+	case STRING:
+		return reflect.String
+	case EMBEDDEDLIST, EMBEDDEDSET:
+		return reflect.Slice
+	case EMBEDDEDMAP:
+		return reflect.Map
+	case LINKLIST, LINKSET:
+		return reflect.Slice
+	case LINKMAP:
+		return reflect.Map
+	default:
+		return reflect.Invalid
+	}
+}
+
+func (t OType) ReflectType() reflect.Type {
+	switch t {
+	case BOOLEAN:
+		return reflect.TypeOf(bool(false))
+	case INTEGER:
+		return reflect.TypeOf(int32(0))
+	case LONG:
+		return reflect.TypeOf(int64(0))
+	case FLOAT:
+		return reflect.TypeOf(float32(0))
+	case DOUBLE:
+		return reflect.TypeOf(float64(0))
+	case DATETIME, DATE:
+		return reflect.TypeOf(time.Time{})
+	case STRING:
+		return reflect.TypeOf(string(""))
+	case BINARY:
+		return reflect.TypeOf([]byte{})
+	case BYTE:
+		return reflect.TypeOf(byte(0))
+		//	case EMBEDDED:
+		//		return "EMBEDDED"
+		//	case EMBEDDEDLIST:
+		//		return "EMBEDDEDLIST"
+		//	case EMBEDDEDSET:
+		//		return "EMBEDDEDSET"
+		//	case EMBEDDEDMAP:
+		//		return "EMBEDDEDMAP"
+		//	case LINK:
+		//		return "LINK"
+		//	case LINKLIST:
+		//		return "LINKLIST"
+		//	case LINKSET:
+		//		return "LINKSET"
+		//	case LINKMAP:
+		//		return "LINKMAP"
+		//	case CUSTOM:
+		//		return "CUSTOM"
+		//	case DECIMAL:
+		//		return "DECIMAL"
+		//	case LINKBAG:
+		//		return "LINKBAG"
+	default: // and ANY, TRANSIENT
+		return reflect.TypeOf((*interface{})(nil)).Elem()
+	}
+}
+
 func OTypeForValue(val interface{}) (ftype OType) {
 	ftype = UNKNOWN
 	// TODO: need to add more types: LINKSET, LINKLIST, LINKBAG, etc. ...
@@ -116,8 +195,6 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = DOUBLE
 	case []byte:
 		ftype = BINARY
-	case OEmbeddedList:
-		ftype = EMBEDDEDLIST
 	case OEmbeddedMap:
 		ftype = EMBEDDEDMAP
 	case OIdentifiable:
@@ -211,14 +288,13 @@ func OTypeFromString(typ string) OType {
 	}
 }
 
-// OField is a generic data holder that goes in ODocuments.
-type OField struct {
-	Id    int32
+// ODocEntry is a generic data holder that goes in ODocuments.
+type ODocEntry struct {
 	Name  string
 	Type  OType
 	Value interface{}
 }
 
-func (fld *OField) String() string {
-	return fmt.Sprintf("OField<id: %d; name: %s; datatype: %d; value: %v>", fld.Id, fld.Name, fld.Type, fld.Value)
+func (fld *ODocEntry) String() string {
+	return fmt.Sprintf("OField<name: %s; datatype: %d; value: %v>", fld.Name, fld.Type, fld.Value)
 }

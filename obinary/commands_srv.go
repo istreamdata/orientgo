@@ -3,7 +3,6 @@ package obinary
 import (
 	"io"
 
-	"bytes"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
@@ -30,9 +29,9 @@ func (c *Client) ConnectToServer(adminUser, adminPassw string) (mgr *Manager, er
 	)
 	err = c.root.sendCmd(requestConnect, func(w io.Writer) {
 		rw.WriteStrings(w, driverName, driverVersion)
-		rw.WriteShort(w, c.protoVers)
+		rw.WriteShort(w, int16(c.curProtoVers))
 		rw.WriteNull(w) // dbclient id - only for cluster config // TODO: change to use dbc.clusteredConfig once that is added
-		rw.WriteString(w, c.serializer.Class())
+		rw.WriteString(w, c.recordFormat.String())
 		rw.WriteBool(w, false) // use token (true) or session (false)
 		rw.WriteStrings(w, adminUser, adminPassw)
 	}, func(r io.Reader) {
@@ -104,17 +103,18 @@ func (m *Manager) ListDatabases() (list map[string]string, err error) {
 		return
 	}
 	// the bytes returned as a serialized EMBEDDEDMAP, so send it to the SerDe
-	doc := oschema.NewDocument("")
-	ser, data := extractSerializerVersion(data)
-	err = ser.Deserialize(nil, doc, bytes.NewReader(data))
+	ser := m.sess.cli.recordFormat
+
+	var (
+		o interface{}
+	)
+	o, err = ser.FromStream(data)
 	if err != nil {
 		return
 	}
-	list = make(map[string]string)
-	fldMap := doc.GetField("databases").Value.(map[string]interface{})
-	for k, v := range fldMap {
-		list[k] = v.(string)
-	}
+	doc := o.(*oschema.ODocument)
+
+	list = doc.GetField("databases").Value.(map[string]string)
 	return
 }
 

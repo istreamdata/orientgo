@@ -385,9 +385,9 @@ func TestSQlDriverGraph(t *testing.T) {
 		ndb, err := orient.DialDSN(dsn)
 		Nil(t, err)
 		SeedDB(t, ndb)
-		_, err = ndb.SQLCommand(nil, `CREATE CLASS Person extends V`)
+		err = ndb.Command(orient.NewSQLCommand(`CREATE CLASS Person extends V`)).Err()
 		Nil(t, err)
-		_, err = ndb.SQLCommand(nil, `CREATE CLASS Friend extends E`)
+		err = ndb.Command(orient.NewSQLCommand(`CREATE CLASS Friend extends E`)).Err()
 		Nil(t, err)
 		ndb.Close()
 	}
@@ -448,8 +448,8 @@ func TestSQlDriverGraph(t *testing.T) {
 
 	Equals(t, 1, len(rowdocs))
 	Equals(t, "Friend", rowdocs[0].Classname)
-	friendOutLink := rowdocs[0].GetField("out").Value.(*oschema.OLink)
-	True(t, friendOutLink.Record == nil, "should be nil")
+	friendOutLink := rowdocs[0].GetField("out").Value.(oschema.OIdentifiable)
+	True(t, friendOutLink.GetRecord() == nil, "should be nil")
 
 	glog.V(10).Infof("friendOutLink: %v\n", friendOutLink)
 

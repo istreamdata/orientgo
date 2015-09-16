@@ -11,6 +11,7 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/istreamdata/orientgo"
 	_ "github.com/istreamdata/orientgo/obinary"
+	"github.com/istreamdata/orientgo/oschema"
 	"net"
 )
 
@@ -155,17 +156,18 @@ var DocumentDBSeeds = []string{
 
 func SeedDB(t *testing.T, db *orient.Database) {
 	for _, seed := range DocumentDBSeeds {
-		if _, err := db.SQLCommand(nil, seed); err != nil {
+		if err := db.Command(orient.NewSQLCommand(seed)).Err(); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func TestSelect(t *testing.T) {
+func testOUserCommand(t *testing.T, fnc func(*orient.Database) orient.Results) {
 	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
-	docs, err := cli.SQLQuery(nil, nil, "SELECT FROM OUser")
+	var docs []oschema.OIdentifiable
+	err := fnc(cli).All(&docs)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(docs) != 3 {
@@ -174,43 +176,28 @@ func TestSelect(t *testing.T) {
 	//t.Logf("docs[%d]: %+v", len(docs), docs)
 }
 
-func TestSelectCommand(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t, false)
-	defer closer()
+func TestSelect(t *testing.T) {
+	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		return cli.Command(orient.NewSQLQuery("SELECT FROM OUser LIMIT ?", 3))
+	})
+}
 
-	recs, err := cli.SQLCommand(nil, "SELECT FROM OUser LIMIT ?", 3)
-	if err != nil {
-		t.Fatal(err)
-	} else if len(recs) != 3 {
-		t.Error("wrong docs count")
-	}
-	//t.Logf("docs[%d]: %+v", len(recs), recs)
+func TestSelectCommand(t *testing.T) {
+	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		return cli.Command(orient.NewSQLCommand("SELECT FROM OUser LIMIT ?", 3))
+	})
 }
 
 func TestSelectScript(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t, false)
-	defer closer()
-
-	recs, err := cli.ExecScript(nil, orient.LangSQL, "SELECT FROM OUser")
-	if err != nil {
-		t.Fatal(err)
-	} else if len(recs) != 3 {
-		t.Error("wrong docs count")
-	}
-	//t.Logf("docs[%d]: %+v", len(recs), recs)
+	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		return cli.Command(orient.NewScriptCommand(orient.LangSQL, "SELECT FROM OUser"))
+	})
 }
 
 func TestSelectScriptJS(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t, false)
-	defer closer()
-
-	recs, err := cli.ExecScript(nil, orient.LangJS, `var docs = db.query('SELECT FROM OUser'); docs`)
-	if err != nil {
-		t.Fatal(err)
-	} else if len(recs) != 3 {
-		t.Error("wrong docs count")
-	}
-	//t.Logf("docs[%d]: %+v", len(recs), recs)
+	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		return cli.Command(orient.NewScriptCommand(orient.LangJS, `var docs = db.query('SELECT FROM OUser'); docs`))
+	})
 }
 
 func TestSelectSaveFunc(t *testing.T) {
@@ -244,21 +231,24 @@ func TestSelectSaveFunc(t *testing.T) {
 		Name string
 		Code string
 	}
-	if _, err := cli.SQLQuery(&fnc, nil, "SELECT FROM OFunction"); err != nil {
+	if err := cli.Command(orient.NewSQLQuery("SELECT FROM OFunction")).All(&fnc); err != nil {
 		t.Fatal(err)
 	} else if len(fnc) != 1 {
 		t.Fatal("wrong func count")
 	} else if fnc[0].Name != name {
-		t.Fatal("wrong func name")
+		t.Fatalf("wrong func name: '%v' vs '%v'", fnc[0].Name, name)
 	} else if fnc[0].Code != code {
 		t.Fatal(fmt.Errorf("wrong func code:\n\n%s\nvs\n%s\n", fnc[0].Code, code))
 	}
 
-	recs, err := cli.CallScriptFunc(nil, name, "some", struct{ Name string }{"one"})
+	var o interface{}
+	err := cli.CallScriptFunc(name, "some", struct{ Name string }{"one"}).All(&o)
 	if err != nil {
 		t.Fatal(err)
-	} else if len(recs) != 3 {
-		t.Error("wrong docs count: ", len(recs), recs)
+	} else if docs, ok := o.([]oschema.OIdentifiable); !ok {
+		t.Errorf("expected list, got: %T", o)
+	} else if len(docs) != 3 {
+		t.Error("wrong docs count")
 	}
 	//t.Logf("docs[%d]: %+v", len(recs), recs)
 }
@@ -280,7 +270,7 @@ func TestSelectSaveFunc2(t *testing.T) {
 		Name string
 		Code string
 	}
-	if _, err := cli.SQLQuery(&fnc, nil, "SELECT FROM OFunction"); err != nil {
+	if err := cli.Command(orient.NewSQLQuery("SELECT FROM OFunction")).All(&fnc); err != nil {
 		t.Fatal(err)
 	} else if len(fnc) != 1 {
 		t.Fatal("wrong func count")
@@ -293,7 +283,7 @@ func TestSelectSaveFunc2(t *testing.T) {
 	var res struct {
 		Params []string
 	}
-	_, err := cli.CallScriptFunc(&res, name, "some", "one")
+	err := cli.CallScriptFunc(name, "some", "one").All(&res)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(res.Params) != 2 {
@@ -317,34 +307,7 @@ func TestSelectSaveFuncResult(t *testing.T) {
 		Name  string
 		Props map[string]interface{}
 	}
-	_, err := cli.CallScriptFunc(&result, name, "some")
-	if err != nil {
-		t.Fatal(err)
-	} else if result.Name != "ori" {
-		t.Fatal("wrong object name property")
-	} else if len(result.Props) == 0 {
-		t.Fatal("empty object props")
-	}
-	//t.Logf("doc: %+v", result)
-}
-
-func TestSelectSaveFuncResultJSON(t *testing.T) {
-	cli, closer := SpinOrientAndOpenDB(t, false)
-	defer closer()
-
-	name := "tempFuncOne"
-	code := `return {"name":"ori","props":{"data":"ok","num":10,"custom":one}}`
-	if err := cli.CreateScriptFunc(orient.Function{
-		Name: name, Code: code, Idemp: false,
-		Lang: orient.LangJS, Params: []string{"one"},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	var result struct {
-		Name  string
-		Props map[string]interface{}
-	}
-	_, err := cli.CallScriptFunc(&result, name, "some")
+	err := cli.CallScriptFunc(name, "some").All(&result)
 	if err != nil {
 		t.Fatal(err)
 	} else if result.Name != "ori" {
@@ -360,18 +323,46 @@ func TestScriptParams(t *testing.T) {
 	defer closer()
 
 	name := "tempFuncOne"
-	code := `return {"aaa": one, "bbb": "www"}`
+	code := `return {"aaa": one, "bbb": two}`
 	if err := cli.CreateScriptFunc(orient.Function{
 		Name: name, Code: code, Idemp: false,
-		Lang: orient.LangJS, Params: []string{"one"},
+		Lang: orient.LangJS, Params: []string{"one", "two"},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	var o interface{}
-	recs, err := cli.CallScriptFunc(&o, name, map[string]string{"some": "one"}, "two")
+	var o map[string]interface{}
+	err := cli.CallScriptFunc(name, map[string]string{"one": "first"}, "two").All(&o)
 	if err != nil {
-		t.Logf("%+v\n", recs)
 		t.Fatal(err)
+	} else if len(o) != 2 {
+		t.Fatal("wrong map leng")
+	} else if av, ok := o["aaa"]; !ok {
+		t.Fatal("'a' value not found")
+	} else if bv, ok := o["bbb"]; !ok {
+		t.Fatal("'b' value not found")
+	} else if am, ok := av.(map[string]string); !ok {
+		t.Fatal("wrong type for 'a' value")
+	} else if len(am) != 1 {
+		t.Fatal("wrong value for 'a'") // TODO: check data
+	} else if bs, ok := bv.(string); !ok {
+		t.Fatal("wrong type for 'b' value")
+	} else if bs != "two" {
+		t.Fatal("wrong value for 'b'")
 	}
-	//t.Logf("%T: %+v\n%+v\n",o,o,recs)
+	t.Logf("%+v(%T)\n", o, o)
+}
+
+func TestScriptJSMap(t *testing.T) {
+	cli, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+
+	var o []oschema.OIdentifiable
+	err := cli.Command(orient.NewScriptCommand(orient.LangJS, `var a = {"aaa":"one","bbb": 2}; a`)).All(&o)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(o) != 1 {
+		t.Skipf("wrong array leng: %+v(%d)", o, len(o))
+	} else if o[0] == nil {
+		t.Skipf("nil record: %+v(%T)", o, o)
+	}
 }

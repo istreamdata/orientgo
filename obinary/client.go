@@ -52,7 +52,6 @@ func Dial(addr string) (*Client, error) {
 	}
 	c := &Client{
 		addr: addr, conn: conn,
-		serializer: serializer(curSerializerVersion), // TODO: need to detect if server is using a higher version
 	}
 	if err := c.handshakeVersion(); err != nil {
 		conn.Close()
@@ -84,8 +83,10 @@ type Client struct {
 	currmu sync.RWMutex
 	currdb *Database // only one db session open at a time
 
-	protoVers  int16
-	serializer ORecordSerializer
+	srvProtoVers int
+	curProtoVers int
+
+	recordFormat orient.RecordSerializer
 }
 
 func (c *Client) handshakeVersion() (err error) {
@@ -94,11 +95,16 @@ func (c *Client) handshakeVersion() (err error) {
 	c.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	defer c.conn.SetReadDeadline(time.Time{})
 
-	c.protoVers = rw.ReadShort(c.conn)
-	if c.protoVers < MinProtocolVersion || c.protoVers > MaxProtocolVersion {
-		return ErrUnsupportedVersion(c.protoVers)
-	} else if c.protoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
-		return ErrUnsupportedVersion(c.protoVers)
+	c.srvProtoVers = int(rw.ReadShort(c.conn))
+	if c.srvProtoVers < MinProtocolVersion || c.srvProtoVers > MaxProtocolVersion {
+		return ErrUnsupportedVersion(c.srvProtoVers)
+	} else if c.srvProtoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
+		return ErrUnsupportedVersion(c.srvProtoVers)
+	}
+	c.recordFormat = orient.GetDefaultRecordSerializer()
+	c.curProtoVers = CurrentProtoVersion
+	if c.curProtoVers > c.srvProtoVers {
+		c.curProtoVers = c.srvProtoVers
 	}
 	return nil
 }
@@ -333,75 +339,34 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-//func (dbc *Client) String() string {
-//	if db := dbc.getCurrDB(); db == nil {
-//		return "DBClient<not-connected-to-db>"
-//	} else {
-//		return fmt.Sprintf("DBClient<connected-to: %v of type %v with %d clusters; sessionId: %v\n  CurrDB Details: %v>",
-//			db.Name, db.Type, len(db.Clusters), dbc.sessionId, db)
-//	}
-//}
-
-func (db *Database) readSingleRecord(r io.Reader) orient.Record {
-	resultType := rw.ReadShort(r)
-	switch resultType {
+func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
+	classId := rw.ReadShort(r)
+	switch classId {
 	case RecordNull:
 		return nil
 	case RecordRID:
-		rid := readRID(r)
-		return RIDRecord{RID: rid, db: db}
-	case 0:
-		return db.readRecord(r)
+		return readRID(r)
 	default:
-		panic(fmt.Errorf("unexpected result type: %v", resultType))
-	}
-}
-
-func (db *Database) readRecord(r io.Reader) orient.Record {
-	// if get here then have a full record, which can be in one of three formats:
-	//  - "flat data"
-	//  - "raw bytes"
-	//  - "document"
-	recType := rw.ReadByte(r)
-	switch tp := rune(recType); tp {
-	case 'd':
-		return db.readSingleDocument(r)
-	case 'f':
-		return db.readFlatDataRecord(r)
-	case 'b':
-		return db.readRawBytesRecord(r)
-	default:
-		panic(fmt.Errorf("unexpected record type: '%v'", tp))
-	}
-}
-
-func (db *Database) readSingleDocument(r io.Reader) (doc *RecordData) {
-	rid := readRID(r)
-	recVersion := rw.ReadInt(r)
-	recBytes := rw.ReadBytes(r)
-	return &RecordData{RID: rid, Version: recVersion, Data: recBytes, db: db}
-}
-
-func (db *Database) readFlatDataRecord(r io.Reader) orient.Record {
-	panic(fmt.Errorf("readFlatDataRecord: Non implemented")) // TODO: need example from server to know how to handle this
-}
-
-func (db *Database) readRawBytesRecord(r io.Reader) orient.Record {
-	return RawRecord(rw.ReadBytes(r))
-}
-
-func (db *Database) readResultSet(r io.Reader) orient.Records {
-	// next val is: (collection-size:int)
-	// and then each record is serialized according to format:
-	// (0:short)(record-type:byte)(cluster-id:short)(cluster-position:long)(record-version:int)(record-content:bytes)
-	resultSetSize := int(rw.ReadInt(r))
-	recs := make(orient.Records, 0, resultSetSize)
-	for i := 0; i < resultSetSize; i++ {
-		if rec := db.readSingleRecord(r); rec != nil {
-			recs = append(recs, rec)
+		record := orient.NewRecordOfType(orient.RecordType(rw.ReadByte(r)))
+		switch rec := record.(type) {
+		case *orient.DocumentRecord:
+			rec.SetSerializer(db.sess.cli.recordFormat)
 		}
+
+		rid := readRID(r)
+		version := int(rw.ReadInt(r))
+		content := rw.ReadBytes(r)
+
+		if err := record.Fill(rid, version, content); err != nil {
+			panic(fmt.Errorf("cannot create record %T from content: %s", record, err))
+		}
+		return record
 	}
-	return recs
+}
+
+func writeRID(w io.Writer, rid oschema.RID) {
+	rw.WriteShort(w, rid.ClusterID)
+	rw.WriteLong(w, rid.ClusterPos)
 }
 
 func readRID(r io.Reader) oschema.RID {
@@ -409,39 +374,4 @@ func readRID(r io.Reader) oschema.RID {
 	clusterID := rw.ReadShort(r)
 	clusterPos := rw.ReadLong(r)
 	return oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
-}
-
-func extractSerializerVersion(data []byte) (ser ORecordSerializer, out []byte) {
-	if len(data) == 0 {
-		panic(io.ErrUnexpectedEOF)
-	}
-	vers := data[0]
-	ser = serializer(vers)
-	out = data[1:] // need this for pointer arithmetic to work in serialized document
-	return
-}
-
-func (db *Database) createDocumentFromBytes(rid oschema.RID, recVersion int32, serializedDoc []byte) (doc *oschema.ODocument, err error) {
-	defer catch(&err)
-	if len(serializedDoc) == 0 {
-		err = io.ErrUnexpectedEOF
-		return
-	}
-	doc = oschema.NewDocument("") // don't know classname yet (in serialized record)
-	doc.RID = rid
-	doc.Version = recVersion
-	ser, data := extractSerializerVersion(serializedDoc)
-	err = ser.Deserialize(db, doc, bytes.NewReader(data))
-	return
-}
-
-func (db *Database) createMapFromBytes(rid oschema.RID, serializedDoc []byte) (m map[string]interface{}, err error) {
-	defer catch(&err)
-	if len(serializedDoc) == 0 {
-		err = io.ErrUnexpectedEOF
-		return
-	}
-	ser, data := extractSerializerVersion(serializedDoc) // TODO: serialize to document first?
-	m, err = ser.ToMap(db, bytes.NewReader(data))
-	return
 }

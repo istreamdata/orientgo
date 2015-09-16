@@ -10,6 +10,7 @@ import (
 
 type OIdentifiable interface {
 	GetIdentity() RID
+	GetRecord() interface{}
 }
 
 var (
@@ -66,6 +67,10 @@ func NewRIDInCluster(cid int16) RID {
 // GetIdentity implements OIdentifiable interface on RID
 func (r RID) GetIdentity() RID {
 	return r
+}
+
+func (r RID) GetRecord() interface{} {
+	return nil
 }
 
 // String converts RID to #N:M string format

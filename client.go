@@ -9,14 +9,12 @@ import (
 
 const poolLimit = 6
 
-type FetchPlan struct {
-	Plan string
-}
+type FetchPlan string
 
-var (
-	DefaultFetchPlan   = &FetchPlan{""}
-	FetchPlanNoFollow  = &FetchPlan{"*:0"}
-	FetchPlanFollowAll = &FetchPlan{"*:-1"}
+const (
+	DefaultFetchPlan   = FetchPlan("")
+	FetchPlanNoFollow  = FetchPlan("*:0")
+	FetchPlanFollowAll = FetchPlan("*:-1")
 )
 
 func Dial(addr string) (*Client, error) {
@@ -244,7 +242,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.CreateRecord(doc)
 }
-func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -252,13 +250,13 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRID(rid, recVersion)
 }
-func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan string, ignoreCache, loadTombstones bool) (Records, error) {
+func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreCache bool) (oschema.ORecord, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.GetRecordByRID(rid, fetchPlan, ignoreCache, loadTombstones)
+	return conn.GetRecordByRID(rid, fetchPlan, ignoreCache)
 }
 func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()
@@ -276,92 +274,27 @@ func (db *Database) CountRecords() (int64, error) {
 	defer db.pool.putConn(conn)
 	return conn.CountRecords()
 }
-func (db *Database) SQLQuery(result interface{}, fetchPlan *FetchPlan, sql string, params ...interface{}) (Records, error) {
+func (db *Database) Command(cmd CustomSerializable) Results {
 	conn, err := db.pool.getConn()
 	if err != nil {
-		return nil, err
+		return errorResult{err: err}
 	}
 	defer db.pool.putConn(conn)
-	recs, err := conn.SQLQuery(fetchPlan, sql, params...)
+	result, err := conn.Command(cmd)
 	if err != nil {
-		return recs, err
+		return errorResult{err: err}
 	}
-	if result != nil {
-		err = recs.DeserializeAll(result)
-	}
-	return recs, err
-}
-func (db *Database) SQLCommand(result interface{}, sql string, params ...interface{}) (Records, error) {
-	conn, err := db.pool.getConn()
-	if err != nil {
-		return nil, err
-	}
-	defer db.pool.putConn(conn)
-	recs, err := conn.SQLCommand(sql, params...)
-	if err != nil {
-		return recs, err
-	}
-	if result != nil {
-		err = recs.DeserializeAll(result)
-	}
-	return recs, err
+	return &unknownResult{result: result}
 }
 
-func (db *Database) ExecScript(result interface{}, lang ScriptLang, script string, params ...interface{}) (Records, error) {
-	conn, err := db.pool.getConn()
-	if err != nil {
-		return nil, err
-	}
-	defer db.pool.putConn(conn)
-	recs, err := conn.ExecScript(lang, script, params...)
-	if err != nil {
-		return recs, err
-	}
-	if result != nil {
-		err = recs.DeserializeAll(result)
-	}
-	return recs, err
-}
-
-func (db *Database) SQLQueryOne(result interface{}, sql string, params ...interface{}) (Record, error) {
-	recs, err := db.SQLQuery(result, nil, sql, params...)
-	if err != nil {
-		return nil, err
-	}
-	return recs.One()
-}
-func (db *Database) SQLCommandExpect(expected int, sql string, params ...interface{}) error {
-	return checkExpected(expected)(db.SQLCommand(nil, sql, params...))
-}
-func (db *Database) SQLCommandOne(result interface{}, sql string, params ...interface{}) (Record, error) {
-	recs, err := db.SQLCommand(result, sql, params...)
-	if err != nil {
-		return nil, err
-	}
-	return recs.One()
-}
-func (db *Database) SQLBatch(result interface{}, sql string, params ...interface{}) (Records, error) {
-	return db.ExecScript(result, LangSQL, sql, params...)
-}
-func (db *Database) SQLBatchExpect(expected int, sql string, params ...interface{}) error {
-	return checkExpected(expected)(db.SQLBatch(nil, sql, params...))
-}
-func (db *Database) SQLBatchOne(result interface{}, sql string, params ...interface{}) (Record, error) {
-	recs, err := db.SQLBatch(result, sql, params...)
-	if err != nil {
-		return nil, err
-	}
-	return recs.One()
-}
-
-func sqlEscape(s string) string { // TODO: escape things in a right way
+func sqlEscape(s string) string { // TODO: get rid of it
 	s = strings.Replace(s, `\`, `\\`, -1)
 	s = strings.Replace(s, `"`, `\"`, -1)
 	return `"` + s + `"`
 }
 
 func (db *Database) CreateScriptFunc(fnc Function) error {
-	sql := `CREATE FUNCTION ` + fnc.Name + ` ` + sqlEscape(fnc.Code)
+	sql := `CREATE FUNCTION ` + fnc.Name + ` ` + sqlEscape(fnc.Code) // TODO: pass as parameter
 	if len(fnc.Params) > 0 {
 		sql += ` PARAMETERS [` + strings.Join(fnc.Params, ", ") + `]`
 	}
@@ -369,21 +302,18 @@ func (db *Database) CreateScriptFunc(fnc Function) error {
 	if fnc.Lang != "" {
 		sql += ` LANGUAGE ` + string(fnc.Lang)
 	}
-	_, err := db.SQLCommand(nil, sql)
-	return err
+	return db.Command(NewSQLCommand(sql)).Err()
 }
 
 func (db *Database) DeleteScriptFunc(name string) error {
-	_, err := db.SQLCommand(nil, `DELETE FROM OFunction WHERE name = ?`, name)
-	return err
+	return db.Command(NewSQLCommand(`DELETE FROM OFunction WHERE name = ?`, name)).Err()
 }
 
 func (db *Database) UpdateScriptFunc(name string, script string) error {
-	_, err := db.SQLCommand(nil, `UPDATE OFunction SET code = ? WHERE name = ?`, script, name)
-	return err
+	return db.Command(NewSQLCommand(`UPDATE OFunction SET code = ? WHERE name = ?`, script, name)).Err()
 }
 
-func (db *Database) CallScriptFunc(result interface{}, name string, params ...interface{}) (Records, error) {
+func (db *Database) CallScriptFunc(name string, params ...interface{}) Results {
 	//		conn, err := db.pool.getConn()
 	//		if err != nil {
 	//			return nil, err
@@ -403,18 +333,11 @@ func (db *Database) CallScriptFunc(result interface{}, name string, params ...in
 
 		sparams = append(sparams, string(data))
 	}
-	//return db.ExecScript(result, LangSQL, `SELECT `+name+`(`+strings.Join(sparams, ",")+`)`)
-	return db.ExecScript(result, LangJS, fmt.Sprintf(`var out = %s(%s); (typeof(out) == "object" && out.toString() == "[object Object]" ? (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON(JSON.stringify(out)) : out)`,
-		name, strings.Join(sparams, ",")))
+	cmd := fmt.Sprintf(`var out = %s(%s); (typeof(out) == "object" && out.toString() == "[object Object]" ? (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON(JSON.stringify(out)) : out)`,
+		name, strings.Join(sparams, ","))
+	return db.Command(NewScriptCommand(LangJS, cmd))
 }
 
-// CallScriptFuncJSON is a workaround for driver bug. It allow to return pure JS objects from DB functions.
-//
-// DEPRECATED. Use CallScriptFunc instead.
-func (db *Database) CallScriptFuncJSON(result interface{}, name string, params ...interface{}) error {
-	_, err := db.CallScriptFunc(result, name, params...)
-	return err
-}
 func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 	for _, fnc := range fncs {
 		if fnc.Lang == "" {
@@ -428,33 +351,6 @@ func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 		}
 	}
 	return nil
-}
-
-type ErrUnexpectedResultCount struct {
-	Expected int
-	Count    int
-}
-
-func (e ErrUnexpectedResultCount) Error() string {
-	return fmt.Sprintf("expected %d record to be modified, but got %d", e.Expected, e.Count)
-}
-
-func checkExpected(expected int) func(Records, error) error {
-	return func(recs Records, err error) error {
-		if err != nil {
-			return err
-		}
-		var mod int
-		if err = recs.DeserializeAll(&mod); err != nil {
-			return err
-		}
-		if expected >= 0 && expected != mod {
-			err = ErrUnexpectedResultCount{Expected: expected, Count: mod}
-		} else if expected < 0 && mod == 0 {
-			err = ErrUnexpectedResultCount{Expected: expected, Count: mod}
-		}
-		return err
-	}
 }
 
 func MarshalContent(o interface{}) string {

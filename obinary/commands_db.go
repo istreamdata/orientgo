@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"errors"
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/binserde"
@@ -13,6 +14,22 @@ import (
 	"github.com/istreamdata/orientgo/oschema"
 	"io"
 )
+
+func (c *Client) sendClientInfo(w io.Writer) {
+	if c.curProtoVers >= ProtoVersion7 {
+		rw.WriteStrings(w, driverName, driverVersion) // driver info
+		rw.WriteShort(w, int16(c.curProtoVers))       // protocol version
+		rw.WriteNull(w)                               // client id (needed only for cluster config)
+	}
+	if c.curProtoVers > ProtoVersion21 {
+		rw.WriteString(w, c.recordFormat.String())
+	} else {
+		panic("CSV serializer is not supported")
+	}
+	if c.curProtoVers > ProtoVersion26 {
+		rw.WriteBool(w, false) // use token (true) or session (false)
+	}
+}
 
 func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pass string) (sess *session, db *ODatabase, err error) {
 	defer catch(&err)
@@ -25,12 +42,14 @@ func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pas
 		//serverVers string
 	)
 	err = c.root.sendCmd(requestDbOpen, func(w io.Writer) {
-		rw.WriteStrings(w, driverName, driverVersion) // driver info
-		rw.WriteShort(w, CurrentProtoVersion)         // protocol version
-		rw.WriteNull(w)                               // client id (needed only for cluster config)
-		rw.WriteString(w, c.serializer.Class())
-		rw.WriteBool(w, false) // use token (true) or session (false)
-		rw.WriteStrings(w, dbname, string(dbtype), user, pass)
+		c.sendClientInfo(w)
+
+		rw.WriteString(w, dbname)
+		if c.curProtoVers >= ProtoVersion8 {
+			rw.WriteString(w, string(dbtype))
+		}
+		rw.WriteString(w, user)
+		rw.WriteString(w, pass)
 	}, func(r io.Reader) {
 		sessId = rw.ReadInt(r) // new session id
 		_ = rw.ReadBytes(r)    // token - may ignore this in session mode (is nil)
@@ -82,11 +101,51 @@ func (c *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, user, p
 	c.currdb = db
 	c.currmu.Unlock()
 	err = db.refreshGlobalProperties()
+	c.recordFormat.SetGlobalPropertyFunc(func(id int) (oschema.OGlobalProperty, bool) {
+		// TODO: implement global property lookup
+		db.refreshGlobalPropertiesIfRequired(id)
+		return db.db.GetGlobalProperty(id)
+	})
 	return db, err
 }
 
 func (c *Client) Open(dbname string, dbtype orient.DatabaseType, user, pass string) (orient.DBSession, error) {
 	return c.OpenDatabase(dbname, dbtype, user, pass)
+}
+
+// refreshGlobalPropertiesIfRequired iterates through all the fields
+// of the binserde header. If any of the fieldIds are NOT in the GlobalProperties
+// map of the current ODatabase object, then the GlobalProperties are
+// stale and need to be refresh (this likely means CREATE PROPERTY statements
+// were recently issued).
+//
+// If the GlobalProperties data is stale, then it must be refreshed, so
+// refreshGlobalProperties is called.
+func (db *Database) refreshGlobalPropertiesIfRequired(id int) error {
+	if db == nil || db.db == nil {
+		return nil
+	}
+	if _, ok := db.db.GetGlobalProperty(id); !ok {
+		return db.refreshGlobalProperties()
+	}
+	return nil
+}
+
+// refreshGlobalProperties is called when it is discovered,
+// while in the middle of reading the response from the OrientDB
+// server, that the GlobalProperties are stale.
+func (db *Database) refreshGlobalProperties() error {
+	// ---[ load #0:0 - config record ]---
+	oschemaRID, err := db.loadConfigRecord()
+	if err != nil {
+		return err
+	}
+	// ---[ load #0:1 - oschema record ]---
+	err = db.loadSchema(oschemaRID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // loadConfigRecord loads record #0:0 for the current database, caching
@@ -95,23 +154,17 @@ func (db *Database) loadConfigRecord() (oschemaRID oschema.RID, err error) {
 	defer catch(&err)
 	// The config record comes back as type 'b' (raw bytes), which should
 	// just be converted to a string then tokenized by the pipe char
-	var recs orient.Records
+	var rec oschema.ORecord
 	rid := oschema.RID{ClusterID: 0, ClusterPos: 0}
-	recs, err = db.GetRecordByRID(rid, "*:-1 index:0", true, true) // based on Java client code
+	rec, err = db.GetRecordByRID(rid, "*:-1 index:0", true) // based on Java client code
 	if err != nil {
 		return
 	}
-
-	var rec orient.Record
-	rec, err = recs.One()
-	if err != nil {
-		return
-	}
-	raw, ok := rec.(RawRecord)
+	raw, ok := rec.(*orient.BytesRecord)
 	if !ok {
-		err = fmt.Errorf("expected raw record for config")
+		err = fmt.Errorf("expected raw record for config, got %T", rec)
 		return
-	} else if s := string([]byte(raw)); s == "" {
+	} else if s := string(raw.Data); s == "" {
 		err = fmt.Errorf("config record is empty")
 		return
 	} else if err = parseConfigRecord(db.db, s); err != nil {
@@ -156,23 +209,24 @@ func parseConfigRecord(db *ODatabase, psvData string) error {
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
 func (db *Database) loadSchema(rid oschema.RID) error {
-	recs, err := db.GetRecordByRID(rid, "*:-1 index:0", true, false) // TODO: GetRecordByRIDIfChanged
+	rec, err := db.GetRecordByRID(rid, "*:-1 index:0", true) // TODO: GetRecordByRIDIfChanged
 	if err != nil {
 		return err
 	}
-	rec, err := recs.One()
-	if err != nil {
-		return err
+
+	drec, ok := rec.(*orient.DocumentRecord)
+	if !ok {
+		return fmt.Errorf("expected document record for schema, got %T", rec)
 	}
-	var doc *oschema.ODocument
-	if err = rec.Deserialize(&doc); err != nil {
-		return err
+	doc, err := drec.ToDocument()
+	if err != nil {
+		return fmt.Errorf("cannot read document record for schema: %s", err)
 	}
 
 	odb := db.db
 
 	// ---[ schemaVersion ]---
-	odb.SchemaVersion = doc.GetField("schemaVersion").Value.(int32)
+	odb.SchemaVersion = int(doc.GetField("schemaVersion").Value.(int32))
 
 	// ---[ globalProperties ]---
 	globalPropsFld := doc.GetField("globalProperties")
@@ -230,12 +284,12 @@ func (db *Database) CountRecords() (int64, error) {
 // If nil is returned, delete succeeded.
 // If error is returned, delete request was either never issued, or there was
 // a problem on the server end or the record did not exist in the database.
-func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
+func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 	var status byte
 	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
 		rw.WriteShort(w, rid.ClusterID)
 		rw.WriteLong(w, rid.ClusterPos)
-		rw.WriteInt(w, recVersion)
+		rw.WriteInt(w, int32(recVersion))
 		rw.WriteByte(w, 0) // sync mode ; 0 = synchronous; 1 = asynchronous
 	}, func(r io.Reader) {
 		status = rw.ReadByte(r)
@@ -253,46 +307,52 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int32) error {
 
 // GetRecordByRID takes an RID and reads that record from the database.
 //
-// TODO: need to properly handle fetchPlan
 // ignoreCache = true
-// loadTombstones = false
-func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan string, ignoreCache, loadTombstones bool) (recs orient.Records, err error) {
+func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan orient.FetchPlan, ignoreCache bool) (rec oschema.ORecord, err error) {
 	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
-		rw.WriteShort(w, rid.ClusterID)
-		rw.WriteLong(w, rid.ClusterPos)
-		rw.WriteString(w, fetchPlan)
-		rw.WriteBool(w, ignoreCache)
-		rw.WriteBool(w, loadTombstones)
+		writeRID(w, rid)
+		rw.WriteString(w, string(fetchPlan))
+		if db.sess.cli.curProtoVers >= ProtoVersion9 {
+			rw.WriteBool(w, ignoreCache)
+		}
+		if db.sess.cli.curProtoVers >= ProtoVersion13 {
+			rw.WriteBool(w, false)
+		}
 	}, func(r io.Reader) {
-		// TODO: this query can return multiple records (supplementary only?)
-		recs = make(orient.Records, 0, 1)
+		if rw.ReadByte(r) == 0 {
+			return
+		}
+		var (
+			content []byte
+			version int
+			recType orient.RecordType
+		)
+		if db.sess.cli.curProtoVers <= ProtoVersion27 {
+			content = rw.ReadBytes(r)
+			version = int(rw.ReadInt(r))
+			recType = orient.RecordType(rw.ReadByte(r))
+		} else {
+			recType = orient.RecordType(rw.ReadByte(r))
+			version = int(rw.ReadInt(r))
+			content = rw.ReadBytes(r)
+		}
+		rec = orient.NewRecordOfType(recType)
+		switch rc := rec.(type) {
+		case *orient.DocumentRecord:
+			rc.SetSerializer(db.sess.cli.recordFormat)
+		}
+		if err := rec.Fill(rid, version, content); err != nil {
+			panic(err)
+		}
 		for {
 			status := rw.ReadByte(r)
-			if status == byte(0) {
+			if status != 2 {
 				break
 			}
-			recType := rw.ReadByte(r)
-			switch tp := rune(recType); tp {
-			case 'd':
-				//recs = append(recs, db.readSingleDocument(r))
-				recVersion := rw.ReadInt(r)
-				recBytes := rw.ReadBytes(r)
-				recs = append(recs, &RecordData{
-					RID:     rid,
-					Version: recVersion,
-					Data:    recBytes,
-					db:      db,
-				})
-			case 'b':
-				_ = rw.ReadInt(r) // record version
-				data := rw.ReadBytes(r)
-				recs = append(recs, RawRecord(data))
-			default:
-				panic(ErrBrokenProtocol{fmt.Errorf("GetRecordByRID: unknown record type: %d(%s)", tp, string(tp))})
-			}
+			db.updateCachedRecord(db.readIdentifiable(r)) // .(oschema.ORecord)
 		}
 	})
-	return recs, err
+	return rec, err
 }
 
 // ReloadSchema should be called after a schema is altered, such as properties
@@ -450,20 +510,22 @@ func writeLinkBagCollectionPointer(w io.Writer, linkBag *oschema.OLinkBag) {
 // TODO: maybe include a fetchplan here?
 // TODO: remove it from obinary
 func (db *Database) ResolveLinks(links []*oschema.OLink) error {
-	fetchPlan := ""
+	fetchPlan := orient.FetchPlan("")
 	for i := 0; i < len(links); i++ {
 		if links[i].Record == nil {
-			recs, err := db.GetRecordByRID(links[i].RID, fetchPlan, true, false)
+			rec, err := db.GetRecordByRID(links[i].RID, fetchPlan, true)
 			if err != nil {
 				return err
 			}
-			docs, err := recs.AsDocuments()
-			if err != nil {
-				return err
-			} else if len(docs) != 1 {
-				glog.Warningf("More than one record returned from GetRecordByRID. Please report this use case!")
-			}
-			links[i].Record = docs[0]
+			panic(fmt.Errorf("resolve links record type: %T", rec))
+			/*
+				docs, err := recs.AsDocuments()
+				if err != nil {
+					return err
+				} else if len(docs) != 1 {
+					glog.Warningf("More than one record returned from GetRecordByRID. Please report this use case!")
+				}
+				links[i].Record = docs[0]*/
 		}
 	}
 	return nil
@@ -532,4 +594,76 @@ func (db *Database) findClusterWithName(name string) (int16, error) {
 		return id, fmt.Errorf("fixme: No cluster with name %s is known in database %s", name, db.db.Name)
 	}
 	return id, nil
+}
+
+// Use this to create a new record in the OrientDB database
+// you are currently connected to.
+// Does REQUEST_RECORD_CREATE OrientDB cmd (binary network protocol).
+func (db *Database) CreateRecord(doc *oschema.ODocument) (err error) {
+	defer catch(&err)
+	if doc.Classname == "" {
+		return errors.New("classname must be present on Document to call CreateRecord")
+	}
+	clusterID := int16(-1) // indicates new class/cluster
+	oclass, ok := db.db.Classes[doc.Classname]
+	if ok {
+		clusterID = int16(oclass.DefaultClusterId) // TODO: need way to allow user to specify a non-default cluster
+	}
+	serde := db.serializer()
+
+	rbuf := bytes.NewBuffer(nil)
+	if err = serde.ToStream(rbuf, doc); err != nil {
+		return
+	}
+
+	err = db.sess.sendCmd(requestRecordCREATE, func(w io.Writer) {
+		rw.WriteShort(w, clusterID)
+		rw.WriteBytes(w, rbuf.Bytes())
+		rw.WriteByte(w, byte('d')) // document record-type
+		rw.WriteByte(w, byte(0))   // synchronous mode indicator
+	}, func(r io.Reader) {
+		clusterID = rw.ReadShort(r)
+		clusterPos := rw.ReadLong(r)
+		doc.Version = int(rw.ReadInt(r))
+		nCollChanges := rw.ReadInt(r)
+		if nCollChanges != 0 {
+			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
+		}
+		doc.RID = oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
+	})
+	// In the Java client, they now a 'select from XXX' at this point -> would that be useful here?
+	return
+}
+
+// UpdateRecord should be used update an existing record in the OrientDB database.
+// It does the REQUEST_RECORD_UPDATE OrientDB cmd (network binary protocol)
+func (db *Database) UpdateRecord(doc *oschema.ODocument) (err error) {
+	defer catch(&err)
+	if doc == nil {
+		return fmt.Errorf("document is nil")
+	} else if doc.RID.ClusterID < 0 || doc.RID.ClusterPos < 0 {
+		return fmt.Errorf("document is not updateable - has negative RID values")
+	}
+	ser := db.serializer()
+	rbuf := bytes.NewBuffer(nil)
+	if err = ser.ToStream(rbuf, doc); err != nil {
+		return
+	}
+	return db.sess.sendCmd(requestRecordUPDATE, func(w io.Writer) {
+		rw.WriteShort(w, doc.RID.ClusterID)
+		rw.WriteLong(w, doc.RID.ClusterPos)
+		rw.WriteBool(w, true) // update-content flag
+		rw.WriteBytes(w, rbuf.Bytes())
+		rw.WriteInt(w, int32(doc.Version)) // record version
+		rw.WriteByte(w, byte('d'))         // record-type: document // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
+		rw.WriteByte(w, 0)                 // mode: synchronous
+	}, func(r io.Reader) {
+		doc.Version = int(rw.ReadInt(r))
+		nCollChanges := rw.ReadInt(r)
+		if nCollChanges != 0 {
+			// if > 0, then have to deal with RidBag mgmt:
+			// [(uuid-most-sig-bits:long)(uuid-least-sig-bits:long)(updated-file-id:long)(updated-page-index:long)(updated-page-offset:int)]
+			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
+		}
+	})
 }

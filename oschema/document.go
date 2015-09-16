@@ -14,9 +14,9 @@ var _ OIdentifiable = (*ODocument)(nil)
 
 type ODocument struct {
 	RID         RID
-	Version     int32
+	Version     int
 	fieldsOrder []string // field names in the order they were added to the ODocument
-	Fields      map[string]*OField
+	Fields      map[string]*ODocEntry
 	Classname   string // TODO: probably needs to change *OClass (once that is built)
 	dirty       bool
 }
@@ -33,9 +33,9 @@ func NewDocument(className string) *ODocument {
 // TODO: have this replace NewDocument and change NewDocument to take RID and Version (???)
 func NewEmptyDocument() *ODocument {
 	return &ODocument{
-		Fields:  make(map[string]*OField),
+		Fields:  make(map[string]*ODocEntry),
 		RID:     NewEmptyRID(),
-		Version: int32(-1),
+		Version: -1,
 	}
 }
 
@@ -46,18 +46,21 @@ func (doc *ODocument) GetIdentity() RID {
 	return doc.RID
 }
 
+func (doc *ODocument) GetRecord() interface{} {
+	if doc == nil {
+		return nil
+	}
+	return doc
+}
+
 // Implements database/sql.Scanner interface
 func (doc *ODocument) Scan(src interface{}) error {
-	locdoc := src.(*ODocument)
-	*doc = *locdoc
-
-	// switch src.(type) {
-	// case *ODocument:
-	// 	locdoc := src.(*ODocument)
-	// 	*doc = *locdoc
-	// default:
-	// 	return errors.New("Say what???")
-	// }
+	switch v := src.(type) {
+	case *ODocument:
+		*doc = *v
+	default:
+		return fmt.Errorf("ODocument: cannot convert from %T to %T", src, doc)
+	}
 	return nil
 }
 
@@ -91,35 +94,24 @@ func (doc *ODocument) FieldNames() []string {
 // There is some overhead to getting them in entry order, so if you
 // don't care about that order, just access the Fields field of the
 // ODocument struct directly.
-func (doc *ODocument) GetFields() []*OField {
-	fields := make([]*OField, len(doc.fieldsOrder))
+func (doc *ODocument) GetFields() []*ODocEntry {
+	fields := make([]*ODocEntry, len(doc.fieldsOrder))
 	for i, name := range doc.fieldsOrder {
 		fields[i] = doc.Fields[name]
 	}
 	return fields
 }
 
-// GetFieldById looks up the OField in this document with the specified field id
-// (aka property-id). If no field is found with that id, nil is returned.
-func (doc *ODocument) GetFieldById(id int32) *OField {
-	for _, fld := range doc.Fields {
-		if fld.Id == id {
-			return fld
-		}
-	}
-	return nil
-}
-
 // GetFieldByName looks up the OField in this document with the specified field.
 // If no field is found with that name, nil is returned.
-func (doc *ODocument) GetField(fname string) *OField {
+func (doc *ODocument) GetField(fname string) *ODocEntry {
 	return doc.Fields[fname]
 }
 
 // AddField adds a fully created field directly rather than by some of its
 // attributes, as the other "Field" methods do.
 // The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) AddField(name string, field *OField) *ODocument {
+func (doc *ODocument) AddField(name string, field *ODocEntry) *ODocument {
 	doc.Fields[name] = field
 	doc.fieldsOrder = append(doc.fieldsOrder, name)
 	doc.dirty = true
@@ -144,7 +136,7 @@ func (doc *ODocument) SetField(name string, val interface{}) *ODocument {
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
 // The same *ODocument is returned to allow call chaining.
 func (doc *ODocument) SetFieldWithType(name string, val interface{}, fieldType OType) *ODocument {
-	fld := &OField{
+	fld := &ODocEntry{
 		Name:  name,
 		Value: val,
 		Type:  fieldType,
@@ -159,11 +151,17 @@ func (doc *ODocument) SetFieldWithType(name string, val interface{}, fieldType O
 	return doc.AddField(name, fld)
 }
 
-//
+func (doc *ODocument) RawContainsField(name string) bool {
+	return doc != nil && doc.Fields[name] != nil
+}
+
+func (doc *ODocument) RawSetField(name string, val interface{}, fieldType OType) {
+	doc.SetFieldWithType(name, val, fieldType) // TODO: implement in a right way
+}
+
 // roundDateTimeToMillis zeros out the micro and nanoseconds of a
 // time.Time object in order to match the precision with which
 // the OrientDB stores DATETIME values
-//
 func roundDateTimeToMillis(val interface{}) interface{} {
 	tm, ok := val.(time.Time)
 	if !ok {
@@ -175,11 +173,9 @@ func roundDateTimeToMillis(val interface{}) interface{} {
 	return tm.Round(time.Millisecond)
 }
 
-//
 // adjustDateToMidnight zeros out the hour, minute, second, etc.
 // to set the time of a DATE to midnight.  This matches the
 // precision with which the OrientDB stores DATE values.
-//
 func adjustDateToMidnight(val interface{}) interface{} {
 	tm, ok := val.(time.Time)
 	if !ok {
@@ -217,4 +213,42 @@ func (doc *ODocument) String() string {
 func (doc *ODocument) StringNoFields() string {
 	return fmt.Sprintf("ODocument<Classname: %s; RID: %s; Version: %d; fields: [...]>",
 		doc.Classname, doc.RID, doc.Version)
+}
+
+func (doc *ODocument) ToMap() (map[string]interface{}, error) {
+	if doc == nil {
+		return nil, nil
+	}
+	// TODO: add @rid and @class fields
+	out := make(map[string]interface{}, len(doc.Fields))
+	for name, fld := range doc.Fields {
+		out[name] = fld.Value
+	}
+	return out, nil
+}
+
+func (doc *ODocument) FillClassNameIfNeeded(name string) {
+	if doc.Classname == "" {
+		doc.SetClassNameIfExists(name)
+	}
+}
+
+func (doc *ODocument) SetClassNameIfExists(name string) {
+	// TODO: implement class lookup
+	//	_immutableClazz = null;
+	//	_immutableSchemaVersion = -1;
+
+	doc.Classname = name
+	if name == "" {
+		return
+	}
+
+	//    final ODatabaseDocument db = getDatabaseIfDefined();
+	//    if (db != null) {
+	//      final OClass _clazz = ((OMetadataInternal) db.getMetadata()).getImmutableSchemaSnapshot().getClass(iClassName);
+	//      if (_clazz != null) {
+	//        _className = _clazz.getName();
+	//        convertFieldsToClass(_clazz);
+	//      }
+	//    }
 }

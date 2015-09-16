@@ -1,178 +1,110 @@
 package orient
 
 import (
-	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/istreamdata/orientgo/oschema"
-	"reflect"
+	"io"
 )
 
-var (
-	ErrNoNodesReturned       = fmt.Errorf("No nodes were returned from the database while expecting one")
-	ErrMultipleNodesReturned = fmt.Errorf("Multiple nodes were returned from the database while expecting one")
+const (
+	RecordTypeDocument RecordType = 'd'
+	RecordTypeBytes    RecordType = 'b'
+	RecordTypeFlat     RecordType = 'f'
 )
 
-type Record interface {
-	oschema.OIdentifiable
-	Deserialize(o interface{}) error
+type BytesRecord struct {
+	RID     oschema.RID
+	Version int
+	Data    []byte
 }
 
-type Records []Record
-
-func (recs Records) String() string {
-	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "Records[%d]", len(recs))
-	for _, r := range recs {
-		fmt.Fprintf(buf, "\n\t%T: %+v", r, r)
-	}
-	return buf.String()
+func (r BytesRecord) GetIdentity() oschema.RID {
+	return r.RID
 }
-
-func (recs Records) LoadSupplementary(docs ...*oschema.ODocument) error {
-	arr := make([]*oschema.ODocument, 0, len(docs))
-	for _, doc := range docs {
-		arr = append(arr, doc)
+func (r BytesRecord) GetRecord() interface{} {
+	if r.Data == nil {
+		return nil
 	}
-	for _, r := range recs {
-		if !IsSupplementaryRecord(r) {
-			continue
-		}
-		var sdoc *oschema.ODocument
-		if err := r.Deserialize(&sdoc); err != nil {
-			return err
-		}
-		arr = append(arr, sdoc)
-	}
-	mp := make(map[oschema.RID]*oschema.ODocument, len(arr))
-	for _, doc := range arr {
-		mp[doc.RID] = doc
-	}
-	assignLink := func(lnk *oschema.OLink) {
-		if lnk == nil || lnk.Record != nil {
-			return
-		}
-		if sdoc, ok := mp[lnk.RID]; ok {
-			lnk.Record = sdoc
-		}
-	}
-	for _, doc := range arr {
-		for _, f := range doc.Fields {
-			if f.Value == nil {
-				continue
-			}
-			switch f.Type {
-			case oschema.LINK:
-				assignLink(f.Value.(*oschema.OLink))
-			case oschema.LINKLIST, oschema.LINKSET:
-				list := f.Value.([]*oschema.OLink)
-				for _, lnk := range list {
-					assignLink(lnk)
-				}
-			case oschema.LINKMAP:
-				lmap := f.Value.(map[string]*oschema.OLink)
-				for _, lnk := range lmap {
-					assignLink(lnk)
-				}
-			}
-		}
-	}
+	return r.Data
+}
+func (r *BytesRecord) Fill(rid oschema.RID, version int, content []byte) error {
+	r.RID = rid
+	r.Version = version
+	r.Data = content
 	return nil
 }
-
-func IsSupplementaryRecord(r Record) bool {
-	switch r.(type) {
-	case SupplementaryRecord, *SupplementaryRecord:
-		return true
-	}
-	return false
+func (r BytesRecord) String() string {
+	return fmt.Sprintf("{%s %d %d}:%s", r.RID, r.Version, len(r.Data), base64.StdEncoding.EncodeToString(r.Data))
 }
 
-func (recs Records) DeserializeAll(o interface{}) error {
-	val := reflect.ValueOf(o).Elem()
-	if val.Kind() == reflect.Slice || val.Kind() == reflect.Array {
-		val.Set(reflect.MakeSlice(reflect.SliceOf(val.Type().Elem()), len(recs), len(recs)))
-		j := 0
-		var docs []*oschema.ODocument
-		for _, r := range recs {
-			if IsSupplementaryRecord(r) {
-				continue
-			}
-			cur := val.Index(j).Addr().Interface()
-			err := r.Deserialize(cur)
-			if err != nil {
-				return err
-			}
-			switch doc := cur.(type) {
-			case *oschema.ODocument:
-				docs = append(docs, doc)
-			case **oschema.ODocument:
-				docs = append(docs, *doc)
-			}
-			if err != nil {
-				return err
-			}
-			j++
-		}
-		recs.LoadSupplementary(docs...)
-		val.Set(val.Slice(0, j))
+var (
+	_ DocumentSerializable = (*DocumentRecord)(nil)
+	_ MapSerializable      = (*DocumentRecord)(nil)
+)
+
+func NewDocumentRecord() *DocumentRecord {
+	return &DocumentRecord{ser: GetDefaultRecordSerializer()}
+}
+
+type DocumentRecord struct {
+	data BytesRecord
+	ser  RecordSerializer
+	db   interface{}
+}
+
+func (r DocumentRecord) GetIdentity() oschema.RID {
+	return r.data.GetIdentity()
+}
+func (r DocumentRecord) GetRecord() interface{} {
+	doc, err := r.ToDocument()
+	if err != nil {
 		return nil
-	} else {
-		rec, err := recs.One()
-		if err != nil {
-			return err
-		}
-		if err = rec.Deserialize(o); err != nil {
-			return err
-		}
-		switch doc := o.(type) {
-		case *oschema.ODocument:
-			err = recs.LoadSupplementary(doc)
-		case **oschema.ODocument:
-			err = recs.LoadSupplementary(*doc)
-		}
-		return err
 	}
+	return doc
 }
-func (recs Records) One() (Record, error) {
-	if len(recs) == 0 {
-		return nil, ErrNoNodesReturned
-	} else if len(recs) > 1 {
-		return nil, ErrMultipleNodesReturned
-	} else {
-		return recs[0], nil
+func (r *DocumentRecord) Fill(rid oschema.RID, version int, content []byte) error {
+	r.data.Fill(rid, version, content)
+	return nil
+}
+func (r DocumentRecord) String() string {
+	return "Document" + r.data.String()
+}
+func (r *DocumentRecord) SetSerializer(ser RecordSerializer) {
+	r.ser = ser
+}
+func (r *DocumentRecord) SetDB(db interface{}) {
+	r.db = db
+}
+func (r DocumentRecord) ToDocument() (doc *oschema.ODocument, err error) {
+	defer catch(&err)
+	if len(r.data.Data) == 0 {
+		err = io.ErrUnexpectedEOF
+		return
 	}
-}
-func (recs Records) AsDocuments() (out []*oschema.ODocument, err error) {
-	err = recs.DeserializeAll(&out)
-	return
-}
-func (recs Records) AsInt() (out int, err error) {
-	err = recs.DeserializeAll(&out)
-	return
-}
-func (recs Records) AsBool() (out bool, err error) {
-	err = recs.DeserializeAll(&out)
-	return
-}
-func (recs Records) WithSupplementary() bool {
-	for _, r := range recs {
-		if IsSupplementaryRecord(r) {
-			return true
-		}
-	}
-	return false
-}
+	doc = oschema.NewEmptyDocument()
+	doc.RID = r.data.RID
+	doc.Version = r.data.Version
 
-type SupplementaryRecord struct {
-	Record Record
+	var (
+		o  interface{}
+		ok bool
+	)
+	if o, err = r.ser.FromStream(r.data.Data); err != nil {
+		return
+	} else if doc, ok = o.(*oschema.ODocument); !ok {
+		err = fmt.Errorf("expected document, got %T", o)
+		return
+	} else {
+		doc.RID = r.data.RID
+		doc.Version = r.data.Version
+		return
+	}
 }
-
-func (r SupplementaryRecord) String() string {
-	return fmt.Sprintf("Suppl(%v)", r.Record)
-}
-func (r SupplementaryRecord) Deserialize(o interface{}) error {
-	return r.Record.Deserialize(o)
-}
-func (r SupplementaryRecord) GetIdentity() oschema.RID {
-	return r.Record.GetIdentity()
+func (r DocumentRecord) ToMap() (map[string]interface{}, error) {
+	doc, err := r.ToDocument()
+	if err != nil {
+		return nil, err
+	}
+	return doc.ToMap()
 }

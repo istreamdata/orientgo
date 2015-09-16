@@ -87,6 +87,11 @@ const (
 
 	// FOR MORE INFO:
 	// https://github.com/orientechnologies/orientdb/wiki/Network-Binary-Protocol#wiki-Compatibility
+	ProtoVersion7  = 7
+	ProtoVersion8  = 8
+	ProtoVersion9  = 9
+	ProtoVersion13 = 13
+	ProtoVersion17 = 17
 	ProtoVersion21 = 21
 	ProtoVersion24 = 24
 	ProtoVersion25 = 25

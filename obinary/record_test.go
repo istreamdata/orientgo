@@ -3,10 +3,14 @@ package obinary_test
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
+	"path/filepath"
+	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -15,8 +19,12 @@ func TestDeserializeRecordData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var doc *oschema.ODocument
-	if err = (obinary.RecordData{Data: data}).Deserialize(&doc); err != nil {
+
+	rec := orient.NewDocumentRecord()
+	rec.SetSerializer(&obinary.BinaryRecordFormat{})
+	rec.Fill(oschema.NewEmptyRID(), 0, data)
+
+	if doc, err := rec.ToDocument(); err != nil {
 		t.Fatal(err)
 	} else if len(doc.Fields) != 3 {
 		t.Fatal("wrong fields count in document")
@@ -24,6 +32,16 @@ func TestDeserializeRecordData(t *testing.T) {
 		doc.GetField("name").Value.(string) != "Linus" ||
 		doc.GetField("age").Value.(int32) != 15 {
 		t.Fatal("wrong values in document: ", doc)
+	}
+}
+
+// equals fails the test if exp is not equal to act.
+func equals(tb testing.TB, exp, act interface{}) {
+	if !reflect.DeepEqual(exp, act) {
+		_, file, line, _ := runtime.Caller(1)
+		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n",
+			filepath.Base(file), line, exp, act)
+		tb.FailNow()
 	}
 }
 

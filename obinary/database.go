@@ -12,7 +12,7 @@ type ODatabase struct {
 	Clusters         []OCluster
 	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
-	SchemaVersion    int32
+	SchemaVersion    int
 	Classes          map[string]*oschema.OClass
 	globalPropMu     sync.RWMutex
 	globalProperties map[int]oschema.OGlobalProperty

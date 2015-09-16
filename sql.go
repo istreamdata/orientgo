@@ -93,39 +93,41 @@ func (db *Database) Prepare(query string) (driver.Stmt, error) {
 	return &ogonoriStmt{db: db, query: query}, nil
 }
 
-// Prepare implements sql/driver.Conn interface
+// Begin implements sql/driver.Conn interface
 func (db *Database) Begin() (driver.Tx, error) {
 	glog.V(10).Infoln("ogoConn.Begin")
 	return nil, fmt.Errorf("orientgo: transactions are not supported for now")
 }
 
-// Prepare implements sql/driver.Execer interface
+// Exec implements sql/driver.Execer interface
 func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error) {
 	glog.V(10).Infoln("ogoConn.Exec")
 	if db == nil {
 		return nil, ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
 	}
-	recs, err := db.SQLCommand(nil, cmd, driverArgs(args)...)
+	var o interface{}
+	err := db.Command(NewSQLCommand(cmd, driverArgs(args)...)).All(&o)
 	if err != nil {
 		return ogonoriResult{-1, -1}, err
 	}
-	if n, err := recs.AsInt(); err == nil {
-		return ogonoriResult{int64(n), -1}, nil
+
+	switch rec := o.(type) {
+	case int32:
+		return ogonoriResult{int64(rec), -1}, nil
+	case int64:
+		return ogonoriResult{int64(rec), -1}, nil
+	case int:
+		return ogonoriResult{int64(rec), -1}, nil
+	case []oschema.OIdentifiable:
+		return ogonoriResult{int64(len(rec)), rec[len(rec)-1].GetIdentity().ClusterPos}, nil
+	case *DocumentRecord:
+		doc, err := rec.ToDocument()
+		if err != nil {
+			return ogonoriResult{-1, -1}, err
+		}
+		return ogonoriResult{1, doc.GetIdentity().ClusterPos}, err
 	}
-	var docs []*oschema.ODocument
-	if err = recs.DeserializeAll(&docs); err != nil {
-		return ogonoriResult{-1, -1}, err
-	}
-	lastdoc := docs[len(docs)-1]
-	// sepIdx := strings.Index(lastDoc.RID, ":")
-	// if sepIdx < 0 {
-	// 	return ogonoriResult{len64(docs), -1}, fmt.Errorf("RID of returned doc not of expected format: %v", lastDoc.RID)
-	// }
-	// lastId, err := strconv.ParseInt(lastDoc.RID[sepIdx+1:], 10, 64)
-	// if err != nil {
-	// 	return ogonoriResult{len64(docs), -1}, fmt.Errorf("Couldn't parse ID from doc RID: %v: %v", lastDoc.RID, err)
-	// }
-	return ogonoriResult{int64(len(docs)), lastdoc.RID.ClusterPos}, err
+	return nil, fmt.Errorf("exec with return values is not supported for now, out type: %T", o)
 }
 
 // Prepare implements sql/driver.Queryer interface
@@ -134,12 +136,16 @@ func (db *Database) Query(query string, args []driver.Value) (driver.Rows, error
 	if db == nil {
 		return nil, ErrInvalidConn{Msg: "db not initialized in ogonoriConn#Exec"}
 	}
-	var docs []*oschema.ODocument
-	_, err := db.SQLQuery(&docs, nil, query, driverArgs(args)...)
+	var o interface{}
+	err := db.Command(NewSQLQuery(query, driverArgs(args)...)).All(&o)
 	if err != nil {
 		return nil, err
 	}
-	return newRows(docs), nil
+	switch rec := o.(type) {
+	case []oschema.OIdentifiable:
+		return newRows(rec)
+	}
+	return nil, fmt.Errorf("query with return values is not supported for now, out type: %T", o)
 }
 
 func driverArgs(args []driver.Value) []interface{} {
@@ -147,10 +153,8 @@ func driverArgs(args []driver.Value) []interface{} {
 	for i, val := range args {
 		glog.V(10).Infof("valarg: %T: %v; isValue=%v\n", val, val, driver.IsValue(val)) // DEBUG
 		switch val.(type) {
-		case string, int64, float64, bool, []byte:
+		case string, int64, float64, bool, []byte, time.Time:
 			out[i] = val
-		case time.Time:
-			out[i] = val.(time.Time).String() // TODO: this is probably not the format we want -> fix it later
 		default:
 			_, file, line, _ := runtime.Caller(0)
 			glog.Warningf("Unexpected type in ogonoriConn#Exec: %T. (%s:%d)", val, file, line)
@@ -183,32 +187,46 @@ var _ driver.Rows = (*ogonoriRows)(nil)
 // ogonoriRows implements the sql/driver.Rows interface.
 type ogonoriRows struct {
 	pos     int // index of next row (doc) to return
-	docs    []*oschema.ODocument
+	docs    []oschema.OIdentifiable
 	cols    []string
 	fulldoc bool // whether query returned a full document or just properties
 	// TODO: maybe a reference to the appropriate schema is needed here?
 }
 
-func newRows(docs []*oschema.ODocument) *ogonoriRows {
+func newRows(docs []oschema.OIdentifiable) (*ogonoriRows, error) {
 	var cols []string
 	if docs == nil || len(docs) == 0 {
 		cols = []string{}
-		return &ogonoriRows{docs: docs, cols: cols}
+		return &ogonoriRows{docs: docs, cols: cols}, nil
+	}
+
+	for i := range docs {
+		if rdoc, ok := docs[i].(*DocumentRecord); ok {
+			doc, err := rdoc.ToDocument()
+			if err != nil {
+				return nil, err
+			}
+			docs[i] = doc
+		} else {
+			return nil, fmt.Errorf("rows type: %T", docs[i])
+		}
 	}
 
 	var fulldoc bool
-	if docs[0].Classname == "" {
-		cols = make([]string, 0, len(docs[0].FieldNames()))
-		for _, fname := range docs[0].FieldNames() {
-			cols = append(cols, fname)
+	if doc, ok := docs[0].(*oschema.ODocument); ok {
+		if doc.Classname == "" {
+			cols = make([]string, 0, len(doc.FieldNames()))
+			for _, fname := range doc.FieldNames() {
+				cols = append(cols, fname)
+			}
+		} else {
+			fulldoc = true
+			// if Classname is set then the user queried for a full document
+			// not individual properties of a Document/Class
+			cols = []string{doc.Classname}
 		}
-	} else {
-		fulldoc = true
-		// if Classname is set then the user queried for a full document
-		// not individual properties of a Document/Class
-		cols = []string{docs[0].Classname}
 	}
-	return &ogonoriRows{docs: docs, cols: cols, fulldoc: fulldoc}
+	return &ogonoriRows{docs: docs, cols: cols, fulldoc: fulldoc}, nil
 }
 
 // Columns returns the names of the columns. The number of
@@ -240,19 +258,22 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	// TODO: may need to do a type switch here -> what else can come in from a query in OrientDB
 	//       besides an ODocument ??
 	currdoc := rows.docs[rows.pos]
-	if rows.fulldoc {
-		dest[0] = currdoc
-
-	} else {
-		// was a property only query
-		for i := range dest {
-			// TODO: need to check field.Type and see if it is one that can map to Value
-			//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
-			field := currdoc.GetField(rows.cols[i])
-			if field != nil {
-				dest[i] = field.Value
+	if doc, ok := currdoc.(*oschema.ODocument); ok {
+		if rows.fulldoc {
+			dest[0] = doc
+		} else {
+			// was a property only query
+			for i := range dest {
+				// TODO: need to check field.Type and see if it is one that can map to Value
+				//       what will I do for types that don't map to Value (e.g., EmbeddedRecord, EmbeddedMap) ??
+				field := doc.GetField(rows.cols[i])
+				if field != nil {
+					dest[i] = field.Value
+				}
 			}
 		}
+	} else {
+		return fmt.Errorf("next on %T", currdoc)
 	}
 
 	rows.pos++

@@ -27,6 +27,13 @@ func (lnk *OLink) GetIdentity() RID {
 	return lnk.RID
 }
 
+func (lnk *OLink) GetRecord() interface{} {
+	if lnk == nil || lnk.Record == nil {
+		return nil
+	}
+	return lnk.Record
+}
+
 func (lnk *OLink) String() string {
 	recStr := "<nil>"
 	if lnk.Record != nil {

@@ -6,25 +6,10 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/oschema"
+	"reflect"
 )
-
-func Test_TMP_SerializerParams(t *testing.T) {
-	params := []interface{}{int32(5)}
-	data1, _ := serializeSQLParams(serializer(0), params, "parameters")
-	data1[len(data1)-2] = 1 // fix type int64 -> int32
-
-	buf := bytes.NewBuffer(nil)
-	doc := oschema.NewEmptyDocument()
-	doc.SetField("parameters", arrayToParamsMap(params))
-	if err := GetDefaultRecordFormat().ToStream(buf, doc); err != nil {
-		t.Fatal(err)
-	}
-
-	if bytes.Compare(buf.Bytes(), data1) != 0 {
-		t.Fatalf("different buffers:\n%v\n%v\n", buf.Bytes(), data1)
-	}
-}
 
 func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
 	orig, _ := base64.StdEncoding.DecodeString(origBase64)
@@ -36,7 +21,7 @@ func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
 func TestSerializeCommandNoParams(t *testing.T) {
 	query := "SELECT FROM V WHERE Id = ?"
 	buf := bytes.NewBuffer(nil)
-	if err := NewOCommandSQL(query).ToStream(buf); err != nil {
+	if err := orient.NewSQLCommand(query).ToStream(buf); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), "AAAAGlNFTEVDVCBGUk9NIFYgV0hFUkUgSWQgPSA/AAA=")
@@ -45,7 +30,7 @@ func TestSerializeCommandNoParams(t *testing.T) {
 func TestSerializeCommandIntParam(t *testing.T) {
 	query := "SELECT FROM V WHERE Id = ?"
 	buf := bytes.NewBuffer(nil)
-	if err := NewOCommandSQL(query, int32(25)).ToStream(buf); err != nil {
+	if err := orient.NewSQLCommand(query, int32(25)).ToStream(buf); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), "AAAAGlNFTEVDVCBGUk9NIFYgV0hFUkUgSWQgPSA/AQAAAB0AABRwYXJhbWV0ZXJzAAAAEwwAAgcCMAAAABwBMgA=")
@@ -58,6 +43,10 @@ func testSerializeEmbMap(t *testing.T, off int, mp interface{}, origBase64 strin
 	}
 	binaryRecordFormatV0{}.writeEmbeddedMap(buf, off, mp)
 	testBase64Compare(t, buf.Bytes(), origBase64)
+	out := binaryRecordFormatV0{}.readEmbeddedMap(bytes.NewReader(buf.Bytes()), nil)
+	if reflect.TypeOf(out) != reflect.TypeOf(mp) {
+		t.Logf("types are not the same: %T -> %T", mp, out)
+	}
 }
 
 func TestSerializeEmbeddedMapInt32V0(t *testing.T) {
@@ -120,7 +109,7 @@ func TestSerializeEmbeddedColStringOffsV0(t *testing.T) {
 
 func testSerializeDoc(t *testing.T, doc *oschema.ODocument, origBase64 string) {
 	buf := bytes.NewBuffer(nil)
-	GetDefaultRecordFormat().ToStream(buf, doc)
+	orient.GetDefaultRecordSerializer().ToStream(buf, doc)
 	testBase64Compare(t, buf.Bytes(), origBase64)
 }
 
@@ -154,6 +143,13 @@ func TestSerializeDocumentFieldMapAndArr(t *testing.T) {
 
 func TestSerializeDecimalV0(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	binaryRecordFormatV0{}.writeSingleValue(buf, 0, big.NewInt(123456789), oschema.DECIMAL, oschema.UNKNOWN)
+	val := big.NewInt(123456789)
+	binaryRecordFormatV0{}.writeSingleValue(buf, 0, val, oschema.DECIMAL, oschema.UNKNOWN)
 	testBase64Compare(t, buf.Bytes(), "AAAAAAAAAAQHW80V")
+	out := binaryRecordFormatV0{}.readSingleValue(bytes.NewReader(buf.Bytes()), oschema.DECIMAL, nil)
+	if val2, ok := out.(*big.Int); !ok {
+		t.Fatalf("expected *big.Int, got: %T", out)
+	} else if val.Cmp(val2) != 0 {
+		t.Fatalf("values differs: %v != %v", val, val2)
+	}
 }

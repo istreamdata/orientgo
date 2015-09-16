@@ -1,12 +1,12 @@
 # Overview
 [![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
 
-**OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database, a fork of [Ogonori](https://github.com/quux00/ogonori).
+**OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
 ## Changes to Ogonori
 - Uses varint encoding/decoding functions from stdlib `binary` package (which is more robust)
 - Glog for logging instead of custom package
-- Uses [MapStructure](http://github.com/mitchellh/mapstructure) lib for record deserialization
+- Uses [MapStructure](http://github.com/mitchellh/mapstructure) lib for type conversion
 - User can omit deserialization of query/command results to `ODocument` and provide custom values for deserialization (array/struct)
 - Connection pooling, `orient.Database` is safe for concurrent use
 - Supports Orient functions ( SQL/JS(/Groovy?) )

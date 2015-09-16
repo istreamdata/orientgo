@@ -1,4 +1,4 @@
-package obinary
+package orient
 
 import (
 	"fmt"

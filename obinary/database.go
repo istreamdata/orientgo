@@ -3,6 +3,8 @@ package obinary
 import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/oschema"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -10,10 +12,11 @@ type ODatabase struct {
 	Name             string
 	Type             orient.DatabaseType
 	Clusters         []OCluster
-	ClustCfg         []byte                // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
-	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
+	ClustCfg         []byte // TODO: why is this a byte array? Just placeholder? What is it in the Java client?
 	SchemaVersion    int
 	Classes          map[string]*oschema.OClass
+	storageMu        sync.RWMutex
+	StorageCfg       OStorageConfiguration // TODO: redundant to ClustCfg ??
 	globalPropMu     sync.RWMutex
 	globalProperties map[int]oschema.OGlobalProperty
 }
@@ -65,6 +68,31 @@ type OStorageConfiguration struct {
 	dateFmt       string
 	dateTimeFmt   string
 	timezone      string
+}
+
+// parseConfigRecord takes the pipe-separate values that comes back
+// from reading record #0:0 and turns it into an OStorageConfiguration
+// object, which it adds to the db database object.
+func (sc *OStorageConfiguration) parse(psvData string) error {
+	toks := strings.Split(psvData, "|")
+
+	version, err := strconv.ParseInt(toks[0], 10, 8)
+	if err != nil {
+		return err
+	}
+
+	sc.version = byte(version)
+	sc.name = strings.TrimSpace(toks[1])
+	sc.schemaRID = oschema.MustParseRID(toks[2])
+	sc.dictionaryRID = strings.TrimSpace(toks[3])
+	sc.idxMgrRID = oschema.MustParseRID(toks[4])
+	sc.localeLang = strings.TrimSpace(toks[5])
+	sc.localeCountry = strings.TrimSpace(toks[6])
+	sc.dateFmt = strings.TrimSpace(toks[7])
+	sc.dateTimeFmt = strings.TrimSpace(toks[8])
+	sc.timezone = strings.TrimSpace(toks[9])
+
+	return nil
 }
 
 type OCluster struct {

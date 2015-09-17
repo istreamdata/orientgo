@@ -2,17 +2,16 @@ package obinary
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"strconv"
+	"io"
 	"strings"
 
-	"errors"
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/binserde"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
-	"io"
 )
 
 func (c *Client) sendClientInfo(w io.Writer) {
@@ -164,45 +163,20 @@ func (db *Database) loadConfigRecord() (oschemaRID oschema.RID, err error) {
 	if !ok {
 		err = fmt.Errorf("expected raw record for config, got %T", rec)
 		return
-	} else if s := string(raw.Data); s == "" {
+	} else if len(raw.Data) == 0 {
 		err = fmt.Errorf("config record is empty")
 		return
-	} else if err = parseConfigRecord(db.db, s); err != nil {
+	}
+	sc := &OStorageConfiguration{}
+	if err = sc.parse(string(raw.Data)); err != nil {
 		err = fmt.Errorf("config parse error: %s", err)
 		return
 	}
-	oschemaRID = db.db.StorageCfg.schemaRID
+	db.db.storageMu.Lock()
+	db.db.StorageCfg = *sc
+	db.db.storageMu.Unlock()
+	oschemaRID = sc.schemaRID
 	return oschemaRID, err
-}
-
-// parseConfigRecord takes the pipe-separate values that comes back
-// from reading record #0:0 and turns it into an OStorageConfiguration
-// object, which it adds to the db database object.
-// TODO: move this function to be a method of OStorageConfiguration?
-func parseConfigRecord(db *ODatabase, psvData string) error {
-	sc := OStorageConfiguration{}
-
-	toks := strings.Split(psvData, "|")
-
-	version, err := strconv.ParseInt(toks[0], 10, 8)
-	if err != nil {
-		return err
-	}
-
-	sc.version = byte(version)
-	sc.name = strings.TrimSpace(toks[1])
-	sc.schemaRID = oschema.MustParseRID(toks[2])
-	sc.dictionaryRID = strings.TrimSpace(toks[3])
-	sc.idxMgrRID = oschema.MustParseRID(toks[4])
-	sc.localeLang = strings.TrimSpace(toks[5])
-	sc.localeCountry = strings.TrimSpace(toks[6])
-	sc.dateFmt = strings.TrimSpace(toks[7])
-	sc.dateTimeFmt = strings.TrimSpace(toks[8])
-	sc.timezone = strings.TrimSpace(toks[9])
-
-	db.StorageCfg = sc
-
-	return nil
 }
 
 // loadSchema loads record #0:1 for the current database, caching the

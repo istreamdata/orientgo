@@ -1,23 +1,28 @@
 language: go
 
-go:
-  - 1.4
-  - 1.5
-
 sudo: required
 
 services:
   - docker
 
+go:
+  - 1.4
+  - 1.5
+
+env:
+  - ORIENT_VERS=2.1.2
+  - ORIENT_VERS=2.1.1
+  - ORIENT_VERS=2.0
+
 install:
-  - docker pull dennwc/orientdb:2.1.2
+  - docker pull dennwc/orientdb:${ORIENT_VERS}
   - go get golang.org/x/tools/cmd/vet
-  - go get golang.org/x/tools/cmd/cover
-  - go get github.com/golang/lint/golint
+#  - go get golang.org/x/tools/cmd/cover
+#  - go get github.com/golang/lint/golint
   - go get -t -v ./...
 
 script:
-  - go vet ./...
-#  - $HOME/gopath/bin/golint .
   - go test -race ./...
-  - go test -covermode=atomic ./...
+  - go vet ./...
+#  - go test -covermode=atomic ./...
+#  - $HOME/gopath/bin/golint .

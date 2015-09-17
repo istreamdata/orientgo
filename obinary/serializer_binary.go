@@ -554,7 +554,7 @@ func (f binaryRecordFormatV0) writeLinkMap(w io.Writer, o interface{}) {
 func (f binaryRecordFormatV0) writeEmbeddedMap(w io.Writer, off int, o interface{}) {
 	mv := reflect.ValueOf(o)
 	if mv.Kind() != reflect.Map {
-		panic(fmt.Sprintf("only maps are supported as %s, got %T", oschema.EMBEDDEDMAP, o))
+		panic(fmt.Sprintf("only maps are supported as %v, got %T", oschema.EMBEDDEDMAP, o))
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -718,7 +718,7 @@ func (f binaryRecordFormatV0) writeEmbeddedCollection(w io.Writer, off int, o in
 	mv := reflect.ValueOf(o)
 	// TODO: handle OEmbeddedList
 	if mv.Kind() != reflect.Slice && mv.Kind() != reflect.Array {
-		panic(fmt.Sprintf("only maps are supported as %s, got %T", oschema.EMBEDDEDMAP, o))
+		panic(fmt.Sprintf("only maps are supported as %v, got %T", oschema.EMBEDDEDMAP, o))
 	}
 
 	buf := bytes.NewBuffer(nil)

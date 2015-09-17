@@ -9,14 +9,37 @@ import (
 
 const poolLimit = 6
 
+// FetchPlan is an additional parameter to queries, that instructs DB how to handle linked documents.
+//
+// The format is:
+//
+//		(field:depth)*
+//
+// Field is the name of the field to specify the depth-level. Wildcard '*' means any fields.
+//
+// Depth is the depth level to fetch. -1 means infinite, 0 means no fetch at all and 1-N the depth level value.
+//
+// WARN: currently fetch plan have no effect on returned results, as records cache is not implemented yet.
 type FetchPlan string
 
 const (
-	DefaultFetchPlan   = FetchPlan("")
-	FetchPlanNoFollow  = FetchPlan("*:0")
-	FetchPlanFollowAll = FetchPlan("*:-1")
+	// DefaultFetchPlan is an empty fetch plan. Let the database decide. Usually means "do not follow any links".
+	DefaultFetchPlan = FetchPlan("")
+	// NoFollow is a fetch plan that does not follow any links
+	NoFollow = FetchPlan("*:0")
+	// FollowAll is a fetch plan that follows all links
+	FollowAll = FetchPlan("*:-1")
 )
 
+// Dial opens a new connection to OrientDB server.
+//
+// For now, user must import protocol implementation, which will be used for connection:
+//
+//		import _  "github.com/istreamdata/orientgo/obinary"
+//
+// Address must be in host:port format. Connection to OrientDB cluster is not supported yet.
+//
+// Returned Client uses connection pool under the hood, so it can be shared between goroutines.
 func Dial(addr string) (*Client, error) {
 	dial := protos[ProtoBinary]
 	if dial == nil {
@@ -100,12 +123,14 @@ loop:
 	}
 }
 
+// Client represents connection to OrientDB server. It is safe for concurrent use.
 type Client struct {
 	mconn DBConnection
 	dial  func() (DBConnection, error)
 }
 
-func (c *Client) Auth(user, pass string) (*Manager, error) {
+// Auth initiates a new administration session with OrientDB server, allowing to manage databases.
+func (c *Client) Auth(user, pass string) (*Admin, error) {
 	if c.mconn == nil {
 		conn, err := c.dial()
 		if err != nil {
@@ -117,8 +142,12 @@ func (c *Client) Auth(user, pass string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{c, m}, nil
+	return &Admin{c, m}, nil
 }
+
+// Open initiates a new database session, allowing to make queries to selected database.
+//
+// For database management use Auth instead.
 func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Database, error) {
 	db := &Database{newConnPool(poolLimit, func() (DBSession, error) {
 		conn, err := c.dial()
@@ -139,6 +168,8 @@ func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Dat
 	db.pool.putConn(conn)
 	return db, nil
 }
+
+// Close must be called to close all active DB connections.
 func (c *Client) Close() error {
 	if c.mconn != nil {
 		c.mconn.Close()
@@ -146,32 +177,47 @@ func (c *Client) Close() error {
 	return nil
 }
 
-type Manager struct {
+// Admin wraps a database management session.
+type Admin struct {
 	cli *Client
-	m   DBManager
+	db  DBAdmin
 }
 
-func (mgr *Manager) DatabaseExists(name string, storageType StorageType) (bool, error) {
-	return mgr.m.DatabaseExists(name, storageType)
-}
-func (mgr *Manager) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
-	return mgr.m.CreateDatabase(name, dbType, storageType)
-}
-func (mgr *Manager) DropDatabase(name string, storageType StorageType) error {
-	return mgr.m.DropDatabase(name, storageType)
-}
-func (mgr *Manager) ListDatabases() (map[string]string, error) {
-	return mgr.m.ListDatabases()
-}
-func (mgr *Manager) Close() error {
-	return mgr.m.Close()
+// DatabaseExists checks if database with given name and storage type exists.
+func (a *Admin) DatabaseExists(name string, storageType StorageType) (bool, error) {
+	return a.db.DatabaseExists(name, storageType)
 }
 
+// CreateDatabase creates a new database with given database type (Document or Graph) and storage type (Persistent or Volatile).
+func (a *Admin) CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error {
+	return a.db.CreateDatabase(name, dbType, storageType)
+}
+
+// DropDatabase removes database from the server.
+func (a *Admin) DropDatabase(name string, storageType StorageType) error {
+	return a.db.DropDatabase(name, storageType)
+}
+
+// ListDatabases returns a list of databases in a form:
+//
+// 		dbname: dbpath
+//
+func (a *Admin) ListDatabases() (map[string]string, error) {
+	return a.db.ListDatabases()
+}
+
+// Close closes DB management session.
+func (a *Admin) Close() error {
+	return a.db.Close()
+}
+
+// Database wraps a database session. It is safe for concurrent use.
 type Database struct {
 	pool *connPool
 	cli  *Client
 }
 
+// Size return the size of current database (in bytes).
 func (db *Database) Size() (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -180,10 +226,14 @@ func (db *Database) Size() (int64, error) {
 	defer db.pool.putConn(conn)
 	return conn.Size()
 }
+
+// Close closes database session.
 func (db *Database) Close() error {
 	db.pool.clear()
 	return nil
 }
+
+// ReloadSchema reloads documents schema from database.
 func (db *Database) ReloadSchema() error {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -192,6 +242,8 @@ func (db *Database) ReloadSchema() error {
 	defer db.pool.putConn(conn)
 	return conn.ReloadSchema()
 }
+
+// GetCurDB returns database metadata
 func (db *Database) GetCurDB() *ODatabase {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -201,6 +253,7 @@ func (db *Database) GetCurDB() *ODatabase {
 	return conn.GetCurDB()
 }
 
+// AddCluster creates new cluster with given name and returns its ID.
 func (db *Database) AddCluster(name string) (int16, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -209,6 +262,8 @@ func (db *Database) AddCluster(name string) (int16, error) {
 	defer db.pool.putConn(conn)
 	return conn.AddCluster(name)
 }
+
+// DropCluster deletes cluster from database
 func (db *Database) DropCluster(name string) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -217,6 +272,8 @@ func (db *Database) DropCluster(name string) error {
 	defer db.pool.putConn(conn)
 	return conn.DropCluster(name)
 }
+
+// GetClusterDataRange returns the begin and end positions of data in the requested cluster.
 func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, err error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -225,6 +282,8 @@ func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, e
 	defer db.pool.putConn(conn)
 	return conn.GetClusterDataRange(clusterName)
 }
+
+// ClustersCount returns total count of records in given clusters
 func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -234,6 +293,7 @@ func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (int
 	return conn.ClustersCount(withDeleted, clusterNames...)
 }
 
+// CreateRecord saves a record to the database. Record RID and version will be changed.
 func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -242,6 +302,8 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.CreateRecord(doc)
 }
+
+// DeleteRecordByRID removes a record from database
 func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -250,6 +312,9 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 	defer db.pool.putConn(conn)
 	return conn.DeleteRecordByRID(rid, recVersion)
 }
+
+// GetRecordByRID returns a record using specified fetch plan. If ignoreCache is set to true implementations will
+// not use local records cache and will fetch record from database.
 func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreCache bool) (oschema.ORecord, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -258,6 +323,8 @@ func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreC
 	defer db.pool.putConn(conn)
 	return conn.GetRecordByRID(rid, fetchPlan, ignoreCache)
 }
+
+// UpdateRecord updates given record in a database. Record version will be changed after the call.
 func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -266,6 +333,8 @@ func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
 	defer db.pool.putConn(conn)
 	return conn.UpdateRecord(doc)
 }
+
+// CountRecords returns total records count.
 func (db *Database) CountRecords() (int64, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
@@ -274,7 +343,12 @@ func (db *Database) CountRecords() (int64, error) {
 	defer db.pool.putConn(conn)
 	return conn.CountRecords()
 }
-func (db *Database) Command(cmd CustomSerializable) Results {
+
+// Command executes command against current database. Example:
+//
+//		result := db.Command(NewSQLQuery("SELECT FROM V WHERE id = ?", id).Limit(10))
+//
+func (db *Database) Command(cmd OCommandRequestText) Results {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return errorResult{err: err}
@@ -293,6 +367,7 @@ func sqlEscape(s string) string { // TODO: get rid of it
 	return `"` + s + `"`
 }
 
+// CreateScriptFunc is a helper for saving server-side functions to database.
 func (db *Database) CreateScriptFunc(fnc Function) error {
 	sql := `CREATE FUNCTION ` + fnc.Name + ` ` + sqlEscape(fnc.Code) // TODO: pass as parameter
 	if len(fnc.Params) > 0 {
@@ -305,14 +380,21 @@ func (db *Database) CreateScriptFunc(fnc Function) error {
 	return db.Command(NewSQLCommand(sql)).Err()
 }
 
+// DeleteScriptFunc deletes server-side function with a given name from current database.
 func (db *Database) DeleteScriptFunc(name string) error {
 	return db.Command(NewSQLCommand(`DELETE FROM OFunction WHERE name = ?`, name)).Err()
 }
 
+// UpdateScriptFunc updates code of server-side function
 func (db *Database) UpdateScriptFunc(name string, script string) error {
 	return db.Command(NewSQLCommand(`UPDATE OFunction SET code = ? WHERE name = ?`, script, name)).Err()
 }
 
+// CallScriptFunc is a helper for calling server-side functions (especially JS). Ideally should be a shorthand for
+//
+//		db.Command(NewFunctionCommand(name, params...))
+//
+// but it uses some workarounds to allow to return JS objects from that functions.
 func (db *Database) CallScriptFunc(name string, params ...interface{}) Results {
 	//		conn, err := db.pool.getConn()
 	//		if err != nil {
@@ -338,6 +420,7 @@ func (db *Database) CallScriptFunc(name string, params ...interface{}) Results {
 	return db.Command(NewScriptCommand(LangJS, cmd))
 }
 
+// InitScriptFunc is a helper for updating all server-side functions to specified state.
 func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 	for _, fnc := range fncs {
 		if fnc.Lang == "" {
@@ -353,6 +436,8 @@ func (db *Database) InitScriptFunc(fncs ...Function) (err error) {
 	return nil
 }
 
+// MarshalContent is a helper for constructing SQL commands with CONTENT keyword.
+// Shorthand for json.Marshal. Will panic on errors.
 func MarshalContent(o interface{}) string {
 	data, err := json.Marshal(o)
 	if err != nil {

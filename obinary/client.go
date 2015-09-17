@@ -311,12 +311,13 @@ func (s *session) sendCmd(op byte, wr func(io.Writer), rd func(io.Reader)) (err 
 	return nil
 }
 
-func (dbc *Client) getCurrDB() *Database {
-	dbc.currmu.RLock()
-	defer dbc.currmu.RUnlock()
-	return dbc.currdb
+func (c *Client) getCurrDB() *Database {
+	c.currmu.RLock()
+	defer c.currmu.RUnlock()
+	return c.currdb
 }
 
+// GetCurDB returns database metadata
 func (db *Database) GetCurDB() *orient.ODatabase {
 	if db == nil || db.db == nil {
 		return nil
@@ -328,6 +329,7 @@ func (db *Database) GetCurDB() *orient.ODatabase {
 	}
 }
 
+// Close closes database connection
 func (c *Client) Close() error {
 	if c == nil {
 		return nil

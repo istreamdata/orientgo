@@ -39,7 +39,7 @@ func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
 		}
 		result = recs
 	case 'i':
-		recs := make([]oschema.OIdentifiable, 0)
+		var recs []oschema.OIdentifiable
 		for {
 			status := rw.ReadByte(r)
 			if status <= 0 {

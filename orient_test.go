@@ -13,11 +13,12 @@ import (
 	_ "github.com/istreamdata/orientgo/obinary"
 	"github.com/istreamdata/orientgo/oschema"
 	"net"
+	"os"
 )
 
-const (
-	orientVersion = "2.1.2"
+var orientVersion = "2.1.2"
 
+const (
 	dbName = "default"
 	dbUser = "admin"
 	dbPass = "admin"
@@ -28,6 +29,10 @@ const (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	if vers := os.Getenv("ORIENT_VERS"); vers != "" {
+		orientVersion = vers
+	}
+	fmt.Printf("Testing against OrientDB %s\n", orientVersion)
 	go func() {
 		fmt.Println("pprof: ", http.ListenAndServe(":6060", nil))
 	}()
@@ -178,12 +183,18 @@ func testOUserCommand(t *testing.T, fnc func(*orient.Database) orient.Results) {
 
 func TestSelect(t *testing.T) {
 	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		if orientVersion < "2.1" {
+			return cli.Command(orient.NewSQLQuery("SELECT FROM OUser LIMIT 3"))
+		}
 		return cli.Command(orient.NewSQLQuery("SELECT FROM OUser LIMIT ?", 3))
 	})
 }
 
 func TestSelectCommand(t *testing.T) {
 	testOUserCommand(t, func(cli *orient.Database) orient.Results {
+		if orientVersion < "2.1" {
+			return cli.Command(orient.NewSQLCommand("SELECT FROM OUser LIMIT 3"))
+		}
 		return cli.Command(orient.NewSQLCommand("SELECT FROM OUser LIMIT ?", 3))
 	})
 }

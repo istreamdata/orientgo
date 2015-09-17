@@ -11,6 +11,45 @@ var (
 	_ Results = (*unknownResult)(nil)
 )
 
+// Results is an interface for database command results. Must be closed.
+//
+// Individual results can be iterated in a next way:
+//
+//		results := db.Command(cmd)
+//		if err := results.Err(); err != nil {
+//			// handle command errors; can be omitted and checked later with Err or Close
+//		}
+//		var one SomeStruct
+//		for results.Next(&one) {
+//			// process result, if any
+//		}
+//		if err := results.Close(); err != nil {
+//			// handle command and/or type conversion errors
+//		}
+//
+// Or just retrieved all at once:
+//
+//		var arr []SomeStruct
+//		if err := results.All(&arr); err != nil {
+//			// handle command and/or type conversion errors
+//		}
+//
+// Some commands may return just one int/bool value:
+//
+//		var affected int
+//		results.All(&affected)
+//
+// Also results can be handled manually:
+//
+//		var out interface{}
+//		results.All(&out)
+//		switch out.(type) {
+//		case []OIdentifiable:
+//			// ...
+//		case *DocumentRecord:
+//			// ...
+//		}
+//
 type Results interface {
 	Err() error
 	Close() error
@@ -18,36 +57,26 @@ type Results interface {
 	All(result interface{}) error
 }
 
+// errorResult is a simple result type that returns one specific error. Useful for server-side errors.
 type errorResult struct {
 	err error
 }
 
-func (e errorResult) Err() error {
-	return e.err
-}
-func (e errorResult) Close() error {
-	return e.err
-}
-func (e errorResult) Next(result interface{}) bool {
-	return false
-}
-func (e errorResult) All(result interface{}) error {
-	return e.err
-}
+func (e errorResult) Err() error                   { return e.err }
+func (e errorResult) Close() error                 { return e.err }
+func (e errorResult) Next(result interface{}) bool { return false }
+func (e errorResult) All(result interface{}) error { return e.err }
 
+// unknownResult is a generic result type that uses reflection to iterate over returned records
 type unknownResult struct {
 	err    error
 	parsed bool
 	result interface{}
 }
 
-func (r *unknownResult) Err() error {
-	return r.err
-}
-func (r *unknownResult) Close() error {
-	return r.err
-}
-func (r *unknownResult) Next(result interface{}) bool {
+func (r *unknownResult) Err() error                     { return r.err }
+func (r *unknownResult) Close() error                   { return r.err }
+func (r *unknownResult) Next(result interface{}) bool { // TODO: implement
 	if r.parsed {
 		return false
 	}
@@ -129,14 +158,14 @@ func convertTypes(targ, src reflect.Value) error {
 				}
 			}
 			return nil
-		} else { // one value into slice
-			targ.Set(reflect.MakeSlice(targ.Type(), 1, 1))
-			if err := convertTypes(targ.Index(0), src); err != nil {
-				targ.Set(reflect.Zero(targ.Type()))
-				return err
-			}
-			return nil
 		}
+		// one value into slice
+		targ.Set(reflect.MakeSlice(targ.Type(), 1, 1))
+		if err := convertTypes(targ.Index(0), src); err != nil {
+			targ.Set(reflect.Zero(targ.Type()))
+			return err
+		}
+		return nil
 	} else if targ.Kind() == reflect.Map {
 		if src.Kind() == reflect.Map {
 			targ.Set(reflect.MakeMap(targ.Type()))
@@ -152,21 +181,20 @@ func convertTypes(targ, src reflect.Value) error {
 				targ.SetMapIndex(nk, nv)
 			}
 			return nil
-		} else {
-			switch rec := src.Interface().(type) {
-			case MapSerializable:
-				m, err := rec.ToMap()
-				if err != nil {
-					return err
-				}
-				return convertTypes(targ, reflect.ValueOf(m))
-			case DocumentSerializable:
-				doc, err := rec.ToDocument()
-				if err != nil {
-					return err
-				}
-				return convertTypes(targ, reflect.ValueOf(doc))
+		}
+		switch rec := src.Interface().(type) {
+		case MapSerializable:
+			m, err := rec.ToMap()
+			if err != nil {
+				return err
 			}
+			return convertTypes(targ, reflect.ValueOf(m))
+		case DocumentSerializable:
+			doc, err := rec.ToDocument()
+			if err != nil {
+				return err
+			}
+			return convertTypes(targ, reflect.ValueOf(doc))
 		}
 	}
 	var a, b string

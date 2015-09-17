@@ -7,27 +7,71 @@ import (
 	"io"
 )
 
+// List of standard record types
 const (
 	RecordTypeDocument RecordType = 'd'
 	RecordTypeBytes    RecordType = 'b'
 	RecordTypeFlat     RecordType = 'f'
 )
 
+func init() {
+	declareRecordType(RecordTypeDocument, "document", func() oschema.ORecord { return NewDocumentRecord() })
+	//declareRecordType(RecordTypeFlat,"flat",func() oschema.ORecord { panic("flat record type is not implemented") }) // TODO: implement
+	declareRecordType(RecordTypeBytes, "bytes", func() oschema.ORecord { return &BytesRecord{} })
+}
+
+// RecordType defines a registered record type
+type RecordType byte
+
+var recordFactories = make(map[RecordType]RecordFactory)
+
+// RecordFactory is a function to create records of certain type
+type RecordFactory func() oschema.ORecord
+
+func declareRecordType(tp RecordType, name string, fnc RecordFactory) {
+	if _, ok := recordFactories[tp]; ok {
+		panic(fmt.Errorf("record type byte '%v' already in use", tp))
+	}
+	recordFactories[tp] = fnc
+}
+
+// GetRecordFactory returns RecordFactory for a given type
+func GetRecordFactory(tp RecordType) RecordFactory {
+	return recordFactories[tp]
+}
+
+// NewRecordOfType creates a new record of specified type
+func NewRecordOfType(tp RecordType) oschema.ORecord {
+	fnc := GetRecordFactory(tp)
+	if fnc == nil {
+		panic(fmt.Errorf("record type '%c' is not supported", tp))
+	}
+	return fnc()
+}
+
+// BytesRecord is a rawest representation of a record. It's schema less.
+// Use this if you need to store byte[] without matter about the content.
+// Useful also to store multimedia contents and binary files.
 type BytesRecord struct {
 	RID     oschema.RID
 	Version int
 	Data    []byte
 }
 
+// GetIdentity returns a record RID
 func (r BytesRecord) GetIdentity() oschema.RID {
 	return r.RID
 }
+
+// GetRecord returns a record data
 func (r BytesRecord) GetRecord() interface{} {
 	if r.Data == nil {
 		return nil
 	}
 	return r.Data
 }
+
+// Fill sets identity, version and raw data of the record
 func (r *BytesRecord) Fill(rid oschema.RID, version int, content []byte) error {
 	r.RID = rid
 	r.Version = version
@@ -43,19 +87,23 @@ var (
 	_ MapSerializable      = (*DocumentRecord)(nil)
 )
 
+// NewDocumentRecord creates a new DocumentRecord with default RecordSerializer
 func NewDocumentRecord() *DocumentRecord {
 	return &DocumentRecord{ser: GetDefaultRecordSerializer()}
 }
 
+// DocumentRecord is a subset of BytesRecord which stores serialized ODocument.
 type DocumentRecord struct {
 	data BytesRecord
 	ser  RecordSerializer
-	db   interface{}
 }
 
+// GetIdentity returns a record RID
 func (r DocumentRecord) GetIdentity() oschema.RID {
 	return r.data.GetIdentity()
 }
+
+// GetRecord decodes a record and returns ODocument. Will return nil if error occurs.
 func (r DocumentRecord) GetRecord() interface{} {
 	doc, err := r.ToDocument()
 	if err != nil {
@@ -63,6 +111,8 @@ func (r DocumentRecord) GetRecord() interface{} {
 	}
 	return doc
 }
+
+// Fill sets identity, version and raw data of the record
 func (r *DocumentRecord) Fill(rid oschema.RID, version int, content []byte) error {
 	r.data.Fill(rid, version, content)
 	return nil
@@ -70,12 +120,13 @@ func (r *DocumentRecord) Fill(rid oschema.RID, version int, content []byte) erro
 func (r DocumentRecord) String() string {
 	return "Document" + r.data.String()
 }
+
+// SetSerializer sets RecordSerializer for decoding a record
 func (r *DocumentRecord) SetSerializer(ser RecordSerializer) {
 	r.ser = ser
 }
-func (r *DocumentRecord) SetDB(db interface{}) {
-	r.db = db
-}
+
+// ToDocument decodes a record to ODocument
 func (r DocumentRecord) ToDocument() (doc *oschema.ODocument, err error) {
 	defer catch(&err)
 	if len(r.data.Data) == 0 {
@@ -101,6 +152,8 @@ func (r DocumentRecord) ToDocument() (doc *oschema.ODocument, err error) {
 		return
 	}
 }
+
+// ToMap decodes a record to a map
 func (r DocumentRecord) ToMap() (map[string]interface{}, error) {
 	doc, err := r.ToDocument()
 	if err != nil {

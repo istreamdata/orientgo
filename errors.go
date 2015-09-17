@@ -18,9 +18,12 @@ type UnknownException struct {
 	Message string
 }
 
+// ExcClass returns Java exception class
 func (e UnknownException) ExcClass() string {
 	return e.Class
 }
+
+// ExcMessage returns exception message
 func (e UnknownException) ExcMessage() string {
 	return e.Message
 }
@@ -46,6 +49,7 @@ func (e OServerException) Error() string {
 	return buf.String()
 }
 
+// ErrInvalidConn is returned than DB functions are called without active DB connection
 type ErrInvalidConn struct {
 	Msg string
 }

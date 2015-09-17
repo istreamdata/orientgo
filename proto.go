@@ -4,36 +4,48 @@ import (
 	"github.com/istreamdata/orientgo/oschema"
 )
 
+// Default protocols
 const (
 	ProtoBinary = "binary"
 )
 
+// DatabaseType defines database access type (Document or Graph)
 type DatabaseType string
-type StorageType string
 
+// List of database access types
 const (
 	DocumentDB DatabaseType = "document"
 	GraphDB    DatabaseType = "graph"
+)
 
+// StorageType defines supported database storage types
+type StorageType string
+
+const (
+	// Persistent type represents on-disk database
 	Persistent StorageType = "plocal"
-	Volatile   StorageType = "memory"
+	// Volatile type represents in-memory database
+	Volatile StorageType = "memory"
 )
 
 var (
 	protos = make(map[string]func(addr string) (DBConnection, error))
 )
 
+// RegisterProto registers a new protocol for Dial command
 func RegisterProto(name string, dial func(addr string) (DBConnection, error)) {
 	protos[name] = dial
 }
 
+// ODatabase stores database metadata
 type ODatabase struct {
 	Name    string
 	Type    DatabaseType
 	Classes map[string]*oschema.OClass
 }
 
-type DBManager interface {
+// DBAdmin is a minimal interface for database management API implementation
+type DBAdmin interface {
 	DatabaseExists(name string, storageType StorageType) (bool, error)
 	CreateDatabase(name string, dbType DatabaseType, storageType StorageType) error
 	DropDatabase(name string, storageType StorageType) error
@@ -41,6 +53,7 @@ type DBManager interface {
 	Close() error
 }
 
+// DBSession is a minimal interface for database API implementation
 type DBSession interface {
 	Close() error
 	Size() (int64, error)
@@ -61,8 +74,9 @@ type DBSession interface {
 	Command(cmd CustomSerializable) (result interface{}, err error)
 }
 
+// DBConnection is a minimal interface for OrientDB server API implementation
 type DBConnection interface {
-	Auth(user, pass string) (DBManager, error)
+	Auth(user, pass string) (DBAdmin, error)
 	Open(name string, dbType DatabaseType, user, pass string) (DBSession, error)
 	Close() error
 }

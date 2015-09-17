@@ -62,11 +62,13 @@ func TestInitialize(t *testing.T) {
 	Nil(t, err)
 	SeedDB(t, db)
 
-	mapDBs, err = sess.ListDatabases()
-	Nil(t, err)
-	ogonoriTestPath, ok := mapDBs[dbDocumentName]
-	True(t, ok, dbDocumentName+" not in DB list")
-	True(t, strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
+	if orientVersion >= "2.1" { // error: Database 'plocal:/opt/orient/databases/ogonoriTest' is closed
+		mapDBs, err = sess.ListDatabases()
+		Nil(t, err)
+		ogonoriTestPath, ok := mapDBs[dbDocumentName]
+		True(t, ok, dbDocumentName+" not in DB list")
+		True(t, strings.HasPrefix(ogonoriTestPath, "plocal"), "plocal prefix for db path")
+	}
 }
 
 /*
@@ -571,7 +573,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	//charlieRID := docs[0].RID
 
 	// query with a fetchPlan that does NOT follow all the links
-	sqlQueryPlanAll(`SELECT FROM Cat WHERE notes IS NOT NULL`, orient.FetchPlanNoFollow, &docs)
+	sqlQueryPlanAll(`SELECT FROM Cat WHERE notes IS NOT NULL`, orient.NoFollow, &docs)
 	Equals(t, 1, len(docs))
 	doc = docs[0]
 	Equals(t, "Charlie", doc.GetField("name").Value)
@@ -959,7 +961,15 @@ func TestCommandsNativeAPI(t *testing.T) {
 	// ---[ Clean up above expts ]---
 
 	ridsToDelete := []interface{}{felixRID, tildeRID /*charlieRID,*/, bruceRID, tigerRID, germaineRID, tomRID, nickRID}
-	sqlCommandAll("DELETE from ?", &retint, ridsToDelete)
+	if orientVersion < "2.1" {
+		var srids []string
+		for _, r := range ridsToDelete {
+			srids = append(srids, r.(oschema.OIdentifiable).GetIdentity().String())
+		}
+		sqlCommandAll("DELETE from ["+strings.Join(srids, ",")+"]", &retint)
+	} else {
+		sqlCommandAll("DELETE from ?", &retint, ridsToDelete)
+	}
 
 	Equals(t, len(ridsToDelete), retint)
 

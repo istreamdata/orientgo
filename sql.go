@@ -15,6 +15,7 @@ import (
 	"github.com/istreamdata/orientgo/oschema"
 )
 
+// Driver name for database/sql package
 const DriverNameSQL = "orient"
 
 var (
@@ -24,7 +25,7 @@ var (
 	_ driver.Queryer = (*Database)(nil)
 )
 
-var dsnRx *regexp.Regexp = regexp.MustCompile(`([^@]+)@([^:]+):([^/]+)/(.+)`)
+var dsnRx = regexp.MustCompile(`([^@]+)@([^:]+):([^/]+)/(.+)`)
 
 func init() {
 	sql.Register(DriverNameSQL, &orientDriver{})
@@ -130,7 +131,7 @@ func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error)
 	return nil, fmt.Errorf("exec with return values is not supported for now, out type: %T", o)
 }
 
-// Prepare implements sql/driver.Queryer interface
+// Query implements sql/driver.Queryer interface
 func (db *Database) Query(query string, args []driver.Value) (driver.Rows, error) {
 	glog.V(10).Infoln("ogoConn.Query")
 	if db == nil {

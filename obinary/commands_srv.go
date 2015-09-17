@@ -45,7 +45,7 @@ func (c *Client) ConnectToServer(adminUser, adminPassw string) (mgr *Manager, er
 	return
 }
 
-func (c *Client) Auth(adminUser, adminPassw string) (orient.DBManager, error) {
+func (c *Client) Auth(adminUser, adminPassw string) (orient.DBAdmin, error) {
 	return c.ConnectToServer(adminUser, adminPassw)
 }
 

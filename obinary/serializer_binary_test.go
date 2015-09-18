@@ -9,6 +9,7 @@ import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/oschema"
 	"reflect"
+	"time"
 )
 
 func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
@@ -150,6 +151,19 @@ func TestSerializeDecimalV0(t *testing.T) {
 	if val2, ok := out.(oschema.Decimal); !ok {
 		t.Fatalf("expected Decimal, got: %T", out)
 	} else if val.Cmp(val2.Value) != 0 {
+		t.Fatalf("values differs: %v != %v", val, val2)
+	}
+}
+
+func TestSerializeDatetimeV0(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	val := time.Now()
+	val = time.Unix(val.Unix(), int64(val.Nanosecond()/1e6)*1e6) // precise to milliseconds
+	binaryRecordFormatV0{}.writeSingleValue(buf, 0, val, oschema.DATETIME, oschema.UNKNOWN)
+	out := binaryRecordFormatV0{}.readSingleValue(bytes.NewReader(buf.Bytes()), oschema.DATETIME, nil)
+	if val2, ok := out.(time.Time); !ok {
+		t.Fatalf("expected Time, got: %T", out)
+	} else if !val.Equal(val2) {
 		t.Fatalf("values differs: %v != %v", val, val2)
 	}
 }

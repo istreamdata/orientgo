@@ -155,15 +155,6 @@ func TestRecordsNativeAPI(t *testing.T) {
 	err = db.Command(orient.NewSQLCommand(sql)).Err()
 	Nil(t, err)
 
-	// ---[ Test DATE Serialization ]---
-	//createAndUpdateRecordsWithDate(dbc)
-
-	// ---[ Test DATETIME Serialization ]---
-	//createAndUpdateRecordsWithDateTime(dbc)
-
-	// test inserting wrong values for date and datetime
-	//testCreationOfMismatchedTypesAndValues(dbc)
-
 	// ---[ Test Boolean, Byte and Short Serialization ]---
 	//createAndUpdateRecordsWithBooleanByteAndShort(dbc)
 
@@ -189,6 +180,300 @@ func TestRecordsNativeAPI(t *testing.T) {
 
 	// ---[ Test LinkMap Serialization ]---
 	//createAndUpdateRecordsWithLinkMap(dbc)
+}
+
+func TestRecordsWithDate(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.bday DATE")).Err()
+	Nil(t, err)
+
+	const dtTemplate = "Jan 2, 2006 at 3:04pm (MST)"
+	bdayTm, err := time.Parse(dtTemplate, "Feb 3, 1932 at 7:54pm (EST)")
+	Nil(t, err)
+
+	jj := oschema.NewDocument("Cat")
+	jj.SetField("name", "JJ").
+		SetField("age", 2).
+		SetFieldWithType("bday", bdayTm, oschema.DATE)
+	err = db.CreateRecord(jj)
+	Nil(t, err)
+
+	True(t, jj.RID.ClusterID > 0, "ClusterID should be set")
+	True(t, jj.RID.ClusterPos >= 0, "ClusterID should be set")
+	jjbdayAfterCreate := jj.GetField("bday").Value.(time.Time)
+	Equals(t, 0, jjbdayAfterCreate.Hour())
+	Equals(t, 0, jjbdayAfterCreate.Minute())
+	Equals(t, 0, jjbdayAfterCreate.Second())
+
+	var docs []*oschema.ODocument
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + jj.RID.String())).All(&docs)
+	Equals(t, 1, len(docs))
+	jjFromQuery := docs[0]
+	Equals(t, jj.RID, jjFromQuery.RID)
+	Equals(t, 1932, jjFromQuery.GetField("bday").Value.(time.Time).Year())
+
+	// ---[ update ]---
+	versionBefore := jj.Version
+	oneYearLater := bdayTm.AddDate(1, 0, 0)
+
+	jj.SetFieldWithType("bday", oneYearLater, oschema.DATE) // updates the field locally
+	err = db.UpdateRecord(jj)                               // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < jj.Version, "version should have incremented")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + jj.RID.String())).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	jjFromQuery = docs[0]
+	Equals(t, 1933, jjFromQuery.GetField("bday").Value.(time.Time).Year())
+}
+
+func TestRecordsWithDatetime(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.ddd DATETIME")).Err()
+	Nil(t, err)
+
+	// ---[ creation ]---
+
+	now := time.Now()
+	now = time.Unix(now.Unix(), int64((now.Nanosecond()/1e6))*1e6)
+	simba := oschema.NewDocument("Cat")
+	simba.SetField("name", "Simba").
+		SetField("age", 11).
+		SetFieldWithType("ddd", now, oschema.DATETIME)
+	err = db.CreateRecord(simba)
+	Nil(t, err)
+
+	True(t, simba.RID.ClusterID > 0, "ClusterID should be set")
+	True(t, simba.RID.ClusterPos >= 0, "ClusterID should be set")
+
+	var docs []*oschema.ODocument
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + simba.RID.String())).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	simbaFromQuery := docs[0]
+	Equals(t, simba.RID, simbaFromQuery.RID)
+	Equals(t, simba.GetField("ddd").Value, simbaFromQuery.GetField("ddd").Value)
+
+	// ---[ update ]---
+
+	versionBefore := simba.Version
+
+	twoDaysAgo := now.AddDate(0, 0, -2)
+
+	simba.SetFieldWithType("ddd", twoDaysAgo, oschema.DATETIME) // updates the field locally
+	err = db.UpdateRecord(simba)                                // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < simba.Version, "version should have incremented")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + simba.RID.String())).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	simbaFromQuery = docs[0]
+	Equals(t, twoDaysAgo.Unix(), simbaFromQuery.GetField("ddd").Value.(time.Time).Unix())
+}
+
+func TestRecordsMismatchedTypes(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	c1 := oschema.NewDocument("Cat")
+	c1.SetField("name", "fluffy1").
+		SetField("age", 22).
+		SetFieldWithType("ddd", "not a datetime", oschema.DATETIME)
+	err := db.CreateRecord(c1)
+	True(t, err != nil, "Should have returned error")
+	//	_, ok := oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
+	//	True(t, ok, "should be DataTypeMismatch error")
+
+	c2 := oschema.NewDocument("Cat")
+	c2.SetField("name", "fluffy1").
+		SetField("age", 22).
+		SetFieldWithType("ddd", float32(33244.2), oschema.DATE)
+	err = db.CreateRecord(c2)
+	True(t, err != nil, "Should have returned error")
+	//	_, ok = oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
+	//	True(t, ok, "should be DataTypeMismatch error")
+
+	// no fluffy1 should be in the database
+	var docs []*oschema.ODocument
+	err = db.Command(orient.NewSQLQuery("select from Cat where name = 'fluffy1'")).All(&docs)
+	Nil(t, err)
+	Equals(t, 0, len(docs))
+}
+
+func TestRecordsBasicTypes(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	for _, cmd := range []string{
+		"CREATE PROPERTY Cat.x BOOLEAN",
+		"CREATE PROPERTY Cat.y BYTE",
+		"CREATE PROPERTY Cat.z SHORT",
+	} {
+		err := db.Command(orient.NewSQLCommand(cmd)).Err()
+		Nil(t, err)
+	}
+
+	cat := oschema.NewDocument("Cat")
+	cat.SetField("name", "kitteh").
+		SetField("age", 4).
+		SetField("x", false).
+		SetField("y", byte(55)).
+		SetField("z", int16(5123))
+
+	err := db.CreateRecord(cat)
+	Nil(t, err)
+	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
+
+	var docs []*oschema.ODocument
+	err = db.Command(orient.NewSQLQuery("select from Cat where y = 55")).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+
+	catFromQuery := docs[0]
+	Equals(t, cat.GetField("x").Value.(bool), catFromQuery.GetField("x").Value.(bool))
+	Equals(t, cat.GetField("y").Value.(byte), catFromQuery.GetField("y").Value.(byte))
+	Equals(t, cat.GetField("z").Value.(int16), catFromQuery.GetField("z").Value.(int16))
+
+	// try with explicit types
+	cat2 := oschema.NewDocument("Cat")
+	cat2.SetField("name", "cat2").
+		SetField("age", 14).
+		SetFieldWithType("x", true, oschema.BOOLEAN).
+		SetFieldWithType("y", byte(44), oschema.BYTE).
+		SetFieldWithType("z", int16(16000), oschema.SHORT)
+
+	err = db.CreateRecord(cat2)
+	Nil(t, err)
+	True(t, cat2.RID.ClusterID > 0, "RID should be filled in")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where x = true")).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+
+	cat2FromQuery := docs[0]
+	Equals(t, cat2.GetField("x").Value.(bool), cat2FromQuery.GetField("x").Value.(bool))
+	Equals(t, cat2.GetField("y").Value.(byte), cat2FromQuery.GetField("y").Value.(byte))
+	Equals(t, cat2.GetField("z").Value.(int16), cat2FromQuery.GetField("z").Value.(int16))
+
+	// ---[ update ]---
+
+	versionBefore := cat.Version
+
+	cat.SetField("x", true)
+	cat.SetField("y", byte(19))
+	cat.SetField("z", int16(6789))
+
+	err = db.UpdateRecord(cat) // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < cat.Version, "version should have incremented")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + cat.RID.String())).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	catFromQuery = docs[0]
+	Equals(t, true, catFromQuery.GetField("x").Value)
+	Equals(t, byte(19), catFromQuery.GetField("y").Value)
+	Equals(t, int16(6789), catFromQuery.GetField("z").Value)
+}
+
+func TestRecordsBinaryField(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.bin BINARY")).Err()
+	Nil(t, err)
+
+	// ---[ FieldWithType ]---
+	str := "four, five, six, pick up sticks"
+	bindata := []byte(str)
+
+	cat := oschema.NewDocument("Cat")
+	cat.SetField("name", "little-jimmy").
+		SetField("age", 1).
+		SetFieldWithType("bin", bindata, oschema.BINARY)
+
+	err = db.CreateRecord(cat)
+	Nil(t, err)
+	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
+
+	var docs []*oschema.ODocument
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid = ?", cat.RID)).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+
+	catFromQuery := docs[0]
+
+	Equals(t, cat.GetField("bin").Value, catFromQuery.GetField("bin").Value)
+	Equals(t, str, string(catFromQuery.GetField("bin").Value.([]byte)))
+
+	// ---[ Field No Type Specified ]---
+	binN := 10 * 1024 * 1024
+	bindata2 := make([]byte, binN)
+
+	for i := 0; i < binN; i++ {
+		bindata2[i] = byte(i)
+	}
+
+	cat2 := oschema.NewDocument("Cat")
+	cat2.SetField("name", "Sauron").
+		SetField("age", 1111).
+		SetField("bin", bindata2)
+
+	True(t, cat2.RID.ClusterID <= 0, "RID should NOT be filled in")
+
+	err = db.CreateRecord(cat2)
+	Nil(t, err)
+	True(t, cat2.RID.ClusterID > 0, "RID should be filled in")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid = ?", cat2.RID)).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	cat2FromQuery := docs[0]
+
+	Equals(t, bindata2, cat2FromQuery.GetField("bin").Value.([]byte))
+
+	// ---[ update ]---
+
+	versionBefore := cat.Version
+
+	newbindata := []byte("Now Gluten Free!")
+	cat.SetFieldWithType("bin", newbindata, oschema.BINARY)
+	err = db.UpdateRecord(cat) // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < cat.Version, "version should have incremented")
+
+	docs = nil
+	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + cat.RID.String())).All(&docs)
+	Nil(t, err)
+	Equals(t, 1, len(docs))
+	catFromQuery = docs[0]
+	Equals(t, newbindata, catFromQuery.GetField("bin").Value)
 }
 
 func recordAsDocument(t *testing.T, rec oschema.ORecord) *oschema.ODocument {

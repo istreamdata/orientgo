@@ -360,15 +360,16 @@ func (f binaryRecordFormatV0) readSingleValue(r bytesReadSeeker, valueType osche
 		value = f.readByte(r) == 1
 	case oschema.DATETIME:
 		longTime := varint.ReadVarint(r)
-		value = time.Unix(longTime/1000, longTime%1000)
+		value = time.Unix(longTime/1000, (longTime%1000)*1e6)
 	case oschema.DATE:
 		//	long savedTime = OVarIntSerializer.readAsLong(bytes) * MILLISEC_PER_DAY;
 		//	int offset = ODateHelper.getDatabaseTimeZone().getOffset(savedTime);
 		//	value = new Date(savedTime - offset);
 		savedTime := varint.ReadVarint(r) * millisecPerDay
-		t := time.Unix(savedTime/1000, savedTime%1000).UTC().Local()
-		_, offset := t.Zone()
-		value = t.Add(-time.Duration(offset) * time.Second)
+		t := time.Unix(savedTime/1000, (savedTime%1000)*1e6) //.UTC().Local()
+		//		_, offset := t.Zone()
+		//		value = t.Add(-time.Duration(offset) * time.Second)
+		value = t
 	case oschema.EMBEDDED:
 		doc2 := oschema.NewEmptyDocument()
 		if err := f.Deserialize(doc2, r); err != nil {
@@ -654,7 +655,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 			written = varint.WriteVarint(w, t) != 0
 		} else {
 			t := o.(time.Time)
-			it := t.Unix()*1000 + int64(t.Nanosecond())/1e6 // TODO: just UnixNano()/1e6 ?
+			it := t.Unix()*1000 + int64(t.Nanosecond())/1e6
 			written = varint.WriteVarint(w, it) != 0
 		}
 	case oschema.DATE:
@@ -662,7 +663,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 			written = varint.WriteVarint(w, t) != 0
 		} else {
 			t := o.(time.Time)
-			it := t.Unix()*1000 + int64(t.Nanosecond())/1e6 // TODO: just UnixNano()/1e6 ?
+			it := t.Unix()*1000 + int64(t.Nanosecond())/1e6
 			var offset int64
 			// TODO: int offset = ODateHelper.getDatabaseTimeZone().getOffset(dateValue)
 			written = varint.WriteVarint(w, (it+offset)/millisecPerDay) != 0

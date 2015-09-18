@@ -147,9 +147,9 @@ func TestSerializeDecimalV0(t *testing.T) {
 	binaryRecordFormatV0{}.writeSingleValue(buf, 0, val, oschema.DECIMAL, oschema.UNKNOWN)
 	testBase64Compare(t, buf.Bytes(), "AAAAAAAAAAQHW80V")
 	out := binaryRecordFormatV0{}.readSingleValue(bytes.NewReader(buf.Bytes()), oschema.DECIMAL, nil)
-	if val2, ok := out.(*big.Int); !ok {
-		t.Fatalf("expected *big.Int, got: %T", out)
-	} else if val.Cmp(val2) != 0 {
+	if val2, ok := out.(oschema.Decimal); !ok {
+		t.Fatalf("expected Decimal, got: %T", out)
+	} else if val.Cmp(val2.Value) != 0 {
 		t.Fatalf("values differs: %v != %v", val, val2)
 	}
 }

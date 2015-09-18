@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/big"
 	"reflect"
 	"time"
 
@@ -401,9 +400,7 @@ func (f binaryRecordFormatV0) readSingleValue(r bytesReadSeeker, valueType osche
 	case oschema.EMBEDDEDMAP:
 		value = f.readEmbeddedMap(r, doc)
 	case oschema.DECIMAL:
-		_ = int(rw.ReadInt(r)) // scale // TODO: use scale, use big.Float for 1.5
-		unscaledValue := rw.ReadBytes(r)
-		value = big.NewInt(0).SetBytes(unscaledValue)
+		value = f.readDecimal(r)
 	case oschema.LINKBAG:
 		bag := oschema.NewRidBag()
 		if err := bag.FromStream(r); err != nil {
@@ -693,18 +690,8 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 		written = true
 		f.writeEmbeddedCollection(w, off, o, linkedType)
 	case oschema.DECIMAL:
-		var d *big.Int
-		switch v := o.(type) {
-		case int64:
-			d = big.NewInt(v)
-		case *big.Int:
-			d = v
-		default: // TODO: implement for big.Float in 1.5
-			panic(orient.ErrTypeSerialization{Val: o, Serializer: f})
-		}
 		written = true
-		rw.WriteInt(w, 0)           // scale value, 0 for ints
-		rw.WriteBytes(w, d.Bytes()) // unscaled value
+		f.writeDecimal(w, o)
 	case oschema.BINARY:
 		written = f.writeBinary(w, o.([]byte)) != 0
 	case oschema.LINKSET, oschema.LINKLIST:

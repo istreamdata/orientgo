@@ -1,33 +1,33 @@
-package oschema_test
+package orient_test
 
 import (
 	"bytes"
-	"github.com/istreamdata/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
 	"testing"
 )
 
 func TestRIDString(t *testing.T) {
-	if s := oschema.NewRID(5, 12).String(); s != "#5:12" {
+	if s := orient.NewRID(5, 12).String(); s != "#5:12" {
 		t.Fatal("wrong RID generated: ", s)
 	}
 }
 
 func TestRIDParse(t *testing.T) {
-	if rid, err := oschema.ParseRID(" #5:12 "); err != nil {
+	if rid, err := orient.ParseRID(" #5:12 "); err != nil {
 		t.Fatal(err)
-	} else if rid != (oschema.RID{ClusterID: 5, ClusterPos: 12}) {
+	} else if rid != (orient.RID{ClusterID: 5, ClusterPos: 12}) {
 		t.Fatal("wrong RID parsed: ", rid)
 	}
-	if rid, err := oschema.ParseRID(" 5:12 "); err != nil {
+	if rid, err := orient.ParseRID(" 5:12 "); err != nil {
 		t.Fatal(err)
-	} else if rid != (oschema.RID{ClusterID: 5, ClusterPos: 12}) {
+	} else if rid != (orient.RID{ClusterID: 5, ClusterPos: 12}) {
 		t.Fatal("wrong RID parsed: ", rid)
 	}
 }
 
 func TestRIDNext(t *testing.T) {
-	rid1 := oschema.RID{ClusterID: 5, ClusterPos: 12}
-	rid2 := oschema.RID{ClusterID: 5, ClusterPos: 12}
+	rid1 := orient.RID{ClusterID: 5, ClusterPos: 12}
+	rid2 := orient.RID{ClusterID: 5, ClusterPos: 12}
 	rid3 := rid2.NextRID()
 	if rid3 == rid2 {
 		t.Fatal("RID is the same after Next")
@@ -42,12 +42,12 @@ func TestRIDNext(t *testing.T) {
 
 func testRIDSerialize(t *testing.T, s string) {
 	buf := bytes.NewBuffer(nil)
-	if err := oschema.MustParseRID(s).ToStream(buf); err != nil {
+	if err := orient.MustParseRID(s).ToStream(buf); err != nil {
 		t.Fatal(err)
-	} else if buf.Len() != oschema.RIDSerializedSize {
-		t.Fatalf("wrong serialized size: %d vs %d", buf.Len(), oschema.RIDSerializedSize)
+	} else if buf.Len() != orient.RIDSerializedSize {
+		t.Fatalf("wrong serialized size: %d vs %d", buf.Len(), orient.RIDSerializedSize)
 	}
-	rid := oschema.NewEmptyRID()
+	rid := orient.NewEmptyRID()
 	if err := rid.FromStream(buf); err != nil {
 		t.Fatal(err)
 	} else if rid.String() != s {

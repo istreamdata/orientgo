@@ -9,7 +9,6 @@ import (
 
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 func (c *Client) sendClientInfo(w io.Writer) {
@@ -98,7 +97,7 @@ func (c *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, user, p
 	c.currdb = db
 	c.currmu.Unlock()
 	err = db.refreshGlobalProperties()
-	c.recordFormat.SetGlobalPropertyFunc(func(id int) (oschema.OGlobalProperty, bool) {
+	c.recordFormat.SetGlobalPropertyFunc(func(id int) (orient.OGlobalProperty, bool) {
 		// TODO: implement global property lookup
 		db.refreshGlobalPropertiesIfRequired(id)
 		return db.db.GetGlobalProperty(id)
@@ -147,12 +146,12 @@ func (db *Database) refreshGlobalProperties() error {
 
 // loadConfigRecord loads record #0:0 for the current database, caching
 // some of the information returned into OStorageConfiguration
-func (db *Database) loadConfigRecord() (oschemaRID oschema.RID, err error) {
+func (db *Database) loadConfigRecord() (oschemaRID orient.RID, err error) {
 	defer catch(&err)
 	// The config record comes back as type 'b' (raw bytes), which should
 	// just be converted to a string then tokenized by the pipe char
-	var rec oschema.ORecord
-	rid := oschema.RID{ClusterID: 0, ClusterPos: 0}
+	var rec orient.ORecord
+	rid := orient.RID{ClusterID: 0, ClusterPos: 0}
 	rec, err = db.GetRecordByRID(rid, "*:-1 index:0", true) // based on Java client code
 	if err != nil {
 		return
@@ -180,7 +179,7 @@ func (db *Database) loadConfigRecord() (oschemaRID oschema.RID, err error) {
 // loadSchema loads record #0:1 for the current database, caching the
 // SchemaVersion, GlobalProperties and Classes info in the current ODatabase
 // object (dbc.currDb).
-func (db *Database) loadSchema(rid oschema.RID) error {
+func (db *Database) loadSchema(rid orient.RID) error {
 	rec, err := db.GetRecordByRID(rid, "*:-1 index:0", true) // TODO: GetRecordByRIDIfChanged
 	if err != nil {
 		return err
@@ -203,19 +202,19 @@ func (db *Database) loadSchema(rid oschema.RID) error {
 	// ---[ globalProperties ]---
 	globalPropsFld := doc.GetField("globalProperties")
 
-	var globalProperty oschema.OGlobalProperty
+	var globalProperty orient.OGlobalProperty
 	for _, pfield := range globalPropsFld.Value.([]interface{}) {
-		pdoc := pfield.(*oschema.ODocument)
-		globalProperty = oschema.NewGlobalPropertyFromDocument(pdoc)
+		pdoc := pfield.(*orient.Document)
+		globalProperty = orient.NewGlobalPropertyFromDocument(pdoc)
 		odb.SetGlobalProperty(int(globalProperty.Id), globalProperty)
 	}
 
 	// ---[ classes ]---
-	var oclass *oschema.OClass
+	var oclass *orient.OClass
 	classesFld := doc.GetField("classes")
 	for _, cfield := range classesFld.Value.([]interface{}) {
-		cdoc := cfield.(*oschema.ODocument)
-		oclass = oschema.NewOClassFromDocument(cdoc)
+		cdoc := cfield.(*orient.Document)
+		oclass = orient.NewOClassFromDocument(cdoc)
 		odb.Classes[oclass.Name] = oclass
 	}
 	return nil
@@ -256,7 +255,7 @@ func (db *Database) CountRecords() (int64, error) {
 // If nil is returned, delete succeeded.
 // If error is returned, delete request was either never issued, or there was
 // a problem on the server end or the record did not exist in the database.
-func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
+func (db *Database) DeleteRecordByRID(rid orient.RID, recVersion int) error {
 	var status byte
 	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
 		if err := rid.ToStream(w); err != nil {
@@ -281,7 +280,7 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 // GetRecordByRID takes an RID and reads that record from the database.
 //
 // ignoreCache = true
-func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan orient.FetchPlan, ignoreCache bool) (rec oschema.ORecord, err error) {
+func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, ignoreCache bool) (rec orient.ORecord, err error) {
 	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
 		if err := rid.ToStream(w); err != nil {
 			panic(err)
@@ -324,7 +323,7 @@ func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan orient.FetchPlan, 
 			if status != 2 {
 				break
 			}
-			db.updateCachedRecord(db.readIdentifiable(r)) // .(oschema.ORecord)
+			db.updateCachedRecord(db.readIdentifiable(r)) // .(orient.ORecord)
 		}
 	})
 	return rec, err
@@ -333,7 +332,7 @@ func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan orient.FetchPlan, 
 // ReloadSchema should be called after a schema is altered, such as properties
 // added, deleted or renamed.
 func (db *Database) ReloadSchema() error {
-	return db.loadSchema(oschema.RID{ClusterID: 0, ClusterPos: 1})
+	return db.loadSchema(orient.RID{ClusterID: 0, ClusterPos: 1})
 }
 
 // FetchClusterDataRange returns the range of record ids for a cluster
@@ -395,12 +394,12 @@ func (db *Database) DropCluster(clusterName string) error {
 // FetchEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
 // (tree-based) rather than embedded.  This function will fill in the links
 // of the passed in OLinkBag, rather than returning the new links. The Links
-// will have RIDs only, not full Records (ODocuments).  If you then want the
+// will have RIDs only, not full Records (Documents).  If you then want the
 // Records filled in, call the ResolveLinks function.
-func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusive bool) (err error) {
+func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *orient.OLinkBag, inclusive bool) (err error) {
 	defer catch(&err)
 	var (
-		firstLink oschema.OIdentifiable
+		firstLink orient.OIdentifiable
 		linkSerde = binserde.OLinkSerializer{}
 	)
 	firstLink, err = db.GetFirstKeyOfRemoteLinkBag(linkBag)
@@ -426,7 +425,7 @@ func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusi
 	}
 	r := bytes.NewReader(linkEntryBytes)
 	n := int(rw.ReadInt(r))
-	var lnk oschema.OIdentifiable
+	var lnk orient.OIdentifiable
 	for i := 0; i < n; i++ { // loop over all the serialized links
 		lnk, err = linkSerde.DeserializeLink(r)
 		if err != nil {
@@ -452,7 +451,7 @@ func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusi
 // called by end users. Instead, end users should call FetchEntriesOfRemoteLinkBag
 //
 // TODO: make this an unexported func?
-func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk oschema.OIdentifiable, err error) {
+func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *orient.OLinkBag) (lnk orient.OIdentifiable, err error) {
 	defer catch(&err)
 
 	var firstKeyBytes []byte
@@ -473,7 +472,7 @@ func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk o
 	return binserde.OLinkSerializer{}.DeserializeLink(r)
 }
 
-func writeLinkBagCollectionPointer(w io.Writer, linkBag *oschema.OLinkBag) {
+func writeLinkBagCollectionPointer(w io.Writer, linkBag *orient.OLinkBag) {
 	// (treePointer:collectionPointer)(changes)
 	// where collectionPtr = (fileId:long)(pageIndex:long)(pageOffset:int)
 	rw.WriteLong(w, linkBag.GetFileID())
@@ -485,7 +484,7 @@ func writeLinkBagCollectionPointer(w io.Writer, linkBag *oschema.OLinkBag) {
 // size requires a call to the database.  The size is returned.  Note that the
 // Size field of the linkBag is NOT updated.  That is left for the caller to
 // decide whether to do.
-func (db *Database) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, err error) {
+func (db *Database) GetSizeOfRemoteLinkBag(linkBag *orient.OLinkBag) (val int, err error) {
 	err = db.sess.sendCmd(requestRIDBAG_GET_SIZE, func(w io.Writer) {
 		writeLinkBagCollectionPointer(w, linkBag)
 		rw.WriteBytes(w, []byte{0, 0, 0, 0}) // changes => TODO: right now not supporting any change -> just writing empty changes
@@ -500,7 +499,7 @@ func (db *Database) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, 
 // FetchRecordByRID for each one that has a null Record.
 // TODO: maybe include a fetchplan here?
 // TODO: remove it from obinary
-func (db *Database) ResolveLinks(links []oschema.OIdentifiable) error {
+func (db *Database) ResolveLinks(links []orient.OIdentifiable) error {
 	fetchPlan := orient.FetchPlan("")
 	for i := 0; i < len(links); i++ {
 		if links[i].GetRecord() == nil {
@@ -576,7 +575,7 @@ func (db *Database) findClusterWithName(name string) (int16, error) {
 // Use this to create a new record in the OrientDB database
 // you are currently connected to.
 // Does REQUEST_RECORD_CREATE OrientDB cmd (binary network protocol).
-func (db *Database) CreateRecord(doc *oschema.ODocument) (err error) {
+func (db *Database) CreateRecord(doc *orient.Document) (err error) {
 	defer catch(&err)
 	if doc.Classname == "" {
 		return errors.New("classname must be present on Document to call CreateRecord")
@@ -614,7 +613,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) (err error) {
 
 // UpdateRecord should be used update an existing record in the OrientDB database.
 // It does the REQUEST_RECORD_UPDATE OrientDB cmd (network binary protocol)
-func (db *Database) UpdateRecord(doc *oschema.ODocument) (err error) {
+func (db *Database) UpdateRecord(doc *orient.Document) (err error) {
 	defer catch(&err)
 	if doc == nil {
 		return fmt.Errorf("document is nil")

@@ -17,7 +17,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/oschema"
 	"github.com/stretchr/testify/assert"
 	"runtime/debug"
 	"testing"
@@ -121,7 +120,7 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 		}
 	}()
 
-	cat1 := oschema.NewDocument("Cat")
+	cat1 := orient.NewDocument("Cat")
 	cat1.Field("name", "A1").
 		Field("age", 1).
 		Field("caretaker", "Jackie")
@@ -130,26 +129,26 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat1.RID.String())
 
-	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
-	linkmap := map[string]*oschema.OLink{"bff": linkToCat1}
+	linkToCat1 := &orient.OLink{RID: cat1.RID, Record: cat1}
+	linkmap := map[string]*orient.OLink{"bff": linkToCat1}
 
-	cat2 := oschema.NewDocument("Cat")
+	cat2 := orient.NewDocument("Cat")
 	cat2.Field("name", "A2").
 		Field("age", 2).
 		Field("caretaker", "Ben").
-		FieldWithType("notes", linkmap, oschema.LINKMAP)
+		FieldWithType("notes", linkmap, orient.LINKMAP)
 
 	err = dbc.CreateRecord(dbc, cat2)
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat2.RID.String())
 
-	linkmap["7th-best-friend"] = &oschema.OLink{RID: cat2.RID}
+	linkmap["7th-best-friend"] = &orient.OLink{RID: cat2.RID}
 
-	cat3 := oschema.NewDocument("Cat")
+	cat3 := orient.NewDocument("Cat")
 	cat3.Field("name", "A3").
 		Field("age", 3).
 		Field("caretaker", "Konrad").
-		FieldWithType("notes", linkmap, oschema.LINKMAP)
+		FieldWithType("notes", linkmap, orient.LINKMAP)
 
 	err = dbc.CreateRecord(dbc, cat3)
 	Nil(t, err)
@@ -162,14 +161,14 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 	cat2FromQuery := docs[0]
 	Equals(t, "A2", cat2FromQuery.GetField("name").Value)
 	Equals(t, 2, toInt(cat2FromQuery.GetField("age").Value))
-	notesFromQuery := cat2FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	notesFromQuery := cat2FromQuery.GetField("notes").Value.(map[string]*orient.OLink)
 	Equals(t, 1, len(notesFromQuery))
 	Equals(t, notesFromQuery["bff"].RID, cat1.RID)
 
 	cat3FromQuery := docs[1]
 	Equals(t, "A3", cat3FromQuery.GetField("name").Value)
 	Equals(t, 3, toInt(cat3FromQuery.GetField("age").Value))
-	notesFromQuery = cat3FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	notesFromQuery = cat3FromQuery.GetField("notes").Value.(map[string]*orient.OLink)
 	Equals(t, 2, len(notesFromQuery))
 	Equals(t, notesFromQuery["bff"].RID, cat1.RID)
 	Equals(t, notesFromQuery["7th-best-friend"].RID, cat2.RID)
@@ -182,9 +181,9 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 
 	// add to cat3's linkmap
 
-	cat3map := cat3.GetField("notes").Value.(map[string]*oschema.OLink)
-	cat3map["new1"] = &oschema.OLink{RID: cat2.RID}
-	cat3map["new2"] = &oschema.OLink{RID: cat2.RID}
+	cat3map := cat3.GetField("notes").Value.(map[string]*orient.OLink)
+	cat3map["new1"] = &orient.OLink{RID: cat2.RID}
+	cat3map["new2"] = &orient.OLink{RID: cat2.RID}
 
 	err = dbc.UpdateRecord(dbc, cat3) // update the field in the remote DB
 	Nil(t, err)
@@ -196,7 +195,7 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 	cat3FromQuery = docs[0]
 
 	Equals(t, "A3", cat3FromQuery.GetField("name").Value)
-	cat3MapFromQuery := cat3FromQuery.GetField("notes").Value.(map[string]*oschema.OLink)
+	cat3MapFromQuery := cat3FromQuery.GetField("notes").Value.(map[string]*orient.OLink)
 	Equals(t, 4, len(cat3MapFromQuery))
 	Equals(t, cat3MapFromQuery["bff"].RID, cat1.RID)
 	Equals(t, cat3MapFromQuery["7th-best-friend"].RID, cat2.RID)
@@ -204,8 +203,8 @@ func createAndUpdateRecordsWithLinkMap(dbc orient.Client) {
 	Equals(t, cat3MapFromQuery["new2"].RID, cat2.RID)
 }
 
-func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OType) {
-	sql := "CREATE PROPERTY Cat.catfriends " + oschema.ODataTypeNameFor(collType) + " Cat"
+func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType orient.OType) {
+	sql := "CREATE PROPERTY Cat.catfriends " + orient.ODataTypeNameFor(collType) + " Cat"
 	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
 
@@ -219,7 +218,7 @@ func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OTy
 		}
 	}()
 
-	cat1 := oschema.NewDocument("Cat")
+	cat1 := orient.NewDocument("Cat")
 	cat1.Field("name", "A1").
 		Field("age", 1).
 		Field("caretaker", "Jackie")
@@ -228,25 +227,25 @@ func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OTy
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat1.RID.String())
 
-	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
+	linkToCat1 := &orient.OLink{RID: cat1.RID, Record: cat1}
 
-	cat2 := oschema.NewDocument("Cat")
+	cat2 := orient.NewDocument("Cat")
 	cat2.Field("name", "A2").
 		Field("age", 2).
 		Field("caretaker", "Ben").
-		FieldWithType("catfriends", []*oschema.OLink{linkToCat1}, collType)
+		FieldWithType("catfriends", []*orient.OLink{linkToCat1}, collType)
 
 	err = dbc.CreateRecord(dbc, cat2)
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat2.RID.String())
 
-	linkToCat2 := &oschema.OLink{RID: cat2.RID}
-	twoCatLinks := []*oschema.OLink{linkToCat1, linkToCat2}
+	linkToCat2 := &orient.OLink{RID: cat2.RID}
+	twoCatLinks := []*orient.OLink{linkToCat1, linkToCat2}
 
-	cat3 := oschema.NewDocument("Cat")
+	cat3 := orient.NewDocument("Cat")
 	cat3.Field("name", "A3")
 
-	if collType == oschema.LINKSET {
+	if collType == orient.LINKSET {
 		cat3.FieldWithType("catfriends", twoCatLinks, collType)
 	} else {
 		cat3.Field("catfriends", twoCatLinks)
@@ -265,14 +264,14 @@ func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OTy
 	cat2FromQuery := docs[0]
 	Equals(t, "A2", cat2FromQuery.GetField("name").Value)
 	Equals(t, 2, toInt(cat2FromQuery.GetField("age").Value))
-	catFriendsFromQuery := cat2FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	catFriendsFromQuery := cat2FromQuery.GetField("catfriends").Value.([]*orient.OLink)
 	Equals(t, 1, len(catFriendsFromQuery))
 	Equals(t, catFriendsFromQuery[0].RID, cat1.RID)
 
 	cat3FromQuery := docs[1]
 	Equals(t, "A3", cat3FromQuery.GetField("name").Value)
 	Equals(t, 3, toInt(cat3FromQuery.GetField("age").Value))
-	catFriendsFromQuery = cat3FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	catFriendsFromQuery = cat3FromQuery.GetField("catfriends").Value.([]*orient.OLink)
 	Equals(t, 2, len(catFriendsFromQuery))
 	sort.Sort(byRID(catFriendsFromQuery))
 	Equals(t, catFriendsFromQuery[0].RID, cat1.RID)
@@ -285,8 +284,8 @@ func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OTy
 	// cat2 ("A2") currently has linklist to cat1 ("A2")
 	// -> change this to a linklist to cat1 and cat3
 
-	linkToCat3 := &oschema.OLink{RID: cat3.RID}
-	linksCat1and3 := []*oschema.OLink{linkToCat1, linkToCat3}
+	linkToCat3 := &orient.OLink{RID: cat3.RID}
+	linksCat1and3 := []*orient.OLink{linkToCat1, linkToCat3}
 
 	cat2.Field("catfriends", linksCat1and3) // updates the field locally
 
@@ -300,7 +299,7 @@ func createAndUpdateRecordsWithLinkLists(dbc orient.Client, collType oschema.OTy
 	cat2FromQuery = docs[0]
 
 	Equals(t, "A2", cat2FromQuery.GetField("name").Value)
-	catFriendsFromQuery = cat2FromQuery.GetField("catfriends").Value.([]*oschema.OLink)
+	catFriendsFromQuery = cat2FromQuery.GetField("catfriends").Value.([]*orient.OLink)
 	Equals(t, 2, len(catFriendsFromQuery))
 	sort.Sort(byRID(catFriendsFromQuery))
 	Equals(t, catFriendsFromQuery[0].RID, cat1.RID)
@@ -324,7 +323,7 @@ func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 
 	// ------
 
-	cat1 := oschema.NewDocument("Cat")
+	cat1 := orient.NewDocument("Cat")
 	cat1.Field("name", "A1").
 		Field("age", 2).
 		Field("caretaker", "Jackie")
@@ -333,12 +332,12 @@ func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 	Nil(t, err)
 	ridsToDelete = append(ridsToDelete, cat1.RID.String())
 
-	cat2 := oschema.NewDocument("Cat")
-	linkToCat1 := &oschema.OLink{RID: cat1.RID, Record: cat1}
+	cat2 := orient.NewDocument("Cat")
+	linkToCat1 := &orient.OLink{RID: cat1.RID, Record: cat1}
 	cat2.Field("name", "A2").
 		Field("age", 3).
 		Field("caretaker", "Jimmy").
-		FieldWithType("catlink", linkToCat1, oschema.LINK)
+		FieldWithType("catlink", linkToCat1, orient.LINK)
 
 	err = dbc.CreateRecord(dbc, cat2)
 	Nil(t, err)
@@ -346,8 +345,8 @@ func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 
 	// ---[ try without FieldWithType ]---
 
-	cat3 := oschema.NewDocument("Cat")
-	linkToCat2 := &oschema.OLink{RID: cat2.RID, Record: cat2} // also, only use RID, not record
+	cat3 := orient.NewDocument("Cat")
+	linkToCat2 := &orient.OLink{RID: cat2.RID, Record: cat2} // also, only use RID, not record
 	cat3.Field("name", "A3").
 		Field("age", 4).
 		Field("caretaker", "Ralston").
@@ -366,13 +365,13 @@ func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 	cat2FromQuery := docs[0]
 	Equals(t, "A2", cat2FromQuery.GetField("name").Value)
 	Equals(t, 3, toInt(cat2FromQuery.GetField("age").Value))
-	linkToCat1FromQuery := cat2FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	linkToCat1FromQuery := cat2FromQuery.GetField("catlink").Value.(*orient.OLink)
 	Equals(t, linkToCat1FromQuery.RID, cat1.RID)
 
 	cat3FromQuery := docs[1]
 	Equals(t, "A3", cat3FromQuery.GetField("name").Value)
 	Equals(t, 4, toInt(cat3FromQuery.GetField("age").Value))
-	linkToCat2FromQuery := cat3FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	linkToCat2FromQuery := cat3FromQuery.GetField("catlink").Value.(*orient.OLink)
 	Equals(t, linkToCat2FromQuery.RID, cat2.RID)
 
 	// ---[ update ]---
@@ -395,11 +394,11 @@ func createAndUpdateRecordsWithLinks(dbc orient.Client) {
 
 	Equals(t, "A3", cat3FromQuery.GetField("name").Value)
 	Equals(t, 4, toInt(cat3FromQuery.GetField("age").Value))
-	linkToCat1FromQuery = cat3FromQuery.GetField("catlink").Value.(*oschema.OLink)
+	linkToCat1FromQuery = cat3FromQuery.GetField("catlink").Value.(*orient.OLink)
 	Equals(t, linkToCat1FromQuery.RID, cat1.RID)
 }
 
-func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.OType) {
+func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType orient.OType) {
 	sql := "CREATE PROPERTY Cat.embstrings " + embType.String() + " string"
 	_, err := db.SQLCommand(nil, sql)
 	Nil(t, err)
@@ -430,16 +429,16 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	// ------
 
 	embStrings := []interface{}{"one", "two", "three"}
-	stringList := oschema.NewEmbeddedSlice(embStrings, oschema.STRING)
+	stringList := orient.NewEmbeddedSlice(embStrings, orient.STRING)
 
-	Equals(t, oschema.STRING, stringList.Type())
+	Equals(t, orient.STRING, stringList.Type())
 	Equals(t, "two", stringList.Values()[1])
 
-	cat := oschema.NewDocument("Cat")
+	cat := orient.NewDocument("Cat")
 	cat.Field("name", "Yugo").
 		Field("age", 33)
 
-	if embType == oschema.EMBEDDEDLIST {
+	if embType == orient.EMBEDDEDLIST {
 		cat.Field("embstrings", stringList)
 	} else {
 		cat.FieldWithType("embstrings", stringList, embType)
@@ -461,7 +460,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "embstrings", embstringsFieldFromQuery.Name)
 	Equals(t, embType, embstringsFieldFromQuery.Type)
 	embListFromQuery, ok := embstringsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	sort.Sort(byStringVal(embListFromQuery))
 	Equals(t, 3, len(embListFromQuery))
@@ -472,12 +471,12 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	// ------
 
 	embLongs := []interface{}{int64(22), int64(4444), int64(constants.MaxInt64 - 12)}
-	int64List := oschema.NewEmbeddedSlice(embLongs, oschema.LONG)
+	int64List := orient.NewEmbeddedSlice(embLongs, orient.LONG)
 
-	Equals(t, oschema.LONG, int64List.Type())
+	Equals(t, orient.LONG, int64List.Type())
 	Equals(t, int64(22), int64List.Values()[0])
 
-	cat = oschema.NewDocument("Cat")
+	cat = orient.NewDocument("Cat")
 	cat.Field("name", "Barry").
 		Field("age", 40).
 		FieldWithType("emblongs", int64List, embType)
@@ -498,7 +497,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "emblongs", emblongsFieldFromQuery.Name)
 	Equals(t, embType, emblongsFieldFromQuery.Type)
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	sort.Sort(byLongVal(embListFromQuery))
 	Equals(t, 3, len(embListFromQuery))
@@ -511,20 +510,20 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	// how to insert into embcats from the OrientDB console:
 	// insert into Cat set name="Draydon", age=223, embcats=[{"@class":"Cat", "name": "geary", "age":33}, {"@class":"Cat", "name": "joan", "age": 44}]
 
-	embCat0 := oschema.NewDocument("Cat")
+	embCat0 := orient.NewDocument("Cat")
 	embCat0.Field("name", "Gordo").Field("age", 40)
 
-	embCat1 := oschema.NewDocument("Cat")
+	embCat1 := orient.NewDocument("Cat")
 	embCat1.Field("name", "Joan").Field("age", 14).Field("caretaker", "Marcia")
 
 	embCats := []interface{}{embCat0, embCat1}
-	embcatList := oschema.NewEmbeddedSlice(embCats, oschema.EMBEDDED)
+	embcatList := orient.NewEmbeddedSlice(embCats, orient.EMBEDDED)
 
-	cat = oschema.NewDocument("Cat")
+	cat = orient.NewDocument("Cat")
 	cat.Field("name", "Draydon").
 		Field("age", 3)
 
-	if embType == oschema.EMBEDDEDLIST {
+	if embType == orient.EMBEDDEDLIST {
 		cat.Field("embcats", embcatList)
 	} else {
 		cat.FieldWithType("embcats", embcatList, embType)
@@ -546,15 +545,15 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "embcats", embcatsFieldFromQuery.Name)
 	Equals(t, embType, embcatsFieldFromQuery.Type)
 	embListFromQuery, ok = embcatsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	Equals(t, 2, len(embListFromQuery))
 	sort.Sort(byEmbeddedCatName(embListFromQuery))
 
-	embCatDoc0, ok := embListFromQuery[0].(*oschema.ODocument)
-	True(t, ok, "Cast to *oschema.ODocument failed")
-	embCatDoc1, ok := embListFromQuery[1].(*oschema.ODocument)
-	True(t, ok, "Cast to *oschema.ODocument failed")
+	embCatDoc0, ok := embListFromQuery[0].(*orient.Document)
+	True(t, ok, "Cast to *orient.Document failed")
+	embCatDoc1, ok := embListFromQuery[1].(*orient.Document)
+	True(t, ok, "Cast to *orient.Document failed")
 
 	Equals(t, "Gordo", embCatDoc0.GetField("name").Value)
 	Equals(t, 40, toInt(embCatDoc0.GetField("age").Value))
@@ -567,7 +566,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	versionBefore := cat.Version
 
 	newEmbStrings := []interface{}{"A", "BB", "CCCC"}
-	newStringList := oschema.NewEmbeddedSlice(newEmbStrings, oschema.STRING)
+	newStringList := orient.NewEmbeddedSlice(newEmbStrings, orient.STRING)
 	cat.FieldWithType("embstrings", newStringList, embType) // updates the field locally
 
 	err = dbc.UpdateRecord(dbc, cat) // update the field in the remote DB
@@ -584,7 +583,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "embstrings", embstringsFieldFromQuery.Name)
 	Equals(t, embType, embstringsFieldFromQuery.Type)
 	embListFromQuery, ok = embstringsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	sort.Sort(byStringVal(embListFromQuery))
 	Equals(t, 3, len(embListFromQuery))
@@ -595,7 +594,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	// update embedded long list + embedded Cats
 
 	newEmbLongs := []interface{}{int64(18), int64(1234567890)}
-	newInt64List := oschema.NewEmbeddedSlice(newEmbLongs, oschema.LONG)
+	newInt64List := orient.NewEmbeddedSlice(newEmbLongs, orient.LONG)
 
 	cat.FieldWithType("emblongs", newInt64List, embType)
 
@@ -613,7 +612,7 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "emblongs", emblongsFieldFromQuery.Name)
 	Equals(t, embType, emblongsFieldFromQuery.Type)
 	embListFromQuery, ok = emblongsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	sort.Sort(byLongVal(embListFromQuery))
 	Equals(t, 2, len(embListFromQuery))
@@ -621,10 +620,10 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, int64(1234567890), embListFromQuery[1])
 
 	// add another cat to the embedded cat list
-	embCat2 := oschema.NewDocument("Cat")
+	embCat2 := orient.NewDocument("Cat")
 	embCat2.Field("name", "Mickey").Field("age", 1)
 
-	cat.GetField("embcats").Value.(oschema.OEmbeddedList).Add(embCat2)
+	cat.GetField("embcats").Value.(orient.OEmbeddedList).Add(embCat2)
 
 	err = dbc.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Nil(t, err)
@@ -640,17 +639,17 @@ func createAndUpdateRecordsWithEmbeddedLists(dbc orient.Client, embType oschema.
 	Equals(t, "embcats", embCatsFieldFromQuery.Name)
 	Equals(t, embType, embCatsFieldFromQuery.Type)
 	embListFromQuery, ok = embCatsFieldFromQuery.Value.([]interface{})
-	True(t, ok, "Cast to oschema.[]interface{} failed")
+	True(t, ok, "Cast to orient.[]interface{} failed")
 
 	Equals(t, 3, len(embListFromQuery))
 	sort.Sort(byEmbeddedCatName(embListFromQuery))
 
-	embCatDoc0, ok = embListFromQuery[0].(*oschema.ODocument)
-	True(t, ok, "Cast to *oschema.ODocument failed")
-	embCatDoc1, ok = embListFromQuery[1].(*oschema.ODocument)
-	True(t, ok, "Cast to *oschema.ODocument failed")
-	embCatDoc2, ok := embListFromQuery[2].(*oschema.ODocument)
-	True(t, ok, "Cast to *oschema.ODocument failed")
+	embCatDoc0, ok = embListFromQuery[0].(*orient.Document)
+	True(t, ok, "Cast to *orient.Document failed")
+	embCatDoc1, ok = embListFromQuery[1].(*orient.Document)
+	True(t, ok, "Cast to *orient.Document failed")
+	embCatDoc2, ok := embListFromQuery[2].(*orient.Document)
+	True(t, ok, "Cast to *orient.Document failed")
 
 	Equals(t, "Gordo", embCatDoc0.GetField("name").Value)
 	Equals(t, 40, toInt(embCatDoc0.GetField("age").Value))
@@ -678,14 +677,14 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 
 	// ---[ FieldWithType ]---
 
-	embcat := oschema.NewDocument("Cat")
+	embcat := orient.NewDocument("Cat")
 	embcat.Field("name", "MaryLulu").
 		Field("age", 47)
 
-	cat := oschema.NewDocument("Cat")
+	cat := orient.NewDocument("Cat")
 	cat.Field("name", "Willard").
 		Field("age", 4).
-		FieldWithType("embcat", embcat, oschema.EMBEDDED)
+		FieldWithType("embcat", embcat, orient.EMBEDDED)
 
 	// err = db.ReloadSchema(dbc) // TMP => LEFT OFF: try without this => does it work if write name and type, rather than id?
 	// Nil(t, err)
@@ -705,9 +704,9 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	catFromQuery := docs[0]
 	Equals(t, "Willard", catFromQuery.GetField("name").Value.(string))
 	Equals(t, 4, toInt(catFromQuery.GetField("age").Value))
-	Equals(t, oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
+	Equals(t, orient.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
-	embCatFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	embCatFromQuery := catFromQuery.GetField("embcat").Value.(*orient.Document)
 	True(t, embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
 	True(t, embCatFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
 	True(t, embCatFromQuery.Version < 0, "Version should be unset")
@@ -717,12 +716,12 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 
 	// ---[ Field No Type Specified ]---
 
-	embcat = oschema.NewDocument("Cat")
+	embcat = orient.NewDocument("Cat")
 	embcat.Field("name", "Tsunami").
 		Field("age", 33).
 		Field("purebreed", false)
 
-	cat = oschema.NewDocument("Cat")
+	cat = orient.NewDocument("Cat")
 	cat.Field("name", "Cara").
 		Field("age", 3).
 		Field("embcat", embcat)
@@ -741,9 +740,9 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	catFromQuery = docs[0]
 	Equals(t, "Cara", catFromQuery.GetField("name").Value.(string))
 	Equals(t, 3, toInt(catFromQuery.GetField("age").Value))
-	Equals(t, oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
+	Equals(t, orient.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
-	embCatFromQuery = catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	embCatFromQuery = catFromQuery.GetField("embcat").Value.(*orient.Document)
 	True(t, embCatFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
 	True(t, embCatFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
 	True(t, embCatFromQuery.Version < 0, "Version should be unset")
@@ -755,12 +754,12 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 
 	// ---[ Embedded with New Classname (not in DB) ]---
 
-	moonpie := oschema.NewDocument("Moonpie")
+	moonpie := orient.NewDocument("Moonpie")
 	moonpie.Field("sku", "AB425827ACX3").
 		Field("allnatural", false).
-		FieldWithType("oz", 6.5, oschema.FLOAT)
+		FieldWithType("oz", 6.5, orient.FLOAT)
 
-	cat = oschema.NewDocument("Cat")
+	cat = orient.NewDocument("Cat")
 	cat.Field("name", "LeCara").
 		Field("age", 7).
 		Field("embcat", moonpie)
@@ -776,9 +775,9 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	catFromQuery = docs[0]
 	Equals(t, "LeCara", catFromQuery.GetField("name").Value.(string))
 	Equals(t, 7, toInt(catFromQuery.GetField("age").Value))
-	Equals(t, oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
+	Equals(t, orient.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
-	moonpieFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	moonpieFromQuery := catFromQuery.GetField("embcat").Value.(*orient.Document)
 	True(t, moonpieFromQuery.RID.ClusterPos < 0, "RID (pos) should be unset")
 	True(t, moonpieFromQuery.RID.ClusterID < 0, "RID (ID) should be unset")
 	True(t, moonpieFromQuery.Version < 0, "Version should be unset")
@@ -788,12 +787,12 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	Equals(t, float32(6.5), moonpieFromQuery.GetField("oz").Value.(float32))
 	Equals(t, false, moonpieFromQuery.GetField("allnatural").Value.(bool))
 
-	noclass := oschema.NewDocument("")
+	noclass := orient.NewDocument("")
 	noclass.Field("sku", "AB425827ACX3222").
 		Field("allnatural", true).
-		FieldWithType("oz", 6.5, oschema.DOUBLE)
+		FieldWithType("oz", 6.5, orient.DOUBLE)
 
-	cat = oschema.NewDocument("Cat")
+	cat = orient.NewDocument("Cat")
 	cat.Field("name", "LeCarre").
 		Field("age", 87).
 		Field("embcat", noclass)
@@ -809,9 +808,9 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	catFromQuery = docs[0]
 	Equals(t, "LeCarre", catFromQuery.GetField("name").Value.(string))
 	Equals(t, 87, toInt(catFromQuery.GetField("age").Value))
-	Equals(t, oschema.EMBEDDED, catFromQuery.GetField("embcat").Type)
+	Equals(t, orient.EMBEDDED, catFromQuery.GetField("embcat").Type)
 
-	noclassFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	noclassFromQuery := catFromQuery.GetField("embcat").Value.(*orient.Document)
 	Equals(t, "", noclassFromQuery.Classname) // it throws out the classname
 	Equals(t, 3, len(noclassFromQuery.FieldNames()))
 	Equals(t, "AB425827ACX3222", noclassFromQuery.GetField("sku").Value)
@@ -822,12 +821,12 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 
 	versionBefore := cat.Version
 
-	moonshine := oschema.NewDocument("")
+	moonshine := orient.NewDocument("")
 	moonshine.Field("sku", "123").
 		Field("allnatural", true).
-		FieldWithType("oz", 99.092, oschema.FLOAT)
+		FieldWithType("oz", 99.092, orient.FLOAT)
 
-	cat.FieldWithType("embcat", moonshine, oschema.EMBEDDED) // updates the field locally
+	cat.FieldWithType("embcat", moonshine, orient.EMBEDDED) // updates the field locally
 
 	err = dbc.UpdateRecord(dbc, cat) // update the field in the remote DB
 	Nil(t, err)
@@ -838,7 +837,7 @@ func createAndUpdateRecordsWithEmbeddedRecords(dbc orient.Client) {
 	Equals(t, 1, len(docs))
 	catFromQuery = docs[0]
 
-	mshineFromQuery := catFromQuery.GetField("embcat").Value.(*oschema.ODocument)
+	mshineFromQuery := catFromQuery.GetField("embcat").Value.(*orient.Document)
 	Equals(t, "123", mshineFromQuery.GetField("sku").Value)
 	Equals(t, true, mshineFromQuery.GetField("allnatural").Value)
 	Equals(t, float32(99.092), mshineFromQuery.GetField("oz").Value)
@@ -883,13 +882,13 @@ func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc orient.Client) {
 	doubleval := float64(7.976931348623157E+222)
 
 	// ---[ FieldWithType ]---
-	cat := oschema.NewDocument("Cat")
+	cat := orient.NewDocument("Cat")
 	cat.Field("name", "sourpuss").
 		Field("age", 15).
-		FieldWithType("ii", constants.MaxInt32, oschema.INTEGER).
-		FieldWithType("lg", constants.MaxInt64, oschema.LONG).
-		FieldWithType("ff", floatval, oschema.FLOAT).
-		FieldWithType("dd", doubleval, oschema.DOUBLE)
+		FieldWithType("ii", constants.MaxInt32, orient.INTEGER).
+		FieldWithType("lg", constants.MaxInt64, orient.LONG).
+		FieldWithType("ff", floatval, orient.FLOAT).
+		FieldWithType("dd", doubleval, orient.DOUBLE)
 
 	err = dbc.CreateRecord(dbc, cat)
 	Nil(t, err)
@@ -917,7 +916,7 @@ func createAndUpdateRecordsWithIntLongFloatAndDouble(dbc orient.Client) {
 	ffval := float32(constants.MinInt32) * 4.996413569
 	ddval := float64(-9.834782455017E+225)
 
-	cat2 := oschema.NewDocument("Cat")
+	cat2 := orient.NewDocument("Cat")
 	cat2.Field("name", "Jerry").
 		Field("age", 18).
 		Field("ii", iival).
@@ -997,7 +996,7 @@ func removeProperty(db *orient.Database, class, property string) {
 // ------
 // Sort OLinks by RID
 
-type byRID []oschema.OIdentifiable
+type byRID []orient.OIdentifiable
 
 func (slnk byRID) Len() int {
 	return len(slnk)
@@ -1012,7 +1011,7 @@ func (slnk byRID) Less(i, j int) bool {
 }
 
 // ------
-// sort ODocuments by name field
+// sort Documents by name field
 
 type byEmbeddedCatName []interface{}
 
@@ -1025,7 +1024,7 @@ func (a byEmbeddedCatName) Swap(i, j int) {
 }
 
 func (a byEmbeddedCatName) Less(i, j int) bool {
-	return a[i].(*oschema.ODocument).GetField("name").Value.(string) < a[j].(*oschema.ODocument).GetField("name").Value.(string)
+	return a[i].(*orient.Document).GetField("name").Value.(string) < a[j].(*orient.Document).GetField("name").Value.(string)
 }
 
 // ------
@@ -1139,12 +1138,12 @@ func ogonoriTestAgainstOrientDBServer() {
 	// experimenting with JSON functionality
 	//
 	// glog.Infoln("-------- JSON ---------")
-	// fld := oschema.OField{int32(44), "foo", oschema.LONG, int64(33341234)}
+	// fld := orient.OField{int32(44), "foo", orient.LONG, int64(33341234)}
 	// bsjson, err := fld.ToJSON()
 	// Nil(t, err)
 	// glog.Infof("%v\n", string(bsjson))
 
-	// doc := oschema.NewDocument("Coolio")
+	// doc := orient.NewDocument("Coolio")
 	// doc.AddField("foo", &fld)
 	// bsjson, err = doc.ToJSON()
 	// Nil(t, err)
@@ -1168,13 +1167,13 @@ func explore() {
 	// err = db.ReloadSchema(dbc) // TMP => LEFT OFF: do the Dalek example with ogonori in explore
 	// Nil(t, err)
 
-	dingo := oschema.NewDocument("Dingo")
-	dingo.FieldWithType("foo", "bar", oschema.STRING).
-		FieldWithType("salad", 44, oschema.INTEGER)
+	dingo := orient.NewDocument("Dingo")
+	dingo.FieldWithType("foo", "bar", orient.STRING).
+		FieldWithType("salad", 44, orient.INTEGER)
 
-	cat := oschema.NewDocument("Dalek")
+	cat := orient.NewDocument("Dalek")
 	cat.Field("name", "dalek3").
-		FieldWithType("embeddedDingo", dingo, oschema.EMBEDDED)
+		FieldWithType("embeddedDingo", dingo, orient.EMBEDDED)
 
 	// ogl.SetLevel(ogl.DEBUG)
 

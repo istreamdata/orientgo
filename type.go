@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 import (
 	"github.com/golang/glog"
@@ -186,7 +186,7 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = SHORT
 	case byte, int8:
 		ftype = BYTE
-	case *ODocument: // TODO: and DocumentSerializable?
+	case *Document: // TODO: and DocumentSerializable?
 		ftype = EMBEDDED
 	case float32:
 		ftype = FLOAT

@@ -1,6 +1,4 @@
-// Key schema struct, constructors that are part of the
-// OrientDB schema or support representing the schema.
-package oschema
+package orient
 
 import (
 	"bytes"
@@ -10,54 +8,54 @@ import (
 	"time"
 )
 
-var _ OIdentifiable = (*ODocument)(nil)
+var _ OIdentifiable = (*Document)(nil)
 
-// ODocEntry is a generic data holder that goes in ODocuments.
-type ODocEntry struct {
+// DocEntry is a generic data holder that goes in Documents.
+type DocEntry struct {
 	Name  string
 	Type  OType
 	Value interface{}
 }
 
-func (fld *ODocEntry) String() string {
+func (fld *DocEntry) String() string {
 	return fmt.Sprintf("Entry<%s(%d): %v>", fld.Name, fld.Type, fld.Value)
 }
 
-type ODocument struct {
+type Document struct {
 	RID         RID
 	Version     int
-	fieldsOrder []string // field names in the order they were added to the ODocument
-	Fields      map[string]*ODocEntry
+	fieldsOrder []string // field names in the order they were added to the Document
+	Fields      map[string]*DocEntry
 	Classname   string // TODO: probably needs to change *OClass (once that is built)
 	dirty       bool
 }
 
-// NewDocument should be called to create new ODocument objects,
+// NewDocument should be called to create new Document objects,
 // since some internal data structures need to be initialized
-// before the ODocument is ready to use.
-func NewDocument(className string) *ODocument {
+// before the Document is ready to use.
+func NewDocument(className string) *Document {
 	doc := NewEmptyDocument()
 	doc.Classname = className
 	return doc
 }
 
 // TODO: have this replace NewDocument and change NewDocument to take RID and Version (???)
-func NewEmptyDocument() *ODocument {
-	return &ODocument{
-		Fields:  make(map[string]*ODocEntry),
+func NewEmptyDocument() *Document {
+	return &Document{
+		Fields:  make(map[string]*DocEntry),
 		RID:     NewEmptyRID(),
 		Version: -1,
 	}
 }
 
-func (doc *ODocument) GetIdentity() RID {
+func (doc *Document) GetIdentity() RID {
 	if doc == nil {
 		return NewEmptyRID()
 	}
 	return doc.RID
 }
 
-func (doc *ODocument) GetRecord() interface{} {
+func (doc *Document) GetRecord() interface{} {
 	if doc == nil {
 		return nil
 	}
@@ -65,37 +63,37 @@ func (doc *ODocument) GetRecord() interface{} {
 }
 
 // Implements database/sql.Scanner interface
-func (doc *ODocument) Scan(src interface{}) error {
+func (doc *Document) Scan(src interface{}) error {
 	switch v := src.(type) {
-	case *ODocument:
+	case *Document:
 		*doc = *v
 	default:
-		return fmt.Errorf("ODocument: cannot convert from %T to %T", src, doc)
+		return fmt.Errorf("Document: cannot convert from %T to %T", src, doc)
 	}
 	return nil
 }
 
 // Implements database/sql/driver.Valuer interface
-// TODO: haven't detected when this is called yet (probably when serializing ODocument for insertion into DB??)
-func (doc *ODocument) Value() (driver.Value, error) {
+// TODO: haven't detected when this is called yet (probably when serializing Document for insertion into DB??)
+func (doc *Document) Value() (driver.Value, error) {
 	if glog.V(10) {
-		glog.Infoln("** ODocument.Value")
+		glog.Infoln("** Document.Value")
 	}
 	return []byte(`{"b": 2}`), nil // FIXME: bogus
 }
 
 // Implements database/sql/driver.ValueConverter interface
 // TODO: haven't detected when this is called yet
-func (doc *ODocument) ConvertValue(v interface{}) (driver.Value, error) {
+func (doc *Document) ConvertValue(v interface{}) (driver.Value, error) {
 	if glog.V(10) {
-		glog.Infof("** ODocument.ConvertValue: %T: %v", v, v)
+		glog.Infof("** Document.ConvertValue: %T: %v", v, v)
 	}
 	return []byte(`{"a": 1}`), nil // FIXME: bogus
 }
 
-// FieldNames returns the names of all the fields currently in this ODocument
+// FieldNames returns the names of all the fields currently in this Document
 // in "entry order". These fields may not have already been committed to the database.
-func (doc *ODocument) FieldNames() []string {
+func (doc *Document) FieldNames() []string {
 	names := make([]string, len(doc.fieldsOrder))
 	copy(names, doc.fieldsOrder)
 	return names
@@ -104,9 +102,9 @@ func (doc *ODocument) FieldNames() []string {
 // GetFields return the OField objects in the Document in "entry order".
 // There is some overhead to getting them in entry order, so if you
 // don't care about that order, just access the Fields field of the
-// ODocument struct directly.
-func (doc *ODocument) GetFields() []*ODocEntry {
-	fields := make([]*ODocEntry, len(doc.fieldsOrder))
+// Document struct directly.
+func (doc *Document) GetFields() []*DocEntry {
+	fields := make([]*DocEntry, len(doc.fieldsOrder))
 	for i, name := range doc.fieldsOrder {
 		fields[i] = doc.Fields[name]
 	}
@@ -115,29 +113,29 @@ func (doc *ODocument) GetFields() []*ODocEntry {
 
 // GetFieldByName looks up the OField in this document with the specified field.
 // If no field is found with that name, nil is returned.
-func (doc *ODocument) GetField(fname string) *ODocEntry {
+func (doc *Document) GetField(fname string) *DocEntry {
 	return doc.Fields[fname]
 }
 
 // AddField adds a fully created field directly rather than by some of its
 // attributes, as the other "Field" methods do.
-// The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) AddField(name string, field *ODocEntry) *ODocument {
+// The same *Document is returned to allow call chaining.
+func (doc *Document) AddField(name string, field *DocEntry) *Document {
 	doc.Fields[name] = field
 	doc.fieldsOrder = append(doc.fieldsOrder, name)
 	doc.dirty = true
 	return doc
 }
 
-func (doc *ODocument) SetDirty(b bool) {
+func (doc *Document) SetDirty(b bool) {
 	doc.dirty = b
 }
 
 // SetField is used to add a new field to a document. This will usually be done just
 // before calling Save and sending it to the database.  The field type will be inferred
 // via type switch analysis on `val`.  Use FieldWithType to specify the type directly.
-// The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) SetField(name string, val interface{}) *ODocument {
+// The same *Document is returned to allow call chaining.
+func (doc *Document) SetField(name string, val interface{}) *Document {
 	return doc.SetFieldWithType(name, val, OTypeForValue(val))
 }
 
@@ -145,9 +143,9 @@ func (doc *ODocument) SetField(name string, val interface{}) *ODocument {
 // before calling Save and sending it to the database. The `fieldType` must correspond
 // one of the OrientDB type in the schema pkg constants.  It will follow the same list
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
-// The same *ODocument is returned to allow call chaining.
-func (doc *ODocument) SetFieldWithType(name string, val interface{}, fieldType OType) *ODocument {
-	fld := &ODocEntry{
+// The same *Document is returned to allow call chaining.
+func (doc *Document) SetFieldWithType(name string, val interface{}, fieldType OType) *Document {
+	fld := &DocEntry{
 		Name:  name,
 		Value: val,
 		Type:  fieldType,
@@ -162,11 +160,11 @@ func (doc *ODocument) SetFieldWithType(name string, val interface{}, fieldType O
 	return doc.AddField(name, fld)
 }
 
-func (doc *ODocument) RawContainsField(name string) bool {
+func (doc *Document) RawContainsField(name string) bool {
 	return doc != nil && doc.Fields[name] != nil
 }
 
-func (doc *ODocument) RawSetField(name string, val interface{}, fieldType OType) {
+func (doc *Document) RawSetField(name string, val interface{}, fieldType OType) {
 	doc.SetFieldWithType(name, val, fieldType) // TODO: implement in a right way
 }
 
@@ -198,9 +196,9 @@ func adjustDateToMidnight(val interface{}) interface{} {
 	return interface{}(tmMidnight)
 }
 
-func (doc *ODocument) String() string {
+func (doc *Document) String() string {
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString(fmt.Sprintf("ODocument<Classname: %s; RID: %s; Version: %d; fields: \n",
+	_, err := buf.WriteString(fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: \n",
 		doc.Classname, doc.RID, doc.Version))
 	if err != nil {
 		panic(err)
@@ -221,12 +219,12 @@ func (doc *ODocument) String() string {
 // StringNoFields is a String() method that elides the fields.
 // This is useful when the fields include links and there are
 // circular links.
-func (doc *ODocument) StringNoFields() string {
-	return fmt.Sprintf("ODocument<Classname: %s; RID: %s; Version: %d; fields: [...]>",
+func (doc *Document) StringNoFields() string {
+	return fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: [...]>",
 		doc.Classname, doc.RID, doc.Version)
 }
 
-func (doc *ODocument) ToMap() (map[string]interface{}, error) {
+func (doc *Document) ToMap() (map[string]interface{}, error) {
 	if doc == nil {
 		return nil, nil
 	}
@@ -238,13 +236,13 @@ func (doc *ODocument) ToMap() (map[string]interface{}, error) {
 	return out, nil
 }
 
-func (doc *ODocument) FillClassNameIfNeeded(name string) {
+func (doc *Document) FillClassNameIfNeeded(name string) {
 	if doc.Classname == "" {
 		doc.SetClassNameIfExists(name)
 	}
 }
 
-func (doc *ODocument) SetClassNameIfExists(name string) {
+func (doc *Document) SetClassNameIfExists(name string) {
 	// TODO: implement class lookup
 	//	_immutableClazz = null;
 	//	_immutableSchemaVersion = -1;

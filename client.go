@@ -3,7 +3,6 @@ package orient
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/istreamdata/orientgo/oschema"
 	"strings"
 )
 
@@ -294,7 +293,7 @@ func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (int
 }
 
 // CreateRecord saves a record to the database. Record RID and version will be changed.
-func (db *Database) CreateRecord(doc *oschema.ODocument) error {
+func (db *Database) CreateRecord(doc *Document) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -304,7 +303,7 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) error {
 }
 
 // DeleteRecordByRID removes a record from database
-func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
+func (db *Database) DeleteRecordByRID(rid RID, recVersion int) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
@@ -315,7 +314,7 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 
 // GetRecordByRID returns a record using specified fetch plan. If ignoreCache is set to true implementations will
 // not use local records cache and will fetch record from database.
-func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreCache bool) (oschema.ORecord, error) {
+func (db *Database) GetRecordByRID(rid RID, fetchPlan FetchPlan, ignoreCache bool) (ORecord, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err
@@ -325,7 +324,7 @@ func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreC
 }
 
 // UpdateRecord updates given record in a database. Record version will be changed after the call.
-func (db *Database) UpdateRecord(doc *oschema.ODocument) error {
+func (db *Database) UpdateRecord(doc *Document) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err

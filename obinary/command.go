@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 	"io"
 )
 
@@ -29,7 +28,7 @@ func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
 		result = rec
 	case 'l', 's': // collection of records
 		n := int(rw.ReadInt(r))
-		recs := make([]oschema.OIdentifiable, n) // TODO: do something special for Set type?
+		recs := make([]orient.OIdentifiable, n) // TODO: do something special for Set type?
 		for i := range recs {
 			rec := db.readIdentifiable(r)
 			if true { // TODO: try cast to Record
@@ -39,7 +38,7 @@ func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
 		}
 		result = recs
 	case 'i':
-		var recs []oschema.OIdentifiable
+		var recs []orient.OIdentifiable
 		for {
 			status := rw.ReadByte(r)
 			if status <= 0 {

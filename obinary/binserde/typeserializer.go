@@ -5,8 +5,8 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 // There is apparently a second "binary serialization" system
@@ -56,26 +56,26 @@ type OLinkSerializer struct{}
 func (ols OLinkSerializer) Deserialize(r io.Reader) (v interface{}, err error) {
 	return ols.DeserializeLink(r)
 }
-func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v oschema.OIdentifiable, err error) {
+func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v orient.OIdentifiable, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("deserialize error: %v", r)
 		}
 	}()
-	var rid oschema.RID
+	var rid orient.RID
 	if err = rid.FromStream(r); err != nil {
 		return
 	}
 	return rid, nil
 }
 
-// Serialize serializes a *oschema.OLink into the binary format
+// Serialize serializes a *orient.OLink into the binary format
 // required by the OrientDB server.  If the `val` passed in is
-// not a *oschema.OLink, the method will panic.
+// not a *orient.OLink, the method will panic.
 func (ols OLinkSerializer) Serialize(val interface{}) ([]byte, error) {
-	lnk, ok := val.(oschema.OIdentifiable)
+	lnk, ok := val.(orient.OIdentifiable)
 	if !ok {
-		return nil, fmt.Errorf("Invalid LINK should be oschema.OLink, got %s", reflect.TypeOf(val))
+		return nil, fmt.Errorf("Invalid LINK should be orient.OLink, got %s", reflect.TypeOf(val))
 	}
 	rid := lnk.GetIdentity()
 

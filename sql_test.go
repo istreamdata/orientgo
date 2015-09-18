@@ -8,7 +8,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
 	_ "github.com/istreamdata/orientgo/obinary"
-	"github.com/istreamdata/orientgo/oschema"
 	"strconv"
 )
 
@@ -193,14 +192,14 @@ func TestSQLDriver(t *testing.T) {
 	glog.Infof(">> DEL4 RES num rows affected: %v\n", nrows)
 	Equals(t, int64(1), nrows)
 
-	// ---[ Full ODocument Queries with database/sql ]---
+	// ---[ Full Document Queries with database/sql ]---
 	// ---[ QueryRow ]---
-	glog.Infoln(">>>>>>>>> QueryRow of full ODocument<<<<<<<<<<<")
+	glog.Infoln(">>>>>>>>> QueryRow of full Document<<<<<<<<<<<")
 	querySQL = "select from Cat where name = 'Linus'"
 
 	row = db.QueryRow(querySQL)
 
-	var retdoc oschema.ODocument
+	var retdoc orient.Document
 	err = row.Scan(&retdoc)
 	Nil(t, err)
 	Equals(t, "Cat", retdoc.Classname)
@@ -212,9 +211,9 @@ func TestSQLDriver(t *testing.T) {
 	// ---[ Query (return multiple rows) ]---
 	querySQL = "select from Cat order by caretaker desc"
 	rows, err = db.Query(querySQL)
-	rowdocs := make([]*oschema.ODocument, 0, 2)
+	rowdocs := make([]*orient.Document, 0, 2)
 	for rows.Next() {
-		var newdoc oschema.ODocument
+		var newdoc orient.Document
 		err = rows.Scan(&newdoc)
 		rowdocs = append(rowdocs, &newdoc)
 	}
@@ -437,9 +436,9 @@ func TestSQlDriverGraph(t *testing.T) {
 
 	sql = `select from Friend order by @rid desc LIMIT 1`
 	rows, err := db.Query(sql)
-	rowdocs := make([]*oschema.ODocument, 0, 1)
+	rowdocs := make([]*orient.Document, 0, 1)
 	for rows.Next() {
-		var newdoc oschema.ODocument
+		var newdoc orient.Document
 		err = rows.Scan(&newdoc)
 		rowdocs = append(rowdocs, &newdoc)
 	}
@@ -448,7 +447,7 @@ func TestSQlDriverGraph(t *testing.T) {
 
 	Equals(t, 1, len(rowdocs))
 	Equals(t, "Friend", rowdocs[0].Classname)
-	friendOutLink := rowdocs[0].GetField("out").Value.(oschema.OIdentifiable)
+	friendOutLink := rowdocs[0].GetField("out").Value.(orient.OIdentifiable)
 	True(t, friendOutLink.GetRecord() == nil, "should be nil")
 
 	glog.V(10).Infof("friendOutLink: %v\n", friendOutLink)
@@ -456,9 +455,9 @@ func TestSQlDriverGraph(t *testing.T) {
 	// REMOVE THE STUFF BELOW since can't specify fetchPlain in SQL (??? => ask on user group)'
 	// sql = `select from Friend order by @rid desc LIMIT 1 fetchPlan=*:-1`
 	// rows, err = db.Query(sql)
-	// rowdocs = make([]*oschema.ODocument, 0, 1)
+	// rowdocs = make([]*orient.Document, 0, 1)
 	// for rows.Next() {
-	// 	var newdoc oschema.ODocument
+	// 	var newdoc orient.Document
 	// 	err = rows.Scan(&newdoc)
 	// 	rowdocs = append(rowdocs, &newdoc)
 	// }
@@ -467,7 +466,7 @@ func TestSQlDriverGraph(t *testing.T) {
 
 	// Equals(t, 1, len(rowdocs))
 	// Equals(t, "Friend", rowdocs[0].Classname)
-	// friendOutLink = rowdocs[0].GetField("out").Value.(*oschema.OLink)
+	// friendOutLink = rowdocs[0].GetField("out").Value.(*orient.OLink)
 	// // True(t, friendOutLink.Record != nil, "should NOT be nil") // FAILS: looks like you cannot put a fetchplain in an SQL query itself?
 
 	// nrows, _ = res.RowsAffected()

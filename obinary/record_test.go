@@ -7,7 +7,6 @@ import (
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -22,7 +21,7 @@ func TestDeserializeRecordData(t *testing.T) {
 
 	rec := orient.NewDocumentRecord()
 	rec.SetSerializer(&obinary.BinaryRecordFormat{})
-	rec.Fill(oschema.NewEmptyRID(), 0, data)
+	rec.Fill(orient.NewEmptyRID(), 0, data)
 
 	if doc, err := rec.ToDocument(); err != nil {
 		t.Fatal(err)

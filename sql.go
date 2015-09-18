@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 // Driver name for database/sql package
@@ -119,7 +118,7 @@ func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error)
 		return ogonoriResult{int64(rec), -1}, nil
 	case int:
 		return ogonoriResult{int64(rec), -1}, nil
-	case []oschema.OIdentifiable:
+	case []OIdentifiable:
 		return ogonoriResult{int64(len(rec)), rec[len(rec)-1].GetIdentity().ClusterPos}, nil
 	case *DocumentRecord:
 		doc, err := rec.ToDocument()
@@ -143,7 +142,7 @@ func (db *Database) Query(query string, args []driver.Value) (driver.Rows, error
 		return nil, err
 	}
 	switch rec := o.(type) {
-	case []oschema.OIdentifiable:
+	case []OIdentifiable:
 		return newRows(rec)
 	}
 	return nil, fmt.Errorf("query with return values is not supported for now, out type: %T", o)
@@ -188,13 +187,13 @@ var _ driver.Rows = (*ogonoriRows)(nil)
 // ogonoriRows implements the sql/driver.Rows interface.
 type ogonoriRows struct {
 	pos     int // index of next row (doc) to return
-	docs    []oschema.OIdentifiable
+	docs    []OIdentifiable
 	cols    []string
 	fulldoc bool // whether query returned a full document or just properties
 	// TODO: maybe a reference to the appropriate schema is needed here?
 }
 
-func newRows(docs []oschema.OIdentifiable) (*ogonoriRows, error) {
+func newRows(docs []OIdentifiable) (*ogonoriRows, error) {
 	var cols []string
 	if docs == nil || len(docs) == 0 {
 		cols = []string{}
@@ -214,7 +213,7 @@ func newRows(docs []oschema.OIdentifiable) (*ogonoriRows, error) {
 	}
 
 	var fulldoc bool
-	if doc, ok := docs[0].(*oschema.ODocument); ok {
+	if doc, ok := docs[0].(*Document); ok {
 		if doc.Classname == "" {
 			cols = make([]string, 0, len(doc.FieldNames()))
 			for _, fname := range doc.FieldNames() {
@@ -252,14 +251,14 @@ func (rows *ogonoriRows) Next(dest []driver.Value) error {
 	glog.V(10).Infoln("ogonoriRows.Next")
 	// TODO: right now I return the entire resultSet as an array, thus all loaded into memory
 	//       it would be better to have obinary.dbCommands provide an iterator based model
-	//       that only needs to read a "row" (ODocument) at a time
+	//       that only needs to read a "row" (Document) at a time
 	if rows.pos >= len(rows.docs) {
 		return io.EOF
 	}
 	// TODO: may need to do a type switch here -> what else can come in from a query in OrientDB
-	//       besides an ODocument ??
+	//       besides an Document ??
 	currdoc := rows.docs[rows.pos]
-	if doc, ok := currdoc.(*oschema.ODocument); ok {
+	if doc, ok := currdoc.(*Document); ok {
 		if rows.fulldoc {
 			dest[0] = doc
 		} else {

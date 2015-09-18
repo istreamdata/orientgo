@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 import (
 	"bytes"

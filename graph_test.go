@@ -37,7 +37,7 @@ func createOgonoriGraphDb(t *testing.T, dbc orient.Client) {
 func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	var (
 		sql    string
-		docs   []*oschema.ODocument
+		docs   []*orient.Document
 		recs   obinary.Records
 		err    error
 	)
@@ -106,8 +106,8 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 
 	dbc.ReloadSchema()
 
-	var abbieVtx, zekeVtx *oschema.ODocument
-	var friendLinkBag *oschema.OLinkBag
+	var abbieVtx, zekeVtx *orient.Document
+	var friendLinkBag *orient.OLinkBag
 
 	// TODO: this query fails with orientdb-community-2.1-rc5 on Windows (not tested on Linux)
 	sql = `SELECT from Person where any() traverse(0,2) (firstName = 'Abbie') ORDER BY firstName`
@@ -119,7 +119,7 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	zekeVtx = docs[1]
 	Equals(t, "Wilson", abbieVtx.GetField("lastName").Value)
 	Equals(t, "Rossi", zekeVtx.GetField("lastName").Value)
-	friendLinkBag = abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
+	friendLinkBag = abbieVtx.GetField("out_Friend").Value.(*orient.OLinkBag)
 	Equals(t, 0, friendLinkBag.GetRemoteSize()) // FIXME: this is probably wrong -> is now 0
 	Equals(t, 1, len(friendLinkBag.Links))
 	assert.True(t, zekeVtx.RID.ClusterID != friendLinkBag.Links[0].RID.ClusterID, "friendLink should be from friend table")
@@ -140,17 +140,17 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	Equals(t, "Friend", friendEdge.Classname)
 	Equals(t, "Person", zekeVtx.Classname)
 	Equals(t, "555-55-5555", abbieVtx.GetField("SSN").Value)
-	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
+	linkBagInAbbieVtx := abbieVtx.GetField("out_Friend").Value.(*orient.OLinkBag)
 	Equals(t, 0, linkBagInAbbieVtx.GetRemoteSize())
 	Equals(t, 1, len(linkBagInAbbieVtx.Links))
 	assert.True(t, linkBagInAbbieVtx.Links[0].Record == nil, "Record should not be filled in (no extended fetchPlan)")
 	Equals(t, linkBagInAbbieVtx.Links[0].RID, friendEdge.RID)
 	Equals(t, 2, len(friendEdge.FieldNames()))
-	outEdgeLink := friendEdge.GetField("out").Value.(*oschema.OLink)
+	outEdgeLink := friendEdge.GetField("out").Value.(*orient.OLink)
 	Equals(t, abbieVtx.RID, outEdgeLink.RID)
-	inEdgeLink := friendEdge.GetField("in").Value.(*oschema.OLink)
+	inEdgeLink := friendEdge.GetField("in").Value.(*orient.OLink)
 	Equals(t, zekeVtx.RID, inEdgeLink.RID)
-	linkBagInZekeVtx := zekeVtx.GetField("in_Friend").Value.(*oschema.OLinkBag)
+	linkBagInZekeVtx := zekeVtx.GetField("in_Friend").Value.(*orient.OLinkBag)
 	Equals(t, 1, len(linkBagInZekeVtx.Links))
 	Equals(t, friendEdge.RID, linkBagInZekeVtx.Links[0].RID)
 
@@ -163,14 +163,14 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	zekeVtx = docs[1]
 	Equals(t, "Wilson", abbieVtx.GetField("lastName").Value)
 	Equals(t, "Rossi", zekeVtx.GetField("lastName").Value)
-	friendLinkBag = abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
+	friendLinkBag = abbieVtx.GetField("out_Friend").Value.(*orient.OLinkBag)
 	Equals(t, 1, len(friendLinkBag.Links))
 	assert.True(t, zekeVtx.RID.ClusterID != friendLinkBag.Links[0].RID.ClusterID, "friendLink should be from friend table")
 	// the link in abbie is an EDGE (of Friend class)
 	Equals(t, "Friend", friendLinkBag.Links[0].Record.Classname)
-	outEdgeLink = friendLinkBag.Links[0].Record.GetField("out").Value.(*oschema.OLink)
+	outEdgeLink = friendLinkBag.Links[0].Record.GetField("out").Value.(*orient.OLink)
 	Equals(t, abbieVtx.RID, outEdgeLink.RID)
-	inEdgeLink = friendLinkBag.Links[0].Record.GetField("in").Value.(*oschema.OLink)
+	inEdgeLink = friendLinkBag.Links[0].Record.GetField("in").Value.(*orient.OLink)
 	Equals(t, zekeVtx.RID, inEdgeLink.RID)
 
 	// now add more entries and Friend edges
@@ -251,26 +251,26 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	Equals(t, "Zeke", docs[3].GetField("firstName").Value)
 
 	// Abbie should have one out_Friend and one in_Friend
-	Equals(t, 1, len(docs[0].GetField("in_Friend").Value.(*oschema.OLinkBag).Links))
-	Equals(t, 1, len(docs[0].GetField("out_Friend").Value.(*oschema.OLinkBag).Links))
+	Equals(t, 1, len(docs[0].GetField("in_Friend").Value.(*orient.OLinkBag).Links))
+	Equals(t, 1, len(docs[0].GetField("out_Friend").Value.(*orient.OLinkBag).Links))
 
 	// Jim has two out_Friend and one in_Friend links
-	Equals(t, 1, len(docs[1].GetField("in_Friend").Value.(*oschema.OLinkBag).Links))
-	Equals(t, 2, len(docs[1].GetField("out_Friend").Value.(*oschema.OLinkBag).Links))
+	Equals(t, 1, len(docs[1].GetField("in_Friend").Value.(*orient.OLinkBag).Links))
+	Equals(t, 2, len(docs[1].GetField("out_Friend").Value.(*orient.OLinkBag).Links))
 
 	// Paul has one in_Friend and zero out_Friend links
-	Equals(t, 1, len(docs[2].GetField("in_Friend").Value.(*oschema.OLinkBag).Links))
+	Equals(t, 1, len(docs[2].GetField("in_Friend").Value.(*orient.OLinkBag).Links))
 	assert.True(t, docs[2].GetField("out_Friend") == nil, "Paul should have no out_Field edges")
 
 	// Zeke has two in_Friend and two out_Friend edges
-	Equals(t, 2, len(docs[3].GetField("in_Friend").Value.(*oschema.OLinkBag).Links))
-	Equals(t, 2, len(docs[3].GetField("out_Friend").Value.(*oschema.OLinkBag).Links))
+	Equals(t, 2, len(docs[3].GetField("in_Friend").Value.(*orient.OLinkBag).Links))
+	Equals(t, 2, len(docs[3].GetField("out_Friend").Value.(*orient.OLinkBag).Links))
 
 	// Paul's in_Friend should be Zeke's outFriend link to Paul
 	// the links are edges not vertexes, so have to check for a match on edge RIDs
-	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.(*oschema.OLinkBag).Links[0]
+	paulsInFriendEdge := docs[2].GetField("in_Friend").Value.(*orient.OLinkBag).Links[0]
 
-	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	zekesOutFriendEdges := docs[3].GetField("out_Friend").Value.(*orient.OLinkBag).Links
 	sort.Sort(byRID(zekesOutFriendEdges))
 	// I know that zeke -> paul edge was the last one created, so it will be the second
 	// in Zeke's LinkBag list
@@ -284,7 +284,7 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	_, err = dbc.SQLQuery(&docs, nil, sql)
 	assert.Nil(t, err)
 	Equals(t, 1, len(docs))
-	abbieBothLinks := docs[0].GetField("both").Value.([]*oschema.OLink)
+	abbieBothLinks := docs[0].GetField("both").Value.([]*orient.OLink)
 	Equals(t, 2, len(abbieBothLinks))
 	sort.Sort(byRID(abbieBothLinks))
 	Equals(t, zekeRID, abbieBothLinks[0].RID)
@@ -297,7 +297,7 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	// return value is a single Document with single field called 'dijkstra' with three links
 	// from abbie to paul, namely: abbie -> zeke -> paul
 	Equals(t, 1, len(docs))
-	pathLinks := docs[0].GetField("dijkstra").Value.([]*oschema.OLink)
+	pathLinks := docs[0].GetField("dijkstra").Value.([]*orient.OLink)
 	Equals(t, 3, len(pathLinks))
 	Equals(t, abbieRID, pathLinks[0].RID)
 	Equals(t, zekeRID, pathLinks[1].RID)
@@ -311,11 +311,11 @@ func graphCommandsNativeAPI(dbc *obinary.Client, fullTest bool) {
 	doCircularLinkExample(dbc)
 }
 
-func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, db orient.Database, abbieRID oschema.ORID) {
+func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, db orient.Database, abbieRID orient.ORID) {
 	var (
 		sql  string
 		err  error
-		docs []*oschema.ODocument
+		docs []*orient.Document
 	)
 
 	nAbbieOutFriends := 88
@@ -341,12 +341,12 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, db orient.
 	// buf for out_Fridn she has a tree-based remote LinkBag, not yet filled in
 	abbieVtx := docs[0]
 	Equals(t, "Wilson", abbieVtx.GetField("lastName").Value)
-	abbieInFriendLinkBag := abbieVtx.GetField("in_Friend").Value.(*oschema.OLinkBag)
+	abbieInFriendLinkBag := abbieVtx.GetField("in_Friend").Value.(*orient.OLinkBag)
 	Equals(t, 1, len(abbieInFriendLinkBag.Links))
 	Equals(t, false, abbieInFriendLinkBag.IsRemote())
 	assert.True(t, abbieInFriendLinkBag.GetRemoteSize() <= 0, "GetRemoteSize should not be set to positive val")
 
-	abbieOutFriendLinkBag := abbieVtx.GetField("out_Friend").Value.(*oschema.OLinkBag)
+	abbieOutFriendLinkBag := abbieVtx.GetField("out_Friend").Value.(*orient.OLinkBag)
 	assert.True(t, abbieOutFriendLinkBag.Links == nil, "out_Friends links should not be present")
 	Equals(t, true, abbieOutFriendLinkBag.IsRemote())
 	assert.True(t, abbieInFriendLinkBag.GetRemoteSize() <= 0, "GetRemoteSize should not be set to positive val")
@@ -385,7 +385,7 @@ func addManyLinksToFlipFriendLinkBagToExternalTreeBased(t *testing.T, db orient.
 }
 
 func doCircularLinkExample(t *testing.T, db *obinary.Client) {
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	_, err := dbc.SQLCommand(&docs, `create vertex Person content {"firstName":"AAA", "lastName":"BBB", "SSN":"111-11-1111"}`)
 	assert.Nil(t, err)
 	Equals(t, 1, len(docs))
@@ -442,12 +442,12 @@ func doCircularLinkExample(t *testing.T, db *obinary.Client) {
 	assert.Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, aaaDoc.RID, docs[0].RID)
-	aaaOutFriendLinks := docs[0].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	aaaOutFriendLinks := docs[0].GetField("out_Friend").Value.(*orient.OLinkBag).Links
 	Equals(t, 1, len(aaaOutFriendLinks))
 	Equals(t, aaaOutFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
 	assert.True(t, aaaOutFriendLinks[0].Record == nil, "should not be filled in")
 
-	yyyOutFriendLinks := docs[1].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	yyyOutFriendLinks := docs[1].GetField("out_Friend").Value.(*orient.OLinkBag).Links
 	Equals(t, 1, len(yyyOutFriendLinks))
 	Equals(t, yyyOutFriendLinks[0].RID, yyy2aaaFriendDoc.RID)
 	assert.True(t, yyyOutFriendLinks[0].Record == nil, "should not be filled in")
@@ -459,21 +459,21 @@ func doCircularLinkExample(t *testing.T, db *obinary.Client) {
 	assert.Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, aaaDoc.RID, docs[0].RID)
-	aaaOutFriendLinks = docs[0].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	aaaOutFriendLinks = docs[0].GetField("out_Friend").Value.(*orient.OLinkBag).Links
 	Equals(t, 1, len(aaaOutFriendLinks))
 	Equals(t, aaaOutFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
 	assert.True(t, aaaOutFriendLinks[0].Record != nil, "should not be filled in")
 
 	Equals(t, "YYY", docs[1].GetField("firstName").Value)
-	yyyOutFriendLinks = docs[1].GetField("out_Friend").Value.(*oschema.OLinkBag).Links
+	yyyOutFriendLinks = docs[1].GetField("out_Friend").Value.(*orient.OLinkBag).Links
 	Equals(t, 1, len(yyyOutFriendLinks))
 	Equals(t, yyyOutFriendLinks[0].RID, yyy2aaaFriendDoc.RID)
 	assert.True(t, yyyOutFriendLinks[0].Record != nil, "should not be filled in")
 
-	yyyInFriendLinks := docs[1].GetField("in_Friend").Value.(*oschema.OLinkBag).Links
+	yyyInFriendLinks := docs[1].GetField("in_Friend").Value.(*orient.OLinkBag).Links
 	Equals(t, yyyInFriendLinks[0].RID, aaa2yyyFriendDoc.RID)
 	Equals(t, yyyInFriendLinks[0].Record.RID, aaa2yyyFriendDoc.RID)
-	Equals(t, "YYY", yyyInFriendLinks[0].Record.GetField("in").Value.(*oschema.OLink).Record.GetField("firstName").Value)
+	Equals(t, "YYY", yyyInFriendLinks[0].Record.GetField("in").Value.(*orient.OLink).Record.GetField("firstName").Value)
 
 	// ------
 
@@ -484,19 +484,19 @@ func doCircularLinkExample(t *testing.T, db *obinary.Client) {
 	assert.Nil(t, err)
 	Equals(t, 2, len(docs))
 	Equals(t, aaa2yyyFriendDoc.RID, docs[0].RID)
-	outLinkToAAA := docs[0].GetField("out").Value.(*oschema.OLink)
+	outLinkToAAA := docs[0].GetField("out").Value.(*orient.OLink)
 	Equals(t, outLinkToAAA.RID, aaaDoc.RID)
 	Equals(t, "AAA", outLinkToAAA.Record.GetField("firstName").Value)
 
-	inLinkFromYYY := docs[0].GetField("in").Value.(*oschema.OLink)
+	inLinkFromYYY := docs[0].GetField("in").Value.(*orient.OLink)
 	Equals(t, inLinkFromYYY.RID, yyyDoc.RID)
 	Equals(t, "YYY", inLinkFromYYY.Record.GetField("firstName").Value)
 
-	outLinkToYYY := docs[1].GetField("out").Value.(*oschema.OLink)
+	outLinkToYYY := docs[1].GetField("out").Value.(*orient.OLink)
 	Equals(t, outLinkToYYY.RID, yyyDoc.RID)
 	Equals(t, "YYY", outLinkToYYY.Record.GetField("firstName").Value)
 
-	inLinkFromAAA := docs[1].GetField("in").Value.(*oschema.OLink)
+	inLinkFromAAA := docs[1].GetField("in").Value.(*orient.OLink)
 	Equals(t, inLinkFromAAA.RID, aaaDoc.RID)
 	Equals(t, "AAA", inLinkFromAAA.Record.GetField("firstName").Value)
 }

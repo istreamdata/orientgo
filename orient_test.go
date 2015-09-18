@@ -11,7 +11,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/istreamdata/orientgo"
 	_ "github.com/istreamdata/orientgo/obinary"
-	"github.com/istreamdata/orientgo/oschema"
 	"net"
 	"os"
 )
@@ -171,7 +170,7 @@ func testOUserCommand(t *testing.T, fnc func(*orient.Database) orient.Results) {
 	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
-	var docs []oschema.OIdentifiable
+	var docs []orient.OIdentifiable
 	err := fnc(cli).All(&docs)
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +255,7 @@ func TestSelectSaveFunc(t *testing.T) {
 	err := cli.CallScriptFunc(name, "some", struct{ Name string }{"one"}).All(&o)
 	if err != nil {
 		t.Fatal(err)
-	} else if docs, ok := o.([]oschema.OIdentifiable); !ok {
+	} else if docs, ok := o.([]orient.OIdentifiable); !ok {
 		t.Errorf("expected list, got: %T", o)
 	} else if len(docs) != 3 {
 		t.Error("wrong docs count")
@@ -367,7 +366,7 @@ func TestScriptJSMap(t *testing.T) {
 	cli, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
 
-	var o []oschema.OIdentifiable
+	var o []orient.OIdentifiable
 	err := cli.Command(orient.NewScriptCommand(orient.LangJS, `var a = {"aaa":"one","bbb": 2}; a`)).All(&o)
 	if err != nil {
 		t.Fatal(err)

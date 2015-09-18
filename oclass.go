@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 type OClass struct {
 	Name             string
@@ -14,9 +14,9 @@ type OClass struct {
 	CustomFields     map[string]string
 }
 
-// Should be passed an ODocument that comes from a load schema
+// Should be passed an Document that comes from a load schema
 // request to the database.
-func NewOClassFromDocument(doc *ODocument) *OClass {
+func NewOClassFromDocument(doc *Document) *OClass {
 	oclass := &OClass{Properties: make(map[string]*OProperty)}
 
 	if fld := doc.GetField("name"); fld != nil && fld.Value != nil {
@@ -26,7 +26,7 @@ func NewOClassFromDocument(doc *ODocument) *OClass {
 		oclass.ShortName = fld.Value.(string)
 	}
 
-	// properties comes back as an ODocument
+	// properties comes back as an Document
 	if fld := doc.GetField("properties"); fld != nil && fld.Value != nil {
 		propsDocs := convertToODocumentRefSlice(fld.Value.([]interface{}))
 		for _, propDoc := range propsDocs {
@@ -63,10 +63,10 @@ func NewOClassFromDocument(doc *ODocument) *OClass {
 	return oclass
 }
 
-func convertToODocumentRefSlice(x []interface{}) []*ODocument {
-	y := make([]*ODocument, len(x))
+func convertToODocumentRefSlice(x []interface{}) []*Document {
+	y := make([]*Document, len(x))
 	for i, v := range x {
-		y[i] = v.(*ODocument)
+		y[i] = v.(*Document)
 	}
 	return y
 }

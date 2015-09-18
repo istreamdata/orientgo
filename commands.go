@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 var (
@@ -31,7 +30,7 @@ func arrayToParamsMap(params []interface{}) interface{} {
 	}
 	mp := make(map[int32]interface{}, len(params))
 	for i, p := range params {
-		if ide, ok := p.(oschema.OIdentifiable); ok {
+		if ide, ok := p.(OIdentifiable); ok {
 			p = ide.GetIdentity() // use RID only
 		}
 		mp[int32(i)] = p
@@ -70,7 +69,7 @@ func (rq textReqCommand) ToStream(w io.Writer) (err error) {
 
 	rw.WriteBool(w, true) // simple params
 	buf := bytes.NewBuffer(nil)
-	doc := oschema.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	doc.SetField("parameters", params)
 	if err = GetDefaultRecordSerializer().ToStream(buf, doc); err != nil {
 		return
@@ -204,7 +203,7 @@ func (rq SQLQuery) serializeQueryParameters(params []interface{}) []byte {
 	if len(params) == 0 {
 		return nil
 	}
-	doc := oschema.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	doc.SetField("params", arrayToParamsMap(params)) // TODO: convertToRIDsIfPossible
 	buf := bytes.NewBuffer(nil)
 	if err := GetDefaultRecordSerializer().ToStream(buf, doc); err != nil {

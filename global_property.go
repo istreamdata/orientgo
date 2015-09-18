@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 // OGlobalProperty is used by OrientDB to efficiently store "property" (field)
 // types and names (but not values) across all clusters in a database
@@ -12,7 +12,7 @@ type OGlobalProperty struct {
 }
 
 // based on how the Java client does it ; TODO: document usage
-func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
+func NewGlobalPropertyFromDocument(doc *Document) OGlobalProperty {
 	// set defaults
 	id := int32(-1)
 	name := ""
@@ -32,6 +32,6 @@ func NewGlobalPropertyFromDocument(doc *ODocument) OGlobalProperty {
 }
 
 // TODO: Java client also has `toDocument`
-// func (gp OGlobalProperty) ToDocument() *ODocument {
+// func (gp OGlobalProperty) ToDocument() *Document {
 // 	// TODO: impl me ???
 // }

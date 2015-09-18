@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 	"io"
 )
 
@@ -46,7 +45,7 @@ type Deserializable interface {
 }
 
 // GlobalPropertyFunc is a function for getting global properties by id
-type GlobalPropertyFunc func(id int) (oschema.OGlobalProperty, bool)
+type GlobalPropertyFunc func(id int) (OGlobalProperty, bool)
 
 // RecordSerializer is an interface for serializing records to byte streams
 type RecordSerializer interface {
@@ -81,17 +80,17 @@ func GetDefaultRecordSerializer() RecordSerializer {
 	return GetRecordFormat(recordFormatDefault)
 }
 
-// DocumentSerializable is an interface for objects that can be converted to ODocument
+// DocumentSerializable is an interface for objects that can be converted to Document
 type DocumentSerializable interface {
-	ToDocument() (*oschema.ODocument, error)
+	ToDocument() (*Document, error)
 }
 
-// DocumentDeserializable is an interface for objects that can be filled from ODocument
+// DocumentDeserializable is an interface for objects that can be filled from Document
 type DocumentDeserializable interface {
-	FromDocument(*oschema.ODocument) error
+	FromDocument(*Document) error
 }
 
-var _ MapSerializable = (*oschema.ODocument)(nil)
+var _ MapSerializable = (*Document)(nil)
 
 // MapSerializable is an interface for objects that can be converted to map[string]interface{}
 type MapSerializable interface {

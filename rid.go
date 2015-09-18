@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 // ref: com.orientechnologies.orient.core.id
 

@@ -12,7 +12,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 func init() {
@@ -93,10 +92,10 @@ func TestRecordsNativeAPI(t *testing.T) {
 
 	// ---[ creation ]---
 
-	winston := oschema.NewDocument("Cat")
+	winston := orient.NewDocument("Cat")
 	winston.SetField("name", "Winston").
 		SetField("caretaker", "Churchill").
-		SetFieldWithType("age", 7, oschema.INTEGER)
+		SetFieldWithType("age", 7, orient.INTEGER)
 	Equals(t, -1, int(winston.RID.ClusterID))
 	Equals(t, -1, int(winston.RID.ClusterPos))
 	Equals(t, -1, int(winston.Version))
@@ -116,7 +115,7 @@ func TestRecordsNativeAPI(t *testing.T) {
 	Nil(t, err)
 	True(t, versionBefore < winston.Version, "version should have incremented")
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select * from Cat where @rid=" + winston.RID.String())).All(&docs)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
@@ -128,12 +127,12 @@ func TestRecordsNativeAPI(t *testing.T) {
 
 	// ---[ next creation ]---
 
-	daemon := oschema.NewDocument("Cat")
+	daemon := orient.NewDocument("Cat")
 	daemon.SetField("name", "Daemon").SetField("caretaker", "Matt").SetField("age", 4)
 	err = db.CreateRecord(daemon)
 	Nil(t, err)
 
-	indy := oschema.NewDocument("Cat")
+	indy := orient.NewDocument("Cat")
 	indy.SetField("name", "Indy").SetField("age", 6)
 	err = db.CreateRecord(indy)
 	Nil(t, err)
@@ -168,15 +167,15 @@ func TestRecordsNativeAPI(t *testing.T) {
 	//createAndUpdateRecordsWithEmbeddedRecords(dbc)
 
 	// ---[ Test EMBEDDEDLIST, EMBEDDEDSET Serialization ]---
-	//createAndUpdateRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDLIST)
-	//createAndUpdateRecordsWithEmbeddedLists(dbc, oschema.EMBEDDEDSET)
+	//createAndUpdateRecordsWithEmbeddedLists(dbc, orient.EMBEDDEDLIST)
+	//createAndUpdateRecordsWithEmbeddedLists(dbc, orient.EMBEDDEDSET)
 
 	// ---[ Test Link Serialization ]---
 	//createAndUpdateRecordsWithLinks(dbc)
 
 	// ---[ Test LinkList/LinkSet Serialization ]---
-	//createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKLIST)
-	// createAndUpdateRecordsWithLinkLists(dbc, oschema.LINKSET)  // TODO: get this working
+	//createAndUpdateRecordsWithLinkLists(dbc, orient.LINKLIST)
+	// createAndUpdateRecordsWithLinkLists(dbc, orient.LINKSET)  // TODO: get this working
 
 	// ---[ Test LinkMap Serialization ]---
 	//createAndUpdateRecordsWithLinkMap(dbc)
@@ -196,10 +195,10 @@ func TestRecordsWithDate(t *testing.T) {
 	bdayTm, err := time.Parse(dtTemplate, "Feb 3, 1932 at 7:54pm (EST)")
 	Nil(t, err)
 
-	jj := oschema.NewDocument("Cat")
+	jj := orient.NewDocument("Cat")
 	jj.SetField("name", "JJ").
 		SetField("age", 2).
-		SetFieldWithType("bday", bdayTm, oschema.DATE)
+		SetFieldWithType("bday", bdayTm, orient.DATE)
 	err = db.CreateRecord(jj)
 	Nil(t, err)
 
@@ -210,7 +209,7 @@ func TestRecordsWithDate(t *testing.T) {
 	Equals(t, 0, jjbdayAfterCreate.Minute())
 	Equals(t, 0, jjbdayAfterCreate.Second())
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + jj.RID.String())).All(&docs)
 	Equals(t, 1, len(docs))
 	jjFromQuery := docs[0]
@@ -221,8 +220,8 @@ func TestRecordsWithDate(t *testing.T) {
 	versionBefore := jj.Version
 	oneYearLater := bdayTm.AddDate(1, 0, 0)
 
-	jj.SetFieldWithType("bday", oneYearLater, oschema.DATE) // updates the field locally
-	err = db.UpdateRecord(jj)                               // update the field in the remote DB
+	jj.SetFieldWithType("bday", oneYearLater, orient.DATE) // updates the field locally
+	err = db.UpdateRecord(jj)                              // update the field in the remote DB
 	Nil(t, err)
 	True(t, versionBefore < jj.Version, "version should have incremented")
 
@@ -248,17 +247,17 @@ func TestRecordsWithDatetime(t *testing.T) {
 
 	now := time.Now()
 	now = time.Unix(now.Unix(), int64((now.Nanosecond()/1e6))*1e6)
-	simba := oschema.NewDocument("Cat")
+	simba := orient.NewDocument("Cat")
 	simba.SetField("name", "Simba").
 		SetField("age", 11).
-		SetFieldWithType("ddd", now, oschema.DATETIME)
+		SetFieldWithType("ddd", now, orient.DATETIME)
 	err = db.CreateRecord(simba)
 	Nil(t, err)
 
 	True(t, simba.RID.ClusterID > 0, "ClusterID should be set")
 	True(t, simba.RID.ClusterPos >= 0, "ClusterID should be set")
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + simba.RID.String())).All(&docs)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
@@ -272,8 +271,8 @@ func TestRecordsWithDatetime(t *testing.T) {
 
 	twoDaysAgo := now.AddDate(0, 0, -2)
 
-	simba.SetFieldWithType("ddd", twoDaysAgo, oschema.DATETIME) // updates the field locally
-	err = db.UpdateRecord(simba)                                // update the field in the remote DB
+	simba.SetFieldWithType("ddd", twoDaysAgo, orient.DATETIME) // updates the field locally
+	err = db.UpdateRecord(simba)                               // update the field in the remote DB
 	Nil(t, err)
 	True(t, versionBefore < simba.Version, "version should have incremented")
 
@@ -292,26 +291,26 @@ func TestRecordsMismatchedTypes(t *testing.T) {
 	defer catch()
 	SeedDB(t, db)
 
-	c1 := oschema.NewDocument("Cat")
+	c1 := orient.NewDocument("Cat")
 	c1.SetField("name", "fluffy1").
 		SetField("age", 22).
-		SetFieldWithType("ddd", "not a datetime", oschema.DATETIME)
+		SetFieldWithType("ddd", "not a datetime", orient.DATETIME)
 	err := db.CreateRecord(c1)
 	True(t, err != nil, "Should have returned error")
 	//	_, ok := oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
 	//	True(t, ok, "should be DataTypeMismatch error")
 
-	c2 := oschema.NewDocument("Cat")
+	c2 := orient.NewDocument("Cat")
 	c2.SetField("name", "fluffy1").
 		SetField("age", 22).
-		SetFieldWithType("ddd", float32(33244.2), oschema.DATE)
+		SetFieldWithType("ddd", float32(33244.2), orient.DATE)
 	err = db.CreateRecord(c2)
 	True(t, err != nil, "Should have returned error")
 	//	_, ok = oerror.ExtractCause(err).(oerror.ErrDataTypeMismatch)
 	//	True(t, ok, "should be DataTypeMismatch error")
 
 	// no fluffy1 should be in the database
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select from Cat where name = 'fluffy1'")).All(&docs)
 	Nil(t, err)
 	Equals(t, 0, len(docs))
@@ -333,7 +332,7 @@ func TestRecordsBasicTypes(t *testing.T) {
 		Nil(t, err)
 	}
 
-	cat := oschema.NewDocument("Cat")
+	cat := orient.NewDocument("Cat")
 	cat.SetField("name", "kitteh").
 		SetField("age", 4).
 		SetField("x", false).
@@ -344,7 +343,7 @@ func TestRecordsBasicTypes(t *testing.T) {
 	Nil(t, err)
 	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select from Cat where y = 55")).All(&docs)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
@@ -355,12 +354,12 @@ func TestRecordsBasicTypes(t *testing.T) {
 	Equals(t, cat.GetField("z").Value.(int16), catFromQuery.GetField("z").Value.(int16))
 
 	// try with explicit types
-	cat2 := oschema.NewDocument("Cat")
+	cat2 := orient.NewDocument("Cat")
 	cat2.SetField("name", "cat2").
 		SetField("age", 14).
-		SetFieldWithType("x", true, oschema.BOOLEAN).
-		SetFieldWithType("y", byte(44), oschema.BYTE).
-		SetFieldWithType("z", int16(16000), oschema.SHORT)
+		SetFieldWithType("x", true, orient.BOOLEAN).
+		SetFieldWithType("y", byte(44), orient.BYTE).
+		SetFieldWithType("z", int16(16000), orient.SHORT)
 
 	err = db.CreateRecord(cat2)
 	Nil(t, err)
@@ -412,16 +411,16 @@ func TestRecordsBinaryField(t *testing.T) {
 	str := "four, five, six, pick up sticks"
 	bindata := []byte(str)
 
-	cat := oschema.NewDocument("Cat")
+	cat := orient.NewDocument("Cat")
 	cat.SetField("name", "little-jimmy").
 		SetField("age", 1).
-		SetFieldWithType("bin", bindata, oschema.BINARY)
+		SetFieldWithType("bin", bindata, orient.BINARY)
 
 	err = db.CreateRecord(cat)
 	Nil(t, err)
 	True(t, cat.RID.ClusterID > 0, "RID should be filled in")
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid = ?", cat.RID)).All(&docs)
 	Nil(t, err)
 	Equals(t, 1, len(docs))
@@ -439,7 +438,7 @@ func TestRecordsBinaryField(t *testing.T) {
 		bindata2[i] = byte(i)
 	}
 
-	cat2 := oschema.NewDocument("Cat")
+	cat2 := orient.NewDocument("Cat")
 	cat2.SetField("name", "Sauron").
 		SetField("age", 1111).
 		SetField("bin", bindata2)
@@ -463,7 +462,7 @@ func TestRecordsBinaryField(t *testing.T) {
 	versionBefore := cat.Version
 
 	newbindata := []byte("Now Gluten Free!")
-	cat.SetFieldWithType("bin", newbindata, oschema.BINARY)
+	cat.SetFieldWithType("bin", newbindata, orient.BINARY)
 	err = db.UpdateRecord(cat) // update the field in the remote DB
 	Nil(t, err)
 	True(t, versionBefore < cat.Version, "version should have incremented")
@@ -476,7 +475,7 @@ func TestRecordsBinaryField(t *testing.T) {
 	Equals(t, newbindata, catFromQuery.GetField("bin").Value)
 }
 
-func recordAsDocument(t *testing.T, rec oschema.ORecord) *oschema.ODocument {
+func recordAsDocument(t *testing.T, rec orient.ORecord) *orient.Document {
 	rdoc, ok := rec.(*orient.DocumentRecord)
 	if !ok {
 		t.Fatalf("expected document, got: %T", rec)
@@ -496,12 +495,12 @@ func TestCommandsNativeAPI(t *testing.T) {
 	SeedDB(t, db)
 
 	var (
-		rec oschema.ORecord
-		doc *oschema.ODocument
+		rec orient.ORecord
+		doc *orient.Document
 		err error
 
 		retint int
-		docs   []*oschema.ODocument
+		docs   []*orient.Document
 	)
 
 	resetVars := func() {
@@ -562,9 +561,9 @@ func TestCommandsNativeAPI(t *testing.T) {
 	caretakerField := docs[0].GetField("caretaker")
 	True(t, caretakerField != nil, "should be a 'caretaker' field")
 
-	Equals(t, oschema.STRING, nameField.Type)
-	Equals(t, oschema.STRING, caretakerField.Type)
-	Equals(t, oschema.INTEGER, ageField.Type)
+	Equals(t, orient.STRING, nameField.Type)
+	Equals(t, orient.STRING, caretakerField.Type)
+	Equals(t, orient.INTEGER, ageField.Type)
 	Equals(t, "Linus", nameField.Value)
 	Equals(t, int32(15), ageField.Value)
 	Equals(t, "Michael", caretakerField.Value)
@@ -588,9 +587,9 @@ func TestCommandsNativeAPI(t *testing.T) {
 	caretakerField = docByRID.GetField("caretaker")
 	True(t, caretakerField != nil, "should be a 'caretaker' field")
 
-	Equals(t, oschema.STRING, nameField.Type)
-	Equals(t, oschema.INTEGER, ageField.Type)
-	Equals(t, oschema.STRING, caretakerField.Type)
+	Equals(t, orient.STRING, nameField.Type)
+	Equals(t, orient.INTEGER, ageField.Type)
+	Equals(t, orient.STRING, caretakerField.Type)
 	Equals(t, "Linus", nameField.Value)
 	Equals(t, int32(15), ageField.Value)
 	Equals(t, "Michael", caretakerField.Value)
@@ -619,7 +618,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, "Keiko", keiko.GetField("name").Value)
 	Equals(t, int32(10), keiko.GetField("age").Value)
 	Equals(t, "Anna", keiko.GetField("caretaker").Value)
-	Equals(t, oschema.STRING, keiko.GetField("caretaker").Type)
+	Equals(t, orient.STRING, keiko.GetField("caretaker").Type)
 	True(t, keiko.Version > 0, "Version should be greater than zero")
 	True(t, keiko.RID.IsValid(), "RID should be filled in")
 
@@ -632,8 +631,8 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, "Zed", zed.GetField("name").Value)
 	Equals(t, int32(3), zed.GetField("age").Value)
 	Equals(t, "Shaw", zed.GetField("caretaker").Value)
-	Equals(t, oschema.STRING, zed.GetField("caretaker").Type)
-	Equals(t, oschema.INTEGER, zed.GetField("age").Type)
+	Equals(t, orient.STRING, zed.GetField("caretaker").Type)
+	Equals(t, orient.INTEGER, zed.GetField("age").Type)
 	True(t, zed.Version > 0, "Version should be greater than zero")
 	True(t, zed.RID.IsValid(), "RID should be filled in")
 
@@ -801,7 +800,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, 1, len(docs))
 	Equals(t, "Tilde", docs[0].GetField("name").Value)
 	Equals(t, 8, int(docs[0].GetField("age").Value.(int32)))
-	Equals(t, linusRID, docs[0].GetField("buddy").Value.(oschema.RID))
+	Equals(t, linusRID, docs[0].GetField("buddy").Value.(orient.RID))
 
 	tildeRID := docs[0].RID
 
@@ -814,9 +813,9 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, 1, len(docs))
 	Equals(t, "Spotty", docs[0].GetField("name").Value)
 	Equals(t, 2, int(docs[0].GetField("age").Value.(int32)))
-	Equals(t, oschema.EMBEDDED, docs[0].GetField("emb").Type)
+	Equals(t, orient.EMBEDDED, docs[0].GetField("emb").Type)
 
-	embCat := docs[0].GetField("emb").Value.(*oschema.ODocument)
+	embCat := docs[0].GetField("emb").Value.(*orient.Document)
 	Equals(t, "Cat", embCat.Classname)
 	True(t, embCat.Version < 0, "Version should be unset")
 	True(t, embCat.RID.ClusterID < 0, "RID.ClusterID should be unset")
@@ -835,7 +834,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, 1, len(docs))
 	Equals(t, "Felix", docs[0].GetField("name").Value)
 	Equals(t, 6, int(docs[0].GetField("age").Value.(int32)))
-	buddies := docs[0].GetField("buddies").Value.([]oschema.OIdentifiable)
+	buddies := docs[0].GetField("buddies").Value.([]orient.OIdentifiable)
 	sort.Sort(byRID(buddies))
 	Equals(t, 2, len(buddies))
 	Equals(t, linusRID, buddies[0].GetIdentity())
@@ -852,8 +851,8 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, 1, len(docs))
 	Equals(t, 4, len(docs[0].FieldNames()))
 	Equals(t, "Anna", docs[0].GetField("caretaker").Value)
-	Equals(t, linusRID, docs[0].GetField("notes").Value.(map[string]oschema.OIdentifiable)["bff"].GetIdentity())
-	Equals(t, keikoRID, docs[0].GetField("notes").Value.(map[string]oschema.OIdentifiable)["30"].GetIdentity())
+	Equals(t, linusRID, docs[0].GetField("notes").Value.(map[string]orient.OIdentifiable)["bff"].GetIdentity())
+	Equals(t, keikoRID, docs[0].GetField("notes").Value.(map[string]orient.OIdentifiable)["30"].GetIdentity())
 
 	//charlieRID := docs[0].RID
 
@@ -862,7 +861,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, 1, len(docs))
 	doc = docs[0]
 	Equals(t, "Charlie", doc.GetField("name").Value)
-	notesField := doc.GetField("notes").Value.(map[string]oschema.OIdentifiable)
+	notesField := doc.GetField("notes").Value.(map[string]orient.OIdentifiable)
 	Equals(t, 2, len(notesField))
 
 	bffNote := notesField["bff"]
@@ -880,18 +879,18 @@ func TestCommandsNativeAPI(t *testing.T) {
 			True(t, len(docs) > 0)
 			doc = docs[0]
 			Equals(t, "Charlie", doc.GetField("name").Value)
-			notesField = doc.GetField("notes").Value.(map[string]oschema.OIdentifiable)
+			notesField = doc.GetField("notes").Value.(map[string]orient.OIdentifiable)
 			Equals(t, 2, len(notesField))
 
 			bffNote = notesField["bff"]
 			True(t, bffNote.GetIdentity().ClusterID != -1, "RID should be filled in")
 			True(t, bffNote.GetRecord() != nil, "Record should be filled in")
-			Equals(t, "Linus", bffNote.GetRecord().(*oschema.ODocument).GetField("name").Value)
+			Equals(t, "Linus", bffNote.GetRecord().(*orient.Document).GetField("name").Value)
 
 			thirtyNote = notesField["30"]
 			True(t, thirtyNote.GetIdentity().ClusterID != -1, "RID should be filled in")
 			True(t, thirtyNote.GetRecord() != nil, "Record should be filled in")
-			Equals(t, "Keiko", thirtyNote.GetRecord().(*oschema.ODocument).GetField("name").Value)
+			Equals(t, "Keiko", thirtyNote.GetRecord().(*orient.Document).GetField("name").Value)
 	*/
 	// ---[ Try LINKSET ]---
 	sqlCommandAll(`CREATE PROPERTY Cat.buddySet LINKSET`, &retint)
@@ -928,19 +927,19 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 	germaineRID := docs[0].RID
 
-	buddyList := docs[0].GetField("buddies").Value.([]oschema.OIdentifiable)
+	buddyList := docs[0].GetField("buddies").Value.([]orient.OIdentifiable)
 	sort.Sort(byRID(buddyList))
 	Equals(t, 2, len(buddies))
 	Equals(t, linusRID, buddyList[0].GetIdentity())
 	Equals(t, keikoRID, buddyList[1].GetIdentity())
 
-	buddySet := docs[0].GetField("buddySet").Value.([]oschema.OIdentifiable)
+	buddySet := docs[0].GetField("buddySet").Value.([]orient.OIdentifiable)
 	sort.Sort(byRID(buddySet))
 	Equals(t, 2, len(buddySet))
 	Equals(t, linusRID, buddySet[0].GetIdentity())
 	Equals(t, felixRID, buddySet[1].GetIdentity())
 
-	notesMap := docs[0].GetField("notes").Value.(map[string]oschema.OIdentifiable)
+	notesMap := docs[0].GetField("notes").Value.(map[string]orient.OIdentifiable)
 	Equals(t, 2, len(buddies))
 	Equals(t, keikoRID, notesMap["bff"].GetIdentity())
 	Equals(t, linusRID, notesMap["30"].GetIdentity())
@@ -957,7 +956,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, "Germaine", docs[1].GetField("name").Value)
 		Equals(t, "Minnie", docs[1].GetField("caretaker").Value)
 
-		charlieNotesField := docs[0].GetField("notes").Value.(map[string]*oschema.OLink)
+		charlieNotesField := docs[0].GetField("notes").Value.(map[string]*orient.OLink)
 		Equals(t, 2, len(charlieNotesField))
 
 		bffNote = charlieNotesField["bff"]
@@ -967,7 +966,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, "Keiko", thirtyNote.Record.GetField("name").Value)
 
 		// test Germaine's notes (LINKMAP)
-		germaineNotesField := docs[1].GetField("notes").Value.(map[string]*oschema.OLink)
+		germaineNotesField := docs[1].GetField("notes").Value.(map[string]*orient.OLink)
 		Equals(t, 2, len(germaineNotesField))
 
 		bffNote = germaineNotesField["bff"]
@@ -977,7 +976,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, "Linus", thirtyNote.Record.GetField("name").Value)
 
 		// test Germaine's buddySet (LINKSET)
-		germaineBuddySet := docs[1].GetField("buddySet").Value.([]*oschema.OLink)
+		germaineBuddySet := docs[1].GetField("buddySet").Value.([]*orient.OLink)
 		sort.Sort(byRID(germaineBuddySet))
 		Equals(t, "Linus", germaineBuddySet[0].Record.GetField("name").Value)
 		Equals(t, "Felix", germaineBuddySet[1].Record.GetField("name").Value)
@@ -985,14 +984,14 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 		// Felix Document has references, so those should also be filled in
 		felixDoc := germaineBuddySet[1].Record
-		felixBuddiesList := felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+		felixBuddiesList := felixDoc.GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(felixBuddiesList))
 		Equals(t, 2, len(felixBuddiesList))
 		True(t, felixBuddiesList[0].Record != nil, "Felix links should be filled in")
 		Equals(t, "Linus", felixBuddiesList[0].Record.GetField("name").Value)
 
 		// test Germaine's buddies (LINKLIST)
-		germaineBuddyList := docs[1].GetField("buddies").Value.([]*oschema.OLink)
+		germaineBuddyList := docs[1].GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(germaineBuddyList))
 		Equals(t, "Linus", germaineBuddyList[0].Record.GetField("name").Value)
 		Equals(t, "Keiko", germaineBuddyList[1].Record.GetField("name").Value)
@@ -1024,7 +1023,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, 1, len(docs))
 		doc = docs[0]
 		Equals(t, "Tilde", doc.GetField("name").Value)
-		tildeBuddyField := doc.GetField("buddy").Value.(*oschema.OLink)
+		tildeBuddyField := doc.GetField("buddy").Value.(*orient.OLink)
 		Equals(t, linusRID, tildeBuddyField.RID)
 		Equals(t, "Linus", tildeBuddyField.Record.GetField("name").Value)
 
@@ -1044,17 +1043,17 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, "Linus", docs[0].GetField("name").Value)
 		Equals(t, "Tilde", docs[1].GetField("name").Value)
 
-		linusBuddy := docs[0].GetField("buddy").Value.(*oschema.OLink)
+		linusBuddy := docs[0].GetField("buddy").Value.(*orient.OLink)
 		True(t, linusBuddy.Record != nil, "Record should be filled in")
 		Equals(t, "Germaine", linusBuddy.Record.GetField("name").Value)
 
-		tildeBuddy := docs[1].GetField("buddy").Value.(*oschema.OLink)
+		tildeBuddy := docs[1].GetField("buddy").Value.(*orient.OLink)
 		True(t, tildeBuddy.Record != nil, "Record should be filled in")
 		Equals(t, "Linus", tildeBuddy.Record.GetField("name").Value)
 
 		// now check that Felix buddies were pulled in too
 		felixDoc = linusBuddy.Record
-		felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+		felixBuddiesList = felixDoc.GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(felixBuddiesList))
 		Equals(t, 2, len(felixBuddiesList))
 		Equals(t, "Linus", felixBuddiesList[0].Record.GetField("name").Value)
@@ -1067,19 +1066,19 @@ func TestCommandsNativeAPI(t *testing.T) {
 		_, err = db.SQLQuery(&docs, orient.FetchPlanFollowAll, sql)
 		Nil(t, err)
 		Equals(t, 2, len(docs))
-		linusBuddy = docs[0].GetField("buddy").Value.(*oschema.OLink)
+		linusBuddy = docs[0].GetField("buddy").Value.(*orient.OLink)
 		True(t, linusBuddy.Record != nil, "Record should be filled in")
 		Equals(t, "Germaine", linusBuddy.Record.GetField("name").Value)
 
 		True(t, docs[1].GetField("buddy") == nil, "Felix should have no 'buddy'")
-		felixBuddiesList = docs[1].GetField("buddies").Value.([]*oschema.OLink)
+		felixBuddiesList = docs[1].GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(felixBuddiesList))
 		Equals(t, "Linus", felixBuddiesList[0].Record.GetField("name").Value)
 		Equals(t, "Keiko", felixBuddiesList[1].Record.GetField("name").Value)
 		Equals(t, "Anna", felixBuddiesList[1].Record.GetField("caretaker").Value)
 
 		// check that Felix's reference to Linus has Linus' link filled in
-		Equals(t, "Germaine", felixBuddiesList[0].Record.GetField("buddy").Value.(*oschema.OLink).Record.GetField("name").Value)
+		Equals(t, "Germaine", felixBuddiesList[0].Record.GetField("buddy").Value.(*orient.OLink).Record.GetField("name").Value)
 
 		// ------
 
@@ -1090,7 +1089,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Equals(t, 2, len(docs))
 		felixDoc = docs[0]
 		Equals(t, "Felix", felixDoc.GetField("name").Value)
-		felixBuddiesList = felixDoc.GetField("buddies").Value.([]*oschema.OLink)
+		felixBuddiesList = felixDoc.GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(felixBuddiesList))
 		Equals(t, 2, len(felixBuddiesList))
 		felixBuddy0 := felixBuddiesList[0]
@@ -1102,7 +1101,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 		// now test that the LINK docs had their LINKs filled in
 		linusDocViaFelix := felixBuddy0.Record
-		linusBuddyLink := linusDocViaFelix.GetField("buddy").Value.(*oschema.OLink)
+		linusBuddyLink := linusDocViaFelix.GetField("buddy").Value.(*orient.OLink)
 		Equals(t, "Germaine", linusBuddyLink.Record.GetField("name").Value)
 
 		// ------
@@ -1142,8 +1141,8 @@ func TestCommandsNativeAPI(t *testing.T) {
 		// TODO: FIX
 
 		//	// TODO: this section fails with orientdb-community-2.1-rc5
-		//	tomsBuddy := tomDoc.GetField("buddy").Value.(*oschema.OLink)
-		//	nicksBuddy := nickDoc.GetField("buddy").Value.(*oschema.OLink)
+		//	tomsBuddy := tomDoc.GetField("buddy").Value.(*orient.OLink)
+		//	nicksBuddy := nickDoc.GetField("buddy").Value.(*orient.OLink)
 		//	// True(t, tomsBuddy.Record != nil, "should have retrieved the link record")
 		//	// True(t, nicksBuddy.Record != nil, "should have retrieved the link record")
 		//	// Equals(t, "Nick", tomsBuddy.Record.GetField("name").Value)
@@ -1160,8 +1159,8 @@ func TestCommandsNativeAPI(t *testing.T) {
 		//	Equals(t, "Tom", tomDoc.GetField("name").Value)
 		//	Equals(t, "Nick", nickDoc.GetField("name").Value)
 		//
-		//	tomsBuddy = tomDoc.GetField("buddy").Value.(*oschema.OLink)
-		//	nicksBuddy = nickDoc.GetField("buddy").Value.(*oschema.OLink)
+		//	tomsBuddy = tomDoc.GetField("buddy").Value.(*orient.OLink)
+		//	nicksBuddy = nickDoc.GetField("buddy").Value.(*orient.OLink)
 		//	True(t, tomsBuddy.RID.ClusterID != -1, "RID should be filled in")
 		//	True(t, nicksBuddy.RID.ClusterID != -1, "RID should be filled in")
 		//	True(t, tomsBuddy.Record == nil, "Record should NOT be filled in")
@@ -1192,12 +1191,12 @@ func TestCommandsNativeAPI(t *testing.T) {
 		Nil(t, err)
 		Equals(t, 1, len(docs))
 		Equals(t, "Felix", docs[0].GetField("name").Value)
-		buddies = docs[0].GetField("buddies").Value.([]*oschema.OLink)
+		buddies = docs[0].GetField("buddies").Value.([]*orient.OLink)
 		sort.Sort(byRID(buddies))
 		Equals(t, 2, len(buddies))
 		linusDoc := buddies[0].Record
 		True(t, linusDoc != nil, "first level should be filled in")
-		linusBuddy = linusDoc.GetField("buddy").Value.(*oschema.OLink)
+		linusBuddy = linusDoc.GetField("buddy").Value.(*orient.OLink)
 		True(t, linusBuddy.RID.ClusterID != -1, "RID should be filled in")
 		True(t, linusBuddy.Record == nil, "Record of second level should NOT be filled in")
 
@@ -1249,7 +1248,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	if orientVersion < "2.1" {
 		var srids []string
 		for _, r := range ridsToDelete {
-			srids = append(srids, r.(oschema.OIdentifiable).GetIdentity().String())
+			srids = append(srids, r.(orient.OIdentifiable).GetIdentity().String())
 		}
 		sqlCommandAll("DELETE from ["+strings.Join(srids, ",")+"]", &retint)
 	} else {
@@ -1330,7 +1329,7 @@ func TestConcurrentClients(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	err := db.Command(orient.NewSQLQuery(`select count(*) from Cat where caretaker like 'Eva%'`)).All(&docs)
 	Nil(t, err)
 	beforeCount := toInt(docs[0].GetField("count").Value)
@@ -1357,7 +1356,7 @@ func doQueriesAndInsertions(t *testing.T, db *orient.Database, id int) {
 	nreps := 1000
 	ridsToDelete := make([]string, 0, nreps)
 
-	var docs []*oschema.ODocument
+	var docs []*orient.Document
 	for i := 0; i < nreps; i++ {
 		randInt := rnd.Intn(3)
 		if randInt > 0 {

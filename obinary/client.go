@@ -9,7 +9,6 @@ import (
 
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 	"time"
 )
 
@@ -341,13 +340,13 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
+func (db *Database) readIdentifiable(r io.Reader) orient.OIdentifiable {
 	classId := rw.ReadShort(r)
 	switch classId {
 	case RecordNull:
 		return nil
 	case RecordRID:
-		var rid oschema.RID
+		var rid orient.RID
 		if err := rid.FromStream(r); err != nil {
 			panic(err)
 		}
@@ -359,7 +358,7 @@ func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
 			rec.SetSerializer(db.sess.cli.recordFormat)
 		}
 
-		var rid oschema.RID
+		var rid orient.RID
 		if err := rid.FromStream(r); err != nil {
 			panic(err)
 		}

@@ -2,7 +2,7 @@ package obinary
 
 import (
 	"fmt"
-	"github.com/istreamdata/orientgo/oschema"
+	"github.com/istreamdata/orientgo"
 	"math"
 	"strconv"
 	"strings"
@@ -35,34 +35,34 @@ var (
 
 type stringRecordFormatAbs struct{}
 
-func (stringRecordFormatAbs) GetType(s string) oschema.OType {
+func (stringRecordFormatAbs) GetType(s string) orient.OType {
 	if s == "" {
-		return oschema.UNKNOWN
+		return orient.UNKNOWN
 	}
 	rs := []rune(s)
 	firstChar := rs[0]
 	switch firstChar {
 	case string_LINK: // RID
-		return oschema.LINK
+		return orient.LINK
 	case '\'', '"':
-		return oschema.STRING
+		return orient.STRING
 	case string_BINARY_BEGINEND:
-		return oschema.BINARY
+		return orient.BINARY
 	case string_EMBEDDED_BEGIN:
-		return oschema.EMBEDDED
+		return orient.EMBEDDED
 	case string_LIST_BEGIN:
-		return oschema.EMBEDDEDLIST
+		return orient.EMBEDDEDLIST
 	case string_SET_BEGIN:
-		return oschema.EMBEDDEDSET
+		return orient.EMBEDDEDSET
 	case string_MAP_BEGIN:
-		return oschema.EMBEDDEDMAP
+		return orient.EMBEDDEDMAP
 	case string_CUSTOM_TYPE:
-		return oschema.CUSTOM
+		return orient.CUSTOM
 	}
 
 	// BOOLEAN?
 	if ls := strings.ToLower(s); ls == "true" || ls == "false" {
-		return oschema.BOOLEAN
+		return orient.BOOLEAN
 	}
 
 	// NUMBER OR STRING?
@@ -76,7 +76,7 @@ func (stringRecordFormatAbs) GetType(s string) oschema.OType {
 			integer = false // maybe float, seek for other string char to be sure
 		} else {
 			if i == 0 {
-				return oschema.STRING
+				return orient.STRING
 			}
 			if !integer && (c == 'E' || c == 'e') {
 				// CHECK FOR SCIENTIFIC NOTATION
@@ -90,66 +90,66 @@ func (stringRecordFormatAbs) GetType(s string) oschema.OType {
 			} else {
 				switch c {
 				case 'f':
-					return oschema.FLOAT
+					return orient.FLOAT
 				case 'c':
-					return oschema.DECIMAL
+					return orient.DECIMAL
 				case 'l':
-					return oschema.LONG
+					return orient.LONG
 				case 'd':
-					return oschema.DOUBLE
+					return orient.DOUBLE
 				case 'b':
-					return oschema.BYTE
+					return orient.BYTE
 				case 'a':
-					return oschema.DATE
+					return orient.DATE
 				case 't':
-					return oschema.DATETIME
+					return orient.DATETIME
 				case 's':
-					return oschema.SHORT
+					return orient.SHORT
 				}
 			}
-			return oschema.STRING
+			return orient.STRING
 		}
 	}
 
 	if integer {
 		// AUTO CONVERT TO LONG IF THE INTEGER IS TOO BIG
 		if n, mn := len(rs), len(string_MaxInt); n > mn || (n == mn && s > string_MaxInt) {
-			return oschema.LONG
+			return orient.LONG
 		}
-		return oschema.INTEGER
+		return orient.INTEGER
 	}
 
 	if _, err := strconv.ParseFloat(s, 32); err == nil {
-		return oschema.FLOAT
+		return orient.FLOAT
 	} else if _, err = strconv.ParseFloat(s, 64); err == nil {
-		return oschema.DOUBLE
+		return orient.DOUBLE
 	} else {
-		return oschema.DECIMAL
+		return orient.DECIMAL
 	}
 }
-func (f stringRecordFormatAbs) FieldTypeFromStream(tp oschema.OType, s string) interface{} {
+func (f stringRecordFormatAbs) FieldTypeFromStream(tp orient.OType, s string) interface{} {
 	if s == "" {
 		return nil
-	} else if tp == oschema.UNKNOWN {
-		tp = oschema.EMBEDDED
+	} else if tp == orient.UNKNOWN {
+		tp = orient.EMBEDDED
 	}
 
 	switch tp {
-	case oschema.STRING:
+	case orient.STRING:
 		return s // TODO: implement in a right way
-	case oschema.INTEGER:
+	case orient.INTEGER:
 		v, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			panic(err)
 		}
 		return int32(v)
-	case oschema.LONG:
+	case orient.LONG:
 		v, err := strconv.ParseInt(strings.TrimSuffix(s, "l"), 10, 64)
 		if err != nil {
 			panic(err)
 		}
 		return int64(v)
-	case oschema.BOOLEAN:
+	case orient.BOOLEAN:
 		switch strings.ToLower(s) {
 		case "true":
 			return true

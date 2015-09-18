@@ -16,7 +16,7 @@ Early adopters are welcome to try it out and report any problems found.
 - Mostly any SQL [queries](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLQuery), [commands](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLCommand) and [batch requests](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand).
 - Server-side scripts (via [ScriptCommand](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand) or [functions](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#Function)).
 - Command results conversion to custom types via [mapstructure](http://github.com/mitchellh/mapstructure).
-- Direct CRUD operations on `ODocument` objects with `CreateRecord`/`UpdateRecord`/`DeleteRecord`.
+- Direct CRUD operations on `Document` objects with `CreateRecord`/`UpdateRecord`/`DeleteRecord`.
 - Management of databases and record clusters.
 - Can be used for the golang `database/sql` API, with some cautions (see below).
 - Only supports OrientDB 2.x series.

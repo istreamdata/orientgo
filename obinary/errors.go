@@ -3,7 +3,6 @@ package obinary
 import (
 	"fmt"
 	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/oschema"
 	"regexp"
 	"strings"
 )
@@ -29,7 +28,7 @@ func (e ErrBrokenProtocol) Error() string {
 // valid types are "document" or "graph".  Constants for these values are
 // provided in the obinary ogonori code base.
 type ErrDataTypeMismatch struct {
-	ExpectedDataType oschema.OType
+	ExpectedDataType orient.OType
 	ExpectedGoType   string
 	ActualValue      interface{}
 }

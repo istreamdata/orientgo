@@ -1,9 +1,5 @@
 package orient
 
-import (
-	"github.com/istreamdata/orientgo/oschema"
-)
-
 // Default protocols
 const (
 	ProtoBinary = "binary"
@@ -41,7 +37,7 @@ func RegisterProto(name string, dial func(addr string) (DBConnection, error)) {
 type ODatabase struct {
 	Name    string
 	Type    DatabaseType
-	Classes map[string]*oschema.OClass
+	Classes map[string]*OClass
 }
 
 // DBAdmin is a minimal interface for database management API implementation
@@ -65,10 +61,10 @@ type DBSession interface {
 	GetClusterDataRange(clusterName string) (begin, end int64, err error)
 	ClustersCount(withDeleted bool, clusterNames ...string) (int64, error)
 
-	CreateRecord(doc *oschema.ODocument) (err error)
-	DeleteRecordByRID(rid oschema.RID, recVersion int) error
-	GetRecordByRID(rid oschema.RID, fetchPlan FetchPlan, ignoreCache bool) (rec oschema.ORecord, err error)
-	UpdateRecord(doc *oschema.ODocument) error
+	CreateRecord(doc *Document) (err error)
+	DeleteRecordByRID(rid RID, recVersion int) error
+	GetRecordByRID(rid RID, fetchPlan FetchPlan, ignoreCache bool) (rec ORecord, err error)
+	UpdateRecord(doc *Document) error
 	CountRecords() (int64, error)
 
 	Command(cmd CustomSerializable) (result interface{}, err error)

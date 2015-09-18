@@ -5,7 +5,6 @@ import (
 
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"github.com/istreamdata/orientgo/oschema"
 )
 
 type Manager struct {
@@ -112,7 +111,7 @@ func (m *Manager) ListDatabases() (list map[string]string, err error) {
 	if err != nil {
 		return
 	}
-	doc := o.(*oschema.ODocument)
+	doc := o.(*orient.Document)
 
 	list = doc.GetField("databases").Value.(map[string]string)
 	return

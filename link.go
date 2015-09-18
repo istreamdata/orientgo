@@ -1,4 +1,4 @@
-package oschema
+package orient
 
 import (
 	"fmt"
@@ -30,10 +30,10 @@ func NewRidBag() *RidBag {
 type RidBag struct {
 	id       uuid.UUID
 	delegate ridBagDelegate
-	owner    *ODocument
+	owner    *Document
 }
 
-func (bag *RidBag) SetOwner(doc *ODocument) {
+func (bag *RidBag) SetOwner(doc *Document) {
 	bag.owner = doc
 }
 func (bag *RidBag) FromStream(r io.Reader) (err error) {

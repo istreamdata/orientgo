@@ -56,30 +56,32 @@ type OLinkSerializer struct{}
 func (ols OLinkSerializer) Deserialize(r io.Reader) (v interface{}, err error) {
 	return ols.DeserializeLink(r)
 }
-func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v *oschema.OLink, err error) {
+func (ols OLinkSerializer) DeserializeLink(r io.Reader) (v oschema.OIdentifiable, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("deserialize error: %v", r)
 		}
 	}()
-	clusterID := rw.ReadShort(r)
-	clusterPos := rw.ReadLong(r)
-	rid := oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
-	return &oschema.OLink{RID: rid}, nil
+	var rid oschema.RID
+	if err = rid.FromStream(r); err != nil {
+		return
+	}
+	return rid, nil
 }
 
 // Serialize serializes a *oschema.OLink into the binary format
 // required by the OrientDB server.  If the `val` passed in is
 // not a *oschema.OLink, the method will panic.
 func (ols OLinkSerializer) Serialize(val interface{}) ([]byte, error) {
-	lnk, ok := val.(*oschema.OLink)
+	lnk, ok := val.(oschema.OIdentifiable)
 	if !ok {
 		return nil, fmt.Errorf("Invalid LINK should be oschema.OLink, got %s", reflect.TypeOf(val))
 	}
+	rid := lnk.GetIdentity()
 
 	bs := make([]byte, rw.SizeShort+rw.SizeLong)
-	rw.Order.PutUint16(bs[:rw.SizeShort], uint16(lnk.RID.ClusterID))
-	rw.Order.PutUint64(bs[rw.SizeShort:], uint64(lnk.RID.ClusterPos))
+	rw.Order.PutUint16(bs[:rw.SizeShort], uint16(rid.ClusterID))
+	rw.Order.PutUint64(bs[rw.SizeShort:], uint64(rid.ClusterPos))
 	return bs, nil
 }
 

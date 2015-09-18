@@ -404,12 +404,13 @@ func (f binaryRecordFormatV0) readSingleValue(r bytesReadSeeker, valueType osche
 		_ = int(rw.ReadInt(r)) // scale // TODO: use scale, use big.Float for 1.5
 		unscaledValue := rw.ReadBytes(r)
 		value = big.NewInt(0).SetBytes(unscaledValue)
-	case oschema.LINKBAG: // TODO: implement LinkBag
-		panic("can't deserialize LinkBag")
-	//	ORidBag bag = new ORidBag();
-	//	bag.fromStream(bytes);
-	//	bag.setOwner(document);
-	//	value = bag;
+	case oschema.LINKBAG:
+		bag := oschema.NewRidBag()
+		if err := bag.FromStream(r); err != nil {
+			panic(err)
+		}
+		bag.SetOwner(doc)
+		value = bag
 	case oschema.TRANSIENT:
 	case oschema.ANY:
 	case oschema.CUSTOM:
@@ -525,15 +526,38 @@ func (f binaryRecordFormatV0) writeOptimizedLink(w io.Writer, ide oschema.OIdent
 	n += varint.WriteVarint(w, int64(rid.ClusterPos))
 	return
 }
-func (f binaryRecordFormatV0) writeLinkCollection(w io.Writer, col oschema.OIdentifiableCollection) {
-	// TODO: assert (!(value instanceof OMVRBTreeRIDSet))
-	varint.WriteVarint(w, int64(col.Len()))
-	for item := range col.OIdentifiableIterator() {
-		if item == nil {
-			f.writeNullLink(w)
-		} else {
-			f.writeOptimizedLink(w, item)
+func (f binaryRecordFormatV0) writeLinkCollection(w io.Writer, o interface{}) {
+	switch col := o.(type) {
+	case []oschema.RID:
+		varint.WriteVarint(w, int64(len(col)))
+		for _, rid := range col {
+			if rid == nilRID {
+				f.writeNullLink(w)
+			} else {
+				f.writeOptimizedLink(w, rid)
+			}
 		}
+	case []oschema.OIdentifiable:
+		varint.WriteVarint(w, int64(len(col)))
+		for _, item := range col {
+			if item.GetIdentity() == nilRID {
+				f.writeNullLink(w)
+			} else {
+				f.writeOptimizedLink(w, item)
+			}
+		}
+	case oschema.OIdentifiableCollection:
+		// TODO: assert (!(value instanceof OMVRBTreeRIDSet))
+		varint.WriteVarint(w, int64(col.Len()))
+		for item := range col.OIdentifiableIterator() {
+			if item == nil {
+				f.writeNullLink(w)
+			} else {
+				f.writeOptimizedLink(w, item)
+			}
+		}
+	default:
+		panic(fmt.Errorf("not a link collection: %T", o))
 	}
 }
 func (f binaryRecordFormatV0) writeLinkMap(w io.Writer, o interface{}) {
@@ -654,8 +678,6 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 			edoc = &d
 		case *oschema.ODocument:
 			edoc = d
-		case **oschema.ODocument:
-			edoc = *d
 		default:
 			cur, err := o.(orient.DocumentSerializable).ToDocument()
 			if err != nil {
@@ -673,8 +695,8 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 	case oschema.DECIMAL:
 		var d *big.Int
 		switch v := o.(type) {
-		case big.Int:
-			d = &v
+		case int64:
+			d = big.NewInt(v)
 		case *big.Int:
 			d = v
 		default: // TODO: implement for big.Float in 1.5
@@ -687,7 +709,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 		written = f.writeBinary(w, o.([]byte)) != 0
 	case oschema.LINKSET, oschema.LINKLIST:
 		written = true
-		f.writeLinkCollection(w, o.(oschema.OIdentifiableCollection))
+		f.writeLinkCollection(w, o)
 	case oschema.LINK:
 		written = f.writeOptimizedLink(w, o.(oschema.OIdentifiable)) != 0
 	case oschema.LINKMAP:
@@ -698,7 +720,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w io.Writer, off int, o interface
 		f.writeEmbeddedMap(w, off, o)
 	case oschema.LINKBAG:
 		written = true
-		if err := o.(orient.Serializable).ToStream(w); err != nil { // TODO: actually cast to ORidBag and call ToStream
+		if err := o.(*oschema.RidBag).ToStream(w); err != nil {
 			panic(err)
 		}
 	case oschema.CUSTOM:

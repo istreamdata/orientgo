@@ -4,6 +4,8 @@ package oschema
 
 import (
 	"fmt"
+	"github.com/istreamdata/orientgo/obinary/rw"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -24,6 +26,8 @@ const (
 	clusterIdMax      = 32767
 	clusterIdInvalid  = -1
 	clusterPosInvalid = -1
+
+	RIDSerializedSize = rw.SizeShort + rw.SizeLong
 )
 
 // RID encapsulates the two aspects of an OrientDB RecordID - ClusterID:ClusterPos.
@@ -104,6 +108,22 @@ func (rid RID) NextRID() RID {
 	rid.checkClusterLimits()
 	rid.ClusterPos++ // uses local copy of rid
 	return rid
+}
+
+func (rid *RID) FromStream(r io.Reader) (err error) {
+	defer catch(&err)
+	buf := make([]byte, RIDSerializedSize)
+	rw.ReadRawBytes(r, buf)
+	rid.ClusterID = int16(rw.Order.Uint16(buf))
+	rid.ClusterPos = int64(rw.Order.Uint64(buf[rw.SizeShort:]))
+	return
+}
+
+func (rid RID) ToStream(w io.Writer) (err error) {
+	defer catch(&err)
+	rw.WriteShort(w, rid.ClusterID)
+	rw.WriteLong(w, rid.ClusterPos)
+	return
 }
 
 // ParseRID converts a string of form #N:M or N:M to a RID.

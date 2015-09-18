@@ -7,9 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/obinary/binserde"
 	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/istreamdata/orientgo/oschema"
 )
@@ -261,8 +259,9 @@ func (db *Database) CountRecords() (int64, error) {
 func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 	var status byte
 	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
-		rw.WriteShort(w, rid.ClusterID)
-		rw.WriteLong(w, rid.ClusterPos)
+		if err := rid.ToStream(w); err != nil {
+			panic(err)
+		}
 		rw.WriteInt(w, int32(recVersion))
 		rw.WriteByte(w, 0) // sync mode ; 0 = synchronous; 1 = asynchronous
 	}, func(r io.Reader) {
@@ -284,7 +283,9 @@ func (db *Database) DeleteRecordByRID(rid oschema.RID, recVersion int) error {
 // ignoreCache = true
 func (db *Database) GetRecordByRID(rid oschema.RID, fetchPlan orient.FetchPlan, ignoreCache bool) (rec oschema.ORecord, err error) {
 	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
-		writeRID(w, rid)
+		if err := rid.ToStream(w); err != nil {
+			panic(err)
+		}
 		rw.WriteString(w, string(fetchPlan))
 		if db.sess.cli.curProtoVers >= ProtoVersion9 {
 			rw.WriteBool(w, ignoreCache)
@@ -390,6 +391,7 @@ func (db *Database) DropCluster(clusterName string) error {
 	return err
 }
 
+/*
 // FetchEntriesOfRemoteLinkBag fills in the links of an OLinkBag that is remote
 // (tree-based) rather than embedded.  This function will fill in the links
 // of the passed in OLinkBag, rather than returning the new links. The Links
@@ -398,7 +400,7 @@ func (db *Database) DropCluster(clusterName string) error {
 func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusive bool) (err error) {
 	defer catch(&err)
 	var (
-		firstLink *oschema.OLink
+		firstLink oschema.OIdentifiable
 		linkSerde = binserde.OLinkSerializer{}
 	)
 	firstLink, err = db.GetFirstKeyOfRemoteLinkBag(linkBag)
@@ -424,7 +426,7 @@ func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusi
 	}
 	r := bytes.NewReader(linkEntryBytes)
 	n := int(rw.ReadInt(r))
-	var lnk *oschema.OLink
+	var lnk oschema.OIdentifiable
 	for i := 0; i < n; i++ { // loop over all the serialized links
 		lnk, err = linkSerde.DeserializeLink(r)
 		if err != nil {
@@ -450,7 +452,7 @@ func (db *Database) GetEntriesOfRemoteLinkBag(linkBag *oschema.OLinkBag, inclusi
 // called by end users. Instead, end users should call FetchEntriesOfRemoteLinkBag
 //
 // TODO: make this an unexported func?
-func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk *oschema.OLink, err error) {
+func (db *Database) GetFirstKeyOfRemoteLinkBag(linkBag *oschema.OLinkBag) (lnk oschema.OIdentifiable, err error) {
 	defer catch(&err)
 
 	var firstKeyBytes []byte
@@ -479,15 +481,30 @@ func writeLinkBagCollectionPointer(w io.Writer, linkBag *oschema.OLinkBag) {
 	rw.WriteInt(w, linkBag.GetPageOffset())
 }
 
+// Large LinkBags (aka RidBags) are stored on the server. To look up their
+// size requires a call to the database.  The size is returned.  Note that the
+// Size field of the linkBag is NOT updated.  That is left for the caller to
+// decide whether to do.
+func (db *Database) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, err error) {
+	err = db.sess.sendCmd(requestRIDBAG_GET_SIZE, func(w io.Writer) {
+		writeLinkBagCollectionPointer(w, linkBag)
+		rw.WriteBytes(w, []byte{0, 0, 0, 0}) // changes => TODO: right now not supporting any change -> just writing empty changes
+	}, func(r io.Reader) {
+		val = int(rw.ReadInt(r))
+	})
+	return
+}
+*/
+
 // ResolveLinks iterates over all the OLinks passed in and does a
 // FetchRecordByRID for each one that has a null Record.
 // TODO: maybe include a fetchplan here?
 // TODO: remove it from obinary
-func (db *Database) ResolveLinks(links []*oschema.OLink) error {
+func (db *Database) ResolveLinks(links []oschema.OIdentifiable) error {
 	fetchPlan := orient.FetchPlan("")
 	for i := 0; i < len(links); i++ {
-		if links[i].Record == nil {
-			rec, err := db.GetRecordByRID(links[i].RID, fetchPlan, true)
+		if links[i].GetRecord() == nil {
+			rec, err := db.GetRecordByRID(links[i].GetIdentity(), fetchPlan, true)
 			if err != nil {
 				return err
 			}
@@ -503,20 +520,6 @@ func (db *Database) ResolveLinks(links []*oschema.OLink) error {
 		}
 	}
 	return nil
-}
-
-// Large LinkBags (aka RidBags) are stored on the server. To look up their
-// size requires a call to the database.  The size is returned.  Note that the
-// Size field of the linkBag is NOT updated.  That is left for the caller to
-// decide whether to do.
-func (db *Database) GetSizeOfRemoteLinkBag(linkBag *oschema.OLinkBag) (val int, err error) {
-	err = db.sess.sendCmd(requestRIDBAG_GET_SIZE, func(w io.Writer) {
-		writeLinkBagCollectionPointer(w, linkBag)
-		rw.WriteBytes(w, []byte{0, 0, 0, 0}) // changes => TODO: right now not supporting any change -> just writing empty changes
-	}, func(r io.Reader) {
-		val = int(rw.ReadInt(r))
-	})
-	return
 }
 
 // ClustersCount gets the number of records in all the clusters specified.
@@ -596,14 +599,14 @@ func (db *Database) CreateRecord(doc *oschema.ODocument) (err error) {
 		rw.WriteByte(w, byte('d')) // document record-type
 		rw.WriteByte(w, byte(0))   // synchronous mode indicator
 	}, func(r io.Reader) {
-		clusterID = rw.ReadShort(r)
-		clusterPos := rw.ReadLong(r)
+		if err = doc.RID.FromStream(r); err != nil {
+			panic(err)
+		}
 		doc.Version = int(rw.ReadInt(r))
 		nCollChanges := rw.ReadInt(r)
 		if nCollChanges != 0 {
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
-		doc.RID = oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 	})
 	// In the Java client, they now a 'select from XXX' at this point -> would that be useful here?
 	return
@@ -624,8 +627,9 @@ func (db *Database) UpdateRecord(doc *oschema.ODocument) (err error) {
 		return
 	}
 	return db.sess.sendCmd(requestRecordUPDATE, func(w io.Writer) {
-		rw.WriteShort(w, doc.RID.ClusterID)
-		rw.WriteLong(w, doc.RID.ClusterPos)
+		if err = doc.RID.ToStream(w); err != nil {
+			panic(err)
+		}
 		rw.WriteBool(w, true) // update-content flag
 		rw.WriteBytes(w, rbuf.Bytes())
 		rw.WriteInt(w, int32(doc.Version)) // record version

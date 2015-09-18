@@ -1,7 +1,6 @@
 package oschema
 
 import (
-	"fmt"
 	"github.com/golang/glog"
 	"math/big"
 	"reflect"
@@ -173,7 +172,7 @@ func (t OType) ReflectType() reflect.Type {
 
 func OTypeForValue(val interface{}) (ftype OType) {
 	ftype = UNKNOWN
-	// TODO: need to add more types: LINKSET, LINKLIST, LINKBAG, etc. ...
+	// TODO: need to add more types: LINKSET, LINKLIST, etc. ...
 	switch val.(type) {
 	case string:
 		ftype = STRING
@@ -199,10 +198,12 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = EMBEDDEDMAP
 	case OIdentifiable:
 		ftype = LINK
-	case []*OLink, []OIdentifiable:
+	case []OIdentifiable, []RID:
 		ftype = LINKLIST
 	case big.Int, *big.Int:
 		ftype = DECIMAL
+	case *RidBag:
+		ftype = LINKBAG
 	// TODO: more types need to be added
 	default:
 		switch reflect.TypeOf(val).Kind() {
@@ -286,15 +287,4 @@ func OTypeFromString(typ string) OType {
 	default:
 		panic("Unkwown type: " + typ)
 	}
-}
-
-// ODocEntry is a generic data holder that goes in ODocuments.
-type ODocEntry struct {
-	Name  string
-	Type  OType
-	Value interface{}
-}
-
-func (fld *ODocEntry) String() string {
-	return fmt.Sprintf("OField<name: %s; datatype: %d; value: %v>", fld.Name, fld.Type, fld.Value)
 }

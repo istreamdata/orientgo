@@ -347,7 +347,11 @@ func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
 	case RecordNull:
 		return nil
 	case RecordRID:
-		return readRID(r)
+		var rid oschema.RID
+		if err := rid.FromStream(r); err != nil {
+			panic(err)
+		}
+		return rid
 	default:
 		record := orient.NewRecordOfType(orient.RecordType(rw.ReadByte(r)))
 		switch rec := record.(type) {
@@ -355,7 +359,10 @@ func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
 			rec.SetSerializer(db.sess.cli.recordFormat)
 		}
 
-		rid := readRID(r)
+		var rid oschema.RID
+		if err := rid.FromStream(r); err != nil {
+			panic(err)
+		}
 		version := int(rw.ReadInt(r))
 		content := rw.ReadBytes(r)
 
@@ -364,16 +371,4 @@ func (db *Database) readIdentifiable(r io.Reader) oschema.OIdentifiable {
 		}
 		return record
 	}
-}
-
-func writeRID(w io.Writer, rid oschema.RID) {
-	rw.WriteShort(w, rid.ClusterID)
-	rw.WriteLong(w, rid.ClusterPos)
-}
-
-func readRID(r io.Reader) oschema.RID {
-	// svr response: (-3:short)(cluster-id:short)(cluster-position:long)
-	clusterID := rw.ReadShort(r)
-	clusterPos := rw.ReadLong(r)
-	return oschema.RID{ClusterID: clusterID, ClusterPos: clusterPos}
 }

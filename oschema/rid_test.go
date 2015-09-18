@@ -1,6 +1,7 @@
 package oschema_test
 
 import (
+	"bytes"
 	"github.com/istreamdata/orientgo/oschema"
 	"testing"
 )
@@ -37,4 +38,24 @@ func TestRIDNext(t *testing.T) {
 	} else if rid2.ClusterPos+1 != rid3.ClusterPos {
 		t.Fatal("next RID ClusterPos is wrong")
 	}
+}
+
+func testRIDSerialize(t *testing.T, s string) {
+	buf := bytes.NewBuffer(nil)
+	if err := oschema.MustParseRID(s).ToStream(buf); err != nil {
+		t.Fatal(err)
+	} else if buf.Len() != oschema.RIDSerializedSize {
+		t.Fatalf("wrong serialized size: %d vs %d", buf.Len(), oschema.RIDSerializedSize)
+	}
+	rid := oschema.NewEmptyRID()
+	if err := rid.FromStream(buf); err != nil {
+		t.Fatal(err)
+	} else if rid.String() != s {
+		t.Fatalf("different RIDs: %v vs %v", s, rid)
+	}
+}
+
+func TestRIDSerialize(t *testing.T) {
+	testRIDSerialize(t, "#12:2556")
+	testRIDSerialize(t, "#-1:-2")
 }

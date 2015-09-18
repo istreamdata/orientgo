@@ -12,6 +12,17 @@ import (
 
 var _ OIdentifiable = (*ODocument)(nil)
 
+// ODocEntry is a generic data holder that goes in ODocuments.
+type ODocEntry struct {
+	Name  string
+	Type  OType
+	Value interface{}
+}
+
+func (fld *ODocEntry) String() string {
+	return fmt.Sprintf("Entry<%s(%d): %v>", fld.Name, fld.Type, fld.Value)
+}
+
 type ODocument struct {
 	RID         RID
 	Version     int

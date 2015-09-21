@@ -1,15 +1,15 @@
 package obinary
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"time"
 )
 
 func init() {
@@ -51,6 +51,7 @@ func Dial(addr string) (*Client, error) {
 	}
 	c := &Client{
 		addr: addr, conn: conn,
+		br: bufio.NewReader(conn), bw: bufio.NewWriter(conn),
 	}
 	if err := c.handshakeVersion(); err != nil {
 		conn.Close()
@@ -72,6 +73,8 @@ type Client struct {
 	addr string
 
 	conn net.Conn
+	br   *bufio.Reader
+	bw   *bufio.Writer
 	cmuw sync.Mutex
 
 	root *session
@@ -108,10 +111,15 @@ func (c *Client) handshakeVersion() (err error) {
 	return nil
 }
 
-func (c *Client) write(data io.Reader) {
+func (c *Client) writeCmd(op byte, sid int32, wr func(io.Writer)) {
 	c.cmuw.Lock()
 	defer c.cmuw.Unlock()
-	rw.Copy(c.conn, data)
+	rw.WriteByte(c.bw, op)
+	rw.WriteInt(c.bw, sid)
+	if wr != nil {
+		wr(c.bw)
+	}
+	c.bw.Flush()
 }
 
 func (c *Client) newSess(id int32) *session {
@@ -242,13 +250,13 @@ func (c *Client) run() (err error) {
 		sessId int32
 	)
 	for { // TODO: close safely
-		status = rw.ReadByte(c.conn)
-		sessId = rw.ReadInt(c.conn)
+		status = rw.ReadByte(c.br)
+		sessId = rw.ReadInt(c.br)
 		switch status {
 		case responseStatusOk:
-			c.pushResp(sessId, c.conn, nil)
+			c.pushResp(sessId, c.br, nil)
 		case responseStatusError:
-			e := readErrorResponse(c.conn)
+			e := readErrorResponse(c.br)
 			c.pushResp(sessId, nil, e)
 		case responseStatusPush:
 			return ErrBrokenProtocol{fmt.Errorf("server push is not supported yet")}
@@ -287,13 +295,7 @@ func (s *session) sendCmd(op byte, wr func(io.Writer), rd func(io.Reader)) (err 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	defer s.catch(&err)
-	buf := bytes.NewBuffer(nil)
-	rw.WriteByte(buf, op)
-	rw.WriteInt(buf, s.id)
-	if wr != nil {
-		wr(buf)
-	}
-	s.cli.write(buf)
+	s.cli.writeCmd(op, s.id, wr)
 	if op == requestDbClose {
 		return
 	}

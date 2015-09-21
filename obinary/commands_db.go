@@ -1,8 +1,6 @@
 package obinary
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -177,13 +175,9 @@ func (db *Database) loadSchema(rid orient.RID) error {
 		return err
 	}
 
-	drec, ok := rec.(*orient.DocumentRecord)
+	doc, ok := rec.(*orient.Document)
 	if !ok {
 		return fmt.Errorf("expected document record for schema, got %T", rec)
-	}
-	doc, err := drec.ToDocument()
-	if err != nil {
-		return fmt.Errorf("cannot read document record for schema: %s", err)
 	}
 
 	odb := db.db
@@ -309,7 +303,7 @@ func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, i
 		}
 		rec = orient.NewRecordOfType(recType)
 		switch rc := rec.(type) {
-		case *orient.DocumentRecord:
+		case *orient.Document:
 			rc.SetSerializer(db.sess.cli.recordFormat)
 		}
 		if err := rec.Fill(rid, version, content); err != nil {
@@ -582,68 +576,76 @@ func (db *Database) findClusterWithName(name string) (int16, error) {
 // Use this to create a new record in the OrientDB database
 // you are currently connected to.
 // Does REQUEST_RECORD_CREATE OrientDB cmd (binary network protocol).
-func (db *Database) CreateRecord(doc *orient.Document) (err error) {
-	if doc.Classname == "" {
-		return errors.New("classname must be present on Document to call CreateRecord")
-	}
+func (db *Database) CreateRecord(rec orient.ORecord) error {
 	clusterID := int16(-1) // indicates new class/cluster
-	oclass, ok := db.db.Classes[doc.Classname]
-	if ok {
-		clusterID = int16(oclass.DefaultClusterId) // TODO: need way to allow user to specify a non-default cluster
-	}
-	serde := db.serializer()
-
-	rbuf := bytes.NewBuffer(nil)
-	if err = serde.ToStream(rbuf, doc); err != nil {
-		return
+	switch r := rec.(type) {
+	case *orient.Document:
+		if oclass, ok := db.db.Classes[r.ClassName()]; ok {
+			clusterID = int16(oclass.DefaultClusterId) // TODO: need way to allow user to specify a non-default cluster
+		}
+		r.SetSerializer(db.serializer())
 	}
 
-	err = db.sess.sendCmd(requestRecordCREATE, func(w *rw.Writer) error {
+	content, err := rec.Content()
+	if err != nil {
+		return err
+	}
+
+	var (
+		rid  orient.RID
+		vers int
+	)
+
+	if err = db.sess.sendCmd(requestRecordCREATE, func(w *rw.Writer) error {
 		w.WriteShort(clusterID)
-		w.WriteBytes(rbuf.Bytes())
-		w.WriteByte(byte('d')) // document record-type
-		w.WriteByte(byte(0))   // synchronous mode indicator
+		w.WriteBytes(content)
+		w.WriteByte(byte(rec.RecordType())) // document record-type
+		w.WriteByte(byte(0))                // synchronous mode indicator
 		return w.Err()
 	}, func(r *rw.Reader) error {
-		if err = doc.RID.FromStream(r); err != nil {
-			panic(err)
+		if err = rid.FromStream(r); err != nil {
+			return err
 		}
-		doc.Version = int(r.ReadInt())
+		vers = int(r.ReadInt())
 		nCollChanges := r.ReadInt()
 		if nCollChanges != 0 {
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
 		return r.Err()
-	})
+	}); err != nil {
+		return err
+	}
 	// In the Java client, they now a 'select from XXX' at this point -> would that be useful here?
-	return
+	return rec.Fill(rid, vers, content)
 }
 
 // UpdateRecord should be used update an existing record in the OrientDB database.
 // It does the REQUEST_RECORD_UPDATE OrientDB cmd (network binary protocol)
-func (db *Database) UpdateRecord(doc *orient.Document) (err error) {
-	if doc == nil {
-		return fmt.Errorf("document is nil")
-	} else if doc.RID.ClusterID < 0 || doc.RID.ClusterPos < 0 {
-		return fmt.Errorf("document is not updateable - has negative RID values")
+func (db *Database) UpdateRecord(rec orient.ORecord) error {
+	if rec == nil {
+		return fmt.Errorf("record is nil")
+	} else if !rec.GetIdentity().IsPersistent() {
+		return fmt.Errorf("record is not persistent: %v", rec.GetIdentity())
 	}
-	ser := db.serializer()
-	rbuf := bytes.NewBuffer(nil)
-	if err = ser.ToStream(rbuf, doc); err != nil {
-		return
+	content, err := rec.Content()
+	if err != nil {
+		return err
 	}
-	return db.sess.sendCmd(requestRecordUPDATE, func(w *rw.Writer) error {
-		if err := doc.RID.ToStream(w); err != nil {
+	var vers = rec.Version()
+	if err = db.sess.sendCmd(requestRecordUPDATE, func(w *rw.Writer) error {
+		if err := rec.GetIdentity().ToStream(w); err != nil {
 			return err
 		}
-		w.WriteBool(true) // update-content flag
-		w.WriteBytes(rbuf.Bytes())
-		w.WriteInt(int32(doc.Version)) // record version
-		w.WriteByte(byte('d'))         // record-type: document // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
-		w.WriteByte(0)                 // mode: synchronous
+		if db.sess.cli.curProtoVers >= ProtoVersion23 {
+			w.WriteBool(true) // update-content flag
+		}
+		w.WriteBytes(content)
+		w.WriteInt(int32(vers))
+		w.WriteByte(byte(rec.RecordType()))
+		w.WriteByte(0) // mode: synchronous
 		return w.Err()
 	}, func(r *rw.Reader) error {
-		doc.Version = int(r.ReadInt())
+		vers = int(r.ReadInt())
 		nCollChanges := r.ReadInt()
 		if nCollChanges != 0 {
 			// if > 0, then have to deal with RidBag mgmt:
@@ -651,5 +653,8 @@ func (db *Database) UpdateRecord(doc *orient.Document) (err error) {
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
 		return r.Err()
-	})
+	}); err != nil {
+		return err
+	}
+	return rec.Fill(rec.GetIdentity(), vers, content)
 }

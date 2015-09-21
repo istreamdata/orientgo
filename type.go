@@ -194,8 +194,6 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = DOUBLE
 	case []byte:
 		ftype = BINARY
-	case OEmbeddedMap:
-		ftype = EMBEDDEDMAP
 	case OIdentifiable:
 		ftype = LINK
 	case []OIdentifiable, []RID:

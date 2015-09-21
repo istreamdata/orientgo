@@ -98,22 +98,22 @@ func TestRecordsNativeAPI(t *testing.T) {
 		SetFieldWithType("age", 7, orient.INTEGER)
 	Equals(t, -1, int(winston.RID.ClusterID))
 	Equals(t, -1, int(winston.RID.ClusterPos))
-	Equals(t, -1, int(winston.Version))
+	Equals(t, -1, int(winston.Vers))
 	err := db.CreateRecord(winston)
 	Nil(t, err)
 	True(t, int(winston.RID.ClusterID) > -1, "RID should be filled in")
 	True(t, int(winston.RID.ClusterPos) > -1, "RID should be filled in")
-	True(t, int(winston.Version) > -1, "Version should be filled in")
+	True(t, int(winston.Vers) > -1, "Version should be filled in")
 
 	// ---[ update STRING and INTEGER field ]---
 
-	versionBefore := winston.Version
+	versionBefore := winston.Vers
 
 	winston.SetField("caretaker", "Lolly") // this updates the field locally
 	winston.SetField("age", 8)             // this updates the field locally
 	err = db.UpdateRecord(winston)         // update the field in the remote DB
 	Nil(t, err)
-	True(t, versionBefore < winston.Version, "version should have incremented")
+	True(t, versionBefore < winston.Vers, "version should have incremented")
 
 	var docs []*orient.Document
 	err = db.Command(orient.NewSQLQuery("select * from Cat where @rid=" + winston.RID.String())).All(&docs)
@@ -147,7 +147,7 @@ func TestRecordsNativeAPI(t *testing.T) {
 	Equals(t, indy.RID, docs[1].RID)
 	Equals(t, winston.RID, docs[2].RID)
 
-	Equals(t, indy.Version, docs[1].Version)
+	Equals(t, indy.Vers, docs[1].Vers)
 	Equals(t, "Matt", docs[0].GetField("caretaker").Value)
 
 	sql = fmt.Sprintf("DELETE FROM [%s, %s, %s]", winston.RID, daemon.RID, indy.RID)
@@ -217,13 +217,13 @@ func TestRecordsWithDate(t *testing.T) {
 	Equals(t, 1932, jjFromQuery.GetField("bday").Value.(time.Time).Year())
 
 	// ---[ update ]---
-	versionBefore := jj.Version
+	versionBefore := jj.Vers
 	oneYearLater := bdayTm.AddDate(1, 0, 0)
 
 	jj.SetFieldWithType("bday", oneYearLater, orient.DATE) // updates the field locally
 	err = db.UpdateRecord(jj)                              // update the field in the remote DB
 	Nil(t, err)
-	True(t, versionBefore < jj.Version, "version should have incremented")
+	True(t, versionBefore < jj.Vers, "version should have incremented")
 
 	docs = nil
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + jj.RID.String())).All(&docs)
@@ -267,14 +267,14 @@ func TestRecordsWithDatetime(t *testing.T) {
 
 	// ---[ update ]---
 
-	versionBefore := simba.Version
+	versionBefore := simba.Vers
 
 	twoDaysAgo := now.AddDate(0, 0, -2)
 
 	simba.SetFieldWithType("ddd", twoDaysAgo, orient.DATETIME) // updates the field locally
 	err = db.UpdateRecord(simba)                               // update the field in the remote DB
 	Nil(t, err)
-	True(t, versionBefore < simba.Version, "version should have incremented")
+	True(t, versionBefore < simba.Vers, "version should have incremented")
 
 	docs = nil
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + simba.RID.String())).All(&docs)
@@ -377,7 +377,7 @@ func TestRecordsBasicTypes(t *testing.T) {
 
 	// ---[ update ]---
 
-	versionBefore := cat.Version
+	versionBefore := cat.Vers
 
 	cat.SetField("x", true)
 	cat.SetField("y", byte(19))
@@ -385,7 +385,7 @@ func TestRecordsBasicTypes(t *testing.T) {
 
 	err = db.UpdateRecord(cat) // update the field in the remote DB
 	Nil(t, err)
-	True(t, versionBefore < cat.Version, "version should have incremented")
+	True(t, versionBefore < cat.Vers, "version should have incremented")
 
 	docs = nil
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + cat.RID.String())).All(&docs)
@@ -459,13 +459,13 @@ func TestRecordsBinaryField(t *testing.T) {
 
 	// ---[ update ]---
 
-	versionBefore := cat.Version
+	versionBefore := cat.Vers
 
 	newbindata := []byte("Now Gluten Free!")
 	cat.SetFieldWithType("bin", newbindata, orient.BINARY)
 	err = db.UpdateRecord(cat) // update the field in the remote DB
 	Nil(t, err)
-	True(t, versionBefore < cat.Version, "version should have incremented")
+	True(t, versionBefore < cat.Vers, "version should have incremented")
 
 	docs = nil
 	err = db.Command(orient.NewSQLQuery("select from Cat where @rid=" + cat.RID.String())).All(&docs)
@@ -476,15 +476,75 @@ func TestRecordsBinaryField(t *testing.T) {
 }
 
 func recordAsDocument(t *testing.T, rec orient.ORecord) *orient.Document {
-	rdoc, ok := rec.(*orient.DocumentRecord)
+	doc, ok := rec.(*orient.Document)
 	if !ok {
 		t.Fatalf("expected document, got: %T", rec)
 	}
-	doc, err := rdoc.ToDocument()
-	if err != nil {
-		t.Fatalf("document decode error: %s", err)
-	}
 	return doc
+}
+
+func TestRecordBytes(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+
+	rec := orient.NewBytesRecord()
+
+	// ---[ FieldWithType ]---
+	str := "four, five, six, pick up sticks"
+	bindata := []byte(str)
+
+	rec.Data = bindata
+
+	err := db.CreateRecord(rec)
+	Nil(t, err)
+	True(t, rec.RID.ClusterID > 0, "RID should be filled in")
+
+	rrec, err := db.GetRecordByRID(rec.RID, "", true)
+	Nil(t, err)
+	recFromQuery := rrec.(*orient.BytesRecord)
+
+	Equals(t, rec.Data, recFromQuery.Data)
+	Equals(t, str, string(recFromQuery.Data))
+
+	// ---[ Field No Type Specified ]---
+	binN := 10 * 1024 * 1024
+	bindata2 := make([]byte, binN)
+
+	for i := 0; i < binN; i++ {
+		bindata2[i] = byte(i)
+	}
+
+	rec2 := orient.NewBytesRecord()
+	rec2.Data = bindata2
+
+	True(t, rec2.RID.ClusterID <= 0, "RID should NOT be filled in")
+
+	err = db.CreateRecord(rec2)
+	Nil(t, err)
+	True(t, rec2.RID.ClusterID > 0, "RID should be filled in")
+
+	rrec, err = db.GetRecordByRID(rec2.RID, "", true)
+	Nil(t, err)
+	rec2FromQuery := rrec.(*orient.BytesRecord)
+
+	Equals(t, bindata2, rec2FromQuery.Data)
+
+	// ---[ update ]---
+
+	versionBefore := rec.Vers
+
+	newbindata := []byte("Now Gluten Free!")
+	rec.Data = newbindata
+	err = db.UpdateRecord(rec) // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < rec.Vers, "version should have incremented")
+
+	rrec, err = db.GetRecordByRID(rec.RID, "", true)
+	Nil(t, err)
+	recFromQuery = rrec.(*orient.BytesRecord)
+	Equals(t, newbindata, recFromQuery.Data)
 }
 
 func TestCommandsNativeAPI(t *testing.T) {
@@ -548,9 +608,9 @@ func TestCommandsNativeAPI(t *testing.T) {
 	linusDocRID := docs[0].RID
 
 	True(t, linusDocRID.IsValid(), "linusDocRID should not be nil")
-	True(t, docs[0].Version > 0, fmt.Sprintf("Version is: %d", docs[0].Version))
+	True(t, docs[0].Vers > 0, fmt.Sprintf("Version is: %d", docs[0].Vers))
 	Equals(t, 3, len(docs[0].FieldNames()))
-	Equals(t, "Cat", docs[0].Classname)
+	Equals(t, "Cat", docs[0].ClassName())
 
 	nameField := docs[0].GetField("name")
 	True(t, nameField != nil, "should be a 'name' field")
@@ -574,9 +634,9 @@ func TestCommandsNativeAPI(t *testing.T) {
 	doc = recordAsDocument(t, rec)
 	docByRID := doc
 	Equals(t, linusDocRID, docByRID.RID)
-	True(t, docByRID.Version > 0, fmt.Sprintf("Version is: %d", docByRID.Version))
+	True(t, docByRID.Vers > 0, fmt.Sprintf("Version is: %d", docByRID.Vers))
 	Equals(t, 3, len(docByRID.FieldNames()))
-	Equals(t, "Cat", docByRID.Classname)
+	Equals(t, "Cat", docByRID.ClassName())
 
 	nameField = docByRID.GetField("name")
 	True(t, nameField != nil, "should be a 'name' field")
@@ -608,18 +668,18 @@ func TestCommandsNativeAPI(t *testing.T) {
 	sqlQueryAll("select * from Cat order by name asc", &docs)
 	Equals(t, 3, len(docs))
 	Equals(t, 3, len(docs[0].FieldNames()))
-	Equals(t, "Cat", docs[0].Classname)
+	Equals(t, "Cat", docs[0].ClassName())
 	Equals(t, 3, len(docs[1].FieldNames()))
-	Equals(t, "Cat", docs[1].Classname)
+	Equals(t, "Cat", docs[1].ClassName())
 	Equals(t, 3, len(docs[2].FieldNames()))
-	Equals(t, "Cat", docs[2].Classname)
+	Equals(t, "Cat", docs[2].ClassName())
 
 	keiko := docs[0]
 	Equals(t, "Keiko", keiko.GetField("name").Value)
 	Equals(t, int32(10), keiko.GetField("age").Value)
 	Equals(t, "Anna", keiko.GetField("caretaker").Value)
 	Equals(t, orient.STRING, keiko.GetField("caretaker").Type)
-	True(t, keiko.Version > 0, "Version should be greater than zero")
+	True(t, keiko.Vers > 0, "Version should be greater than zero")
 	True(t, keiko.RID.IsValid(), "RID should be filled in")
 
 	linus := docs[1]
@@ -633,15 +693,15 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, "Shaw", zed.GetField("caretaker").Value)
 	Equals(t, orient.STRING, zed.GetField("caretaker").Type)
 	Equals(t, orient.INTEGER, zed.GetField("age").Type)
-	True(t, zed.Version > 0, "Version should be greater than zero")
+	True(t, zed.Vers > 0, "Version should be greater than zero")
 	True(t, zed.RID.IsValid(), "RID should be filled in")
 
 	sqlQueryAll("select name, caretaker from Cat order by caretaker", &docs)
 	Equals(t, 3, len(docs))
 	Equals(t, 2, len(docs[0].FieldNames()))
-	Equals(t, "", docs[0].Classname) // property queries do not come back with Classname set
+	Equals(t, "", docs[0].ClassName()) // property queries do not come back with Classname set
 	Equals(t, 2, len(docs[1].FieldNames()))
-	Equals(t, "", docs[1].Classname)
+	Equals(t, "", docs[1].ClassName())
 	Equals(t, 2, len(docs[2].FieldNames()))
 
 	Equals(t, "Anna", docs[0].GetField("caretaker").Value)
@@ -655,7 +715,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, "name", docs[0].GetField("name").Name)
 
 	// ---[ delete newly added record(s) ]---
-	err = db.DeleteRecordByRID(zed.RID, zed.Version)
+	err = db.DeleteRecordByRID(zed.RID, zed.Vers)
 	Nil(t, err)
 
 	// glog.Infoln("Deleting (Async) record #11:4")
@@ -669,14 +729,14 @@ func TestCommandsNativeAPI(t *testing.T) {
 	sqlQueryAll("select name, age from Cat where caretaker = ?", &docs, "Cleaver")
 	Equals(t, 1, len(docs))
 	Equals(t, 2, len(docs[0].FieldNames()))
-	Equals(t, "", docs[0].Classname) // property queries do not come back with Classname set
+	Equals(t, "", docs[0].ClassName()) // property queries do not come back with Classname set
 	Equals(t, "June", docs[0].GetField("name").Value)
 	Equals(t, int32(8), docs[0].GetField("age").Value)
 
 	sqlCommandAll("select caretaker, name, age from Cat where age > ? order by age desc", &docs, 9)
 	Equals(t, 2, len(docs))
 	Equals(t, 3, len(docs[0].FieldNames()))
-	Equals(t, "", docs[0].Classname) // property queries do not come back with Classname set
+	Equals(t, "", docs[0].ClassName()) // property queries do not come back with Classname set
 	Equals(t, "Linus", docs[0].GetField("name").Value)
 	Equals(t, int32(15), docs[0].GetField("age").Value)
 	Equals(t, "Keiko", docs[1].GetField("name").Value)
@@ -750,12 +810,12 @@ func TestCommandsNativeAPI(t *testing.T) {
 
 	sqlQueryAll("select from Patient order by RID", &docs)
 	Equals(t, 4, len(docs))
-	Equals(t, 2, len(docs[0].Fields)) // has name and married
-	Equals(t, "Hank", docs[0].Fields["name"].Value)
+	Equals(t, 2, len(docs[0].Fields())) // has name and married
+	Equals(t, "Hank", docs[0].Fields()["name"].Value)
 
-	Equals(t, 4, len(docs[3].Fields)) // has name, married, sex and for some reason still has `gender`
-	Equals(t, "Shirley", docs[3].Fields["name"].Value)
-	Equals(t, "F", docs[3].Fields["gender"].Value)
+	Equals(t, 4, len(docs[3].Fields())) // has name, married, sex and for some reason still has `gender`
+	Equals(t, "Shirley", docs[3].Fields()["name"].Value)
+	Equals(t, "F", docs[3].Fields()["gender"].Value)
 
 	sqlCommand("TRUNCATE CLASS Patient")
 
@@ -816,8 +876,8 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, orient.EMBEDDED, docs[0].GetField("emb").Type)
 
 	embCat := docs[0].GetField("emb").Value.(*orient.Document)
-	Equals(t, "Cat", embCat.Classname)
-	True(t, embCat.Version < 0, "Version should be unset")
+	Equals(t, "Cat", embCat.ClassName())
+	True(t, embCat.Vers < 0, "Version should be unset")
 	True(t, embCat.RID.ClusterID < 0, "RID.ClusterID should be unset")
 	True(t, embCat.RID.ClusterPos < 0, "RID.ClusterPos should be unset")
 	Equals(t, "yowler", embCat.GetField("name").Value.(string))

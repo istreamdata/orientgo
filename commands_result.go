@@ -114,11 +114,7 @@ func convertTypes(targ, src reflect.Value) error {
 		targ.Set(src.Convert(targ.Type()))
 		return nil
 	} else if src.Kind() == reflect.Interface {
-		src = src.Elem()
-		if src.Kind() == reflect.Ptr {
-			src = src.Elem()
-		}
-		return convertTypes(targ, src)
+		return convertTypes(targ, src.Elem())
 	}
 	//	if targ.Kind() == reflect.Ptr {
 	//		if targ.IsNil() {
@@ -134,18 +130,19 @@ func convertTypes(targ, src reflect.Value) error {
 		switch rec := src.Interface().(type) {
 		case map[string]interface{}:
 			return mapstructure.Decode(rec, targ.Addr().Interface())
-		case DocumentSerializable:
-			doc, err := rec.ToDocument()
-			if err != nil {
-				return err
-			}
-			return convertTypes(targ, reflect.ValueOf(doc))
 		case MapSerializable:
 			m, err := rec.ToMap()
 			if err != nil {
 				return err
 			}
 			return convertTypes(targ, reflect.ValueOf(m))
+		case *Document: // Document implements DocumentSerializable for convenience, no need to convert it
+		case DocumentSerializable:
+			doc, err := rec.ToDocument()
+			if err != nil {
+				return err
+			}
+			return convertTypes(targ, reflect.ValueOf(doc))
 		}
 	} else if targ.Kind() == reflect.Slice {
 		if src.Kind() == reflect.Slice { // slice into slice
@@ -189,6 +186,7 @@ func convertTypes(targ, src reflect.Value) error {
 				return err
 			}
 			return convertTypes(targ, reflect.ValueOf(m))
+		case *Document:
 		case DocumentSerializable:
 			doc, err := rec.ToDocument()
 			if err != nil {

@@ -2,13 +2,19 @@ package orient
 
 import (
 	"bytes"
-	"database/sql/driver"
 	"fmt"
-	"github.com/golang/glog"
 	"time"
+
+	//	"database/sql/driver"
+	//	"github.com/golang/glog"
 )
 
-var _ OIdentifiable = (*Document)(nil)
+var (
+	_ OIdentifiable        = (*Document)(nil)
+	_ DocumentSerializable = (*Document)(nil)
+	_ MapSerializable      = (*Document)(nil)
+	_ ORecord              = (*Document)(nil)
+)
 
 // DocEntry is a generic data holder that goes in Documents.
 type DocEntry struct {
@@ -22,37 +28,78 @@ func (fld *DocEntry) String() string {
 }
 
 type Document struct {
-	RID         RID
-	Version     int
+	BytesRecord
+	serialized  bool
 	fieldsOrder []string // field names in the order they were added to the Document
-	Fields      map[string]*DocEntry
-	Classname   string // TODO: probably needs to change *OClass (once that is built)
+	fields      map[string]*DocEntry
+	classname   string // TODO: probably needs to change *OClass (once that is built)
 	dirty       bool
+	ser         RecordSerializer
 }
+
+func (doc *Document) ClassName() string { return doc.classname }
 
 // NewDocument should be called to create new Document objects,
 // since some internal data structures need to be initialized
 // before the Document is ready to use.
 func NewDocument(className string) *Document {
 	doc := NewEmptyDocument()
-	doc.Classname = className
+	doc.classname = className
 	return doc
 }
 
 // TODO: have this replace NewDocument and change NewDocument to take RID and Version (???)
 func NewEmptyDocument() *Document {
 	return &Document{
-		Fields:  make(map[string]*DocEntry),
-		RID:     NewEmptyRID(),
-		Version: -1,
+		BytesRecord: BytesRecord{
+			RID:  NewEmptyRID(),
+			Vers: -1,
+		},
+		fields: make(map[string]*DocEntry),
+		ser:    GetDefaultRecordSerializer(),
 	}
+}
+
+func (doc *Document) ensureDecoded() error {
+	if doc == nil {
+		return fmt.Errorf("nil document")
+	}
+	if !doc.serialized {
+		return nil
+	}
+	o, err := doc.ser.FromStream(doc.BytesRecord.Data)
+	if err != nil {
+		return err
+	}
+	ndoc, ok := o.(*Document)
+	if !ok {
+		return fmt.Errorf("expected document, got %T", o)
+	}
+	doc.classname = ndoc.classname
+	doc.fields = ndoc.fields
+	doc.fieldsOrder = ndoc.fieldsOrder
+	doc.serialized = false
+	return nil
+}
+
+func (doc *Document) Content() ([]byte, error) {
+	// TODO: can track field changes and invalidate content if necessary - no need to serialize each time
+	if doc.serialized {
+		return doc.BytesRecord.Content()
+	}
+	buf := bytes.NewBuffer(nil)
+	if err := doc.ser.ToStream(buf, doc); err != nil {
+		return nil, err
+	}
+	doc.BytesRecord.Data = buf.Bytes()
+	return doc.BytesRecord.Content()
 }
 
 func (doc *Document) GetIdentity() RID {
 	if doc == nil {
 		return NewEmptyRID()
 	}
-	return doc.RID
+	return doc.BytesRecord.GetIdentity()
 }
 
 func (doc *Document) GetRecord() interface{} {
@@ -62,51 +109,29 @@ func (doc *Document) GetRecord() interface{} {
 	return doc
 }
 
-// Implements database/sql.Scanner interface
-func (doc *Document) Scan(src interface{}) error {
-	switch v := src.(type) {
-	case *Document:
-		*doc = *v
-	default:
-		return fmt.Errorf("Document: cannot convert from %T to %T", src, doc)
-	}
-	return nil
-}
-
-// Implements database/sql/driver.Valuer interface
-// TODO: haven't detected when this is called yet (probably when serializing Document for insertion into DB??)
-func (doc *Document) Value() (driver.Value, error) {
-	if glog.V(10) {
-		glog.Infoln("** Document.Value")
-	}
-	return []byte(`{"b": 2}`), nil // FIXME: bogus
-}
-
-// Implements database/sql/driver.ValueConverter interface
-// TODO: haven't detected when this is called yet
-func (doc *Document) ConvertValue(v interface{}) (driver.Value, error) {
-	if glog.V(10) {
-		glog.Infof("** Document.ConvertValue: %T: %v", v, v)
-	}
-	return []byte(`{"a": 1}`), nil // FIXME: bogus
-}
-
 // FieldNames returns the names of all the fields currently in this Document
 // in "entry order". These fields may not have already been committed to the database.
 func (doc *Document) FieldNames() []string {
+	doc.ensureDecoded()
 	names := make([]string, len(doc.fieldsOrder))
 	copy(names, doc.fieldsOrder)
 	return names
 }
 
-// GetFields return the OField objects in the Document in "entry order".
+func (doc *Document) Fields() map[string]*DocEntry {
+	doc.ensureDecoded()
+	return doc.fields // TODO: copy map?
+}
+
+// FieldsArray return the OField objects in the Document in "entry order".
 // There is some overhead to getting them in entry order, so if you
 // don't care about that order, just access the Fields field of the
 // Document struct directly.
-func (doc *Document) GetFields() []*DocEntry {
+func (doc *Document) FieldsArray() []*DocEntry {
+	doc.ensureDecoded()
 	fields := make([]*DocEntry, len(doc.fieldsOrder))
 	for i, name := range doc.fieldsOrder {
-		fields[i] = doc.Fields[name]
+		fields[i] = doc.fields[name]
 	}
 	return fields
 }
@@ -114,14 +139,16 @@ func (doc *Document) GetFields() []*DocEntry {
 // GetFieldByName looks up the OField in this document with the specified field.
 // If no field is found with that name, nil is returned.
 func (doc *Document) GetField(fname string) *DocEntry {
-	return doc.Fields[fname]
+	doc.ensureDecoded()
+	return doc.fields[fname]
 }
 
 // AddField adds a fully created field directly rather than by some of its
 // attributes, as the other "Field" methods do.
 // The same *Document is returned to allow call chaining.
 func (doc *Document) AddField(name string, field *DocEntry) *Document {
-	doc.Fields[name] = field
+	doc.ensureDecoded()
+	doc.fields[name] = field
 	doc.fieldsOrder = append(doc.fieldsOrder, name)
 	doc.dirty = true
 	return doc
@@ -136,6 +163,7 @@ func (doc *Document) SetDirty(b bool) {
 // via type switch analysis on `val`.  Use FieldWithType to specify the type directly.
 // The same *Document is returned to allow call chaining.
 func (doc *Document) SetField(name string, val interface{}) *Document {
+	doc.ensureDecoded()
 	return doc.SetFieldWithType(name, val, OTypeForValue(val))
 }
 
@@ -145,6 +173,7 @@ func (doc *Document) SetField(name string, val interface{}) *Document {
 // as: https://github.com/orientechnologies/orientdb/wiki/Types
 // The same *Document is returned to allow call chaining.
 func (doc *Document) SetFieldWithType(name string, val interface{}, fieldType OType) *Document {
+	doc.ensureDecoded()
 	fld := &DocEntry{
 		Name:  name,
 		Value: val,
@@ -161,7 +190,8 @@ func (doc *Document) SetFieldWithType(name string, val interface{}, fieldType OT
 }
 
 func (doc *Document) RawContainsField(name string) bool {
-	return doc != nil && doc.Fields[name] != nil
+	doc.ensureDecoded()
+	return doc != nil && doc.fields[name] != nil
 }
 
 func (doc *Document) RawSetField(name string, val interface{}, fieldType OType) {
@@ -197,14 +227,15 @@ func adjustDateToMidnight(val interface{}) interface{} {
 }
 
 func (doc *Document) String() string {
+	// TODO: support for encoded format
 	buf := new(bytes.Buffer)
 	_, err := buf.WriteString(fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: \n",
-		doc.Classname, doc.RID, doc.Version))
+		doc.classname, doc.RID, doc.Vers))
 	if err != nil {
 		panic(err)
 	}
 
-	for _, fld := range doc.Fields {
+	for _, fld := range doc.fields {
 		_, err = buf.WriteString(fmt.Sprintf("  %s\n", fld.String()))
 		if err != nil {
 			panic(err)
@@ -221,23 +252,31 @@ func (doc *Document) String() string {
 // circular links.
 func (doc *Document) StringNoFields() string {
 	return fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: [...]>",
-		doc.Classname, doc.RID, doc.Version)
+		doc.classname, doc.RID, doc.Vers)
 }
 
 func (doc *Document) ToMap() (map[string]interface{}, error) {
 	if doc == nil {
 		return nil, nil
 	}
-	// TODO: add @rid and @class fields
-	out := make(map[string]interface{}, len(doc.Fields))
-	for name, fld := range doc.Fields {
+	if err := doc.ensureDecoded(); err != nil {
+		return nil, err
+	}
+	out := make(map[string]interface{}, len(doc.fields))
+	for name, fld := range doc.fields {
 		out[name] = fld.Value
+	}
+	if doc.classname != "" {
+		out["@class"] = doc.classname
+	}
+	if doc.RID.IsPersistent() { // TODO: is this correct?
+		out["@rid"] = doc.RID
 	}
 	return out, nil
 }
 
 func (doc *Document) FillClassNameIfNeeded(name string) {
-	if doc.Classname == "" {
+	if doc.classname == "" {
 		doc.SetClassNameIfExists(name)
 	}
 }
@@ -247,7 +286,7 @@ func (doc *Document) SetClassNameIfExists(name string) {
 	//	_immutableClazz = null;
 	//	_immutableSchemaVersion = -1;
 
-	doc.Classname = name
+	doc.classname = name
 	if name == "" {
 		return
 	}
@@ -261,3 +300,48 @@ func (doc *Document) SetClassNameIfExists(name string) {
 	//      }
 	//    }
 }
+
+// SetSerializer sets RecordSerializer for encoding/decoding a Document
+func (doc *Document) SetSerializer(ser RecordSerializer) {
+	doc.ser = ser
+}
+func (doc *Document) Fill(rid RID, version int, content []byte) error {
+	doc.serialized = doc.serialized || doc.BytesRecord.Data == nil || bytes.Compare(content, doc.BytesRecord.Data) != 0
+	return doc.BytesRecord.Fill(rid, version, content)
+}
+func (doc *Document) RecordType() RecordType { return RecordTypeDocument }
+
+// ToDocument decodes a record to Document
+func (doc *Document) ToDocument() (*Document, error) {
+	return doc, nil
+}
+
+/*
+// Implements database/sql.Scanner interface
+func (doc *Document) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case *Document:
+		*doc = *v
+	default:
+		return fmt.Errorf("Document: cannot convert from %T to %T", src, doc)
+	}
+	return nil
+}
+
+// Implements database/sql/driver.Valuer interface
+// TODO: haven't detected when this is called yet (probably when serializing Document for insertion into DB??)
+func (doc *Document) Value() (driver.Value, error) {
+	if glog.V(10) {
+		glog.Infoln("** Document.Value")
+	}
+	return []byte(`{"b": 2}`), nil // FIXME: bogus
+}
+
+// Implements database/sql/driver.ValueConverter interface
+// TODO: haven't detected when this is called yet
+func (doc *Document) ConvertValue(v interface{}) (driver.Value, error) {
+	if glog.V(10) {
+		glog.Infof("** Document.ConvertValue: %T: %v", v, v)
+	}
+	return []byte(`{"a": 1}`), nil // FIXME: bogus
+}*/

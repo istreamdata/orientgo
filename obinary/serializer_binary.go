@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"runtime"
 	"time"
 
 	"github.com/istreamdata/orientgo"
@@ -49,7 +50,7 @@ func (BinaryRecordFormat) String() string { return BinaryFormatName }
 func (f *BinaryRecordFormat) SetGlobalPropertyFunc(fnc orient.GlobalPropertyFunc) {
 	f.fnc = fnc
 }
-func (f BinaryRecordFormat) ToStream(w io.Writer, rec interface{}) error {
+func (f BinaryRecordFormat) ToStream(w io.Writer, rec orient.ORecord) error {
 	doc, ok := rec.(*orient.Document)
 	if !ok {
 		return orient.ErrTypeSerialization{Val: rec, Serializer: f}
@@ -69,7 +70,7 @@ func (f BinaryRecordFormat) ToStream(w io.Writer, rec interface{}) error {
 	}
 	return bw.Err()
 }
-func (f BinaryRecordFormat) FromStream(data []byte) (out interface{}, err error) {
+func (f BinaryRecordFormat) FromStream(data []byte) (out orient.ORecord, err error) {
 	if len(data) < 1 {
 		err = io.ErrUnexpectedEOF
 		return
@@ -360,6 +361,15 @@ func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *orient.Docu
 	return rv.Interface(), nil
 }
 func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient.OType, doc *orient.Document) (value interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if ic, ok := r.(*runtime.TypeAssertionError); ok {
+				err = fmt.Errorf("writeSingleValue(%v): %v", valueType, ic)
+			} else {
+				panic(r)
+			}
+		}
+	}()
 	switch valueType {
 	case orient.INTEGER:
 		value = int32(r.ReadVarint())
@@ -466,7 +476,7 @@ func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off i
 		}
 		return rw.NewWriter(w).WriteRawBytes(buf.Bytes())
 	}
-	fields := doc.GetFields()
+	fields := doc.FieldsArray()
 
 	type item struct {
 		Pos   int
@@ -520,10 +530,10 @@ func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off i
 }
 func (f binaryRecordFormatV0) serializeClass(w *rw.Writer, doc *orient.Document) (int, error) {
 	// TODO: final OClass clazz = ODocumentInternal.getImmutableSchemaClass(document); if (clazz == null) ...
-	if doc.Classname == "" {
+	if class := doc.ClassName(); class == "" {
 		return f.writeEmptyString(w)
 	} else {
-		return f.writeString(w, doc.Classname)
+		return f.writeString(w, class)
 	}
 }
 func (binaryRecordFormatV0) writeString(w *rw.Writer, v string) (int, error) {
@@ -676,6 +686,15 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interfac
 	return w.WriteRawBytes(data)
 }
 func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interface{}, tp, linkedType orient.OType) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if ic, ok := r.(*runtime.TypeAssertionError); ok {
+				err = fmt.Errorf("writeSingleValue(%T -> %v): %v", o, tp, ic)
+			} else {
+				panic(r)
+			}
+		}
+	}()
 	switch tp {
 	case orient.BYTE:
 		w.WriteByte(toByte(o))
@@ -723,7 +742,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 			if err != nil {
 				panic(err)
 			}
-			cur.SetField(documentSerializableClassName, cur.Classname) // TODO: pass empty value as nil?
+			cur.SetField(documentSerializableClassName, cur.ClassName()) // TODO: pass empty value as nil?
 			edoc = cur
 		}
 		err = f.Serialize(edoc, w, off, false)

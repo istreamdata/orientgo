@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
 )
@@ -103,10 +104,13 @@ func (c *Client) handshakeVersion() error {
 	if err := c.pr.Err(); err != nil {
 		return err
 	}
-	if c.srvProtoVers < MinProtocolVersion || c.srvProtoVers > MaxProtocolVersion {
+	if c.srvProtoVers < MinProtocolVersion { // || c.srvProtoVers > MaxProtocolVersion {
 		return ErrUnsupportedVersion(c.srvProtoVers)
 	} else if c.srvProtoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
 		return ErrUnsupportedVersion(c.srvProtoVers)
+	} else if c.srvProtoVers > MaxProtocolVersion {
+		glog.Warningf("OrientDB version is unsupported by driver: %d vs %d. Will fallback to protocol %d.",
+			MaxProtocolVersion, c.srvProtoVers, CurrentProtoVersion)
 	}
 	c.recordFormat = orient.GetDefaultRecordSerializer()
 	c.curProtoVers = CurrentProtoVersion
@@ -367,7 +371,7 @@ func (db *Database) readIdentifiable(r *rw.Reader) (orient.OIdentifiable, error)
 		}
 		record := orient.NewRecordOfType(tp)
 		switch rec := record.(type) {
-		case *orient.DocumentRecord:
+		case *orient.Document:
 			rec.SetSerializer(db.sess.cli.recordFormat)
 		}
 

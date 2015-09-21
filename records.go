@@ -3,13 +3,22 @@ package orient
 import (
 	"encoding/base64"
 	"fmt"
-	"io"
 )
 
 type ORecord interface {
 	OIdentifiable
 	Fill(rid RID, version int, content []byte) error // TODO: put to separate interface?
+	Content() ([]byte, error)
+	Version() int
+	SetVersion(v int)
+	SetRID(rid RID)
+	RecordType() RecordType
 }
+
+var (
+	_ ORecord = (*BytesRecord)(nil)
+	_ ORecord = (*Document)(nil)
+)
 
 // List of standard record types
 const (
@@ -19,9 +28,9 @@ const (
 )
 
 func init() {
-	declareRecordType(RecordTypeDocument, "document", func() ORecord { return NewDocumentRecord() })
+	declareRecordType(RecordTypeDocument, "document", func() ORecord { return NewEmptyDocument() })
 	//declareRecordType(RecordTypeFlat,"flat",func() orient.ORecord { panic("flat record type is not implemented") }) // TODO: implement
-	declareRecordType(RecordTypeBytes, "bytes", func() ORecord { return &BytesRecord{} })
+	declareRecordType(RecordTypeBytes, "bytes", func() ORecord { return NewBytesRecord() })
 }
 
 // RecordType defines a registered record type
@@ -53,13 +62,33 @@ func NewRecordOfType(tp RecordType) ORecord {
 	return fnc()
 }
 
+func NewBytesRecord() *BytesRecord { return &BytesRecord{} }
+
 // BytesRecord is a rawest representation of a record. It's schema less.
 // Use this if you need to store byte[] without matter about the content.
 // Useful also to store multimedia contents and binary files.
 type BytesRecord struct {
-	RID     RID
-	Version int
-	Data    []byte
+	RID  RID
+	Vers int
+	Data []byte
+}
+
+func (r BytesRecord) Content() (data []byte, err error) {
+	return r.Data, nil
+}
+
+func (r BytesRecord) Version() int {
+	return r.Vers
+}
+func (r *BytesRecord) SetVersion(v int) {
+	r.Vers = v
+}
+func (r *BytesRecord) SetRID(rid RID) {
+	r.RID = rid
+}
+
+func (r BytesRecord) RecordType() RecordType {
+	return RecordTypeBytes
 }
 
 // GetIdentity returns a record RID
@@ -78,90 +107,11 @@ func (r BytesRecord) GetRecord() interface{} {
 // Fill sets identity, version and raw data of the record
 func (r *BytesRecord) Fill(rid RID, version int, content []byte) error {
 	r.RID = rid
-	r.Version = version
+	r.Vers = version
 	r.Data = content
 	return nil
 }
+
 func (r BytesRecord) String() string {
-	return fmt.Sprintf("{%s %d %d}:%s", r.RID, r.Version, len(r.Data), base64.StdEncoding.EncodeToString(r.Data))
-}
-
-var (
-	_ DocumentSerializable = (*DocumentRecord)(nil)
-	_ MapSerializable      = (*DocumentRecord)(nil)
-)
-
-// NewDocumentRecord creates a new DocumentRecord with default RecordSerializer
-func NewDocumentRecord() *DocumentRecord {
-	return &DocumentRecord{ser: GetDefaultRecordSerializer()}
-}
-
-// DocumentRecord is a subset of BytesRecord which stores serialized Document.
-type DocumentRecord struct {
-	data BytesRecord
-	ser  RecordSerializer
-}
-
-// GetIdentity returns a record RID
-func (r DocumentRecord) GetIdentity() RID {
-	return r.data.GetIdentity()
-}
-
-// GetRecord decodes a record and returns Document. Will return nil if error occurs.
-func (r DocumentRecord) GetRecord() interface{} {
-	doc, err := r.ToDocument()
-	if err != nil {
-		return nil
-	}
-	return doc
-}
-
-// Fill sets identity, version and raw data of the record
-func (r *DocumentRecord) Fill(rid RID, version int, content []byte) error {
-	r.data.Fill(rid, version, content)
-	return nil
-}
-func (r DocumentRecord) String() string {
-	return "Document" + r.data.String()
-}
-
-// SetSerializer sets RecordSerializer for decoding a record
-func (r *DocumentRecord) SetSerializer(ser RecordSerializer) {
-	r.ser = ser
-}
-
-// ToDocument decodes a record to Document
-func (r DocumentRecord) ToDocument() (doc *Document, err error) {
-	defer catch(&err)
-	if len(r.data.Data) == 0 {
-		err = io.ErrUnexpectedEOF
-		return
-	}
-	doc = NewEmptyDocument()
-	doc.RID = r.data.RID
-	doc.Version = r.data.Version
-
-	var (
-		o  interface{}
-		ok bool
-	)
-	if o, err = r.ser.FromStream(r.data.Data); err != nil {
-		return
-	} else if doc, ok = o.(*Document); !ok {
-		err = fmt.Errorf("expected document, got %T", o)
-		return
-	} else {
-		doc.RID = r.data.RID
-		doc.Version = r.data.Version
-		return
-	}
-}
-
-// ToMap decodes a record to a map
-func (r DocumentRecord) ToMap() (map[string]interface{}, error) {
-	doc, err := r.ToDocument()
-	if err != nil {
-		return nil, err
-	}
-	return doc.ToMap()
+	return fmt.Sprintf("{%s %d %d}:%s", r.RID, r.Vers, len(r.Data), base64.StdEncoding.EncodeToString(r.Data))
 }

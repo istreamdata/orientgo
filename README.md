@@ -16,7 +16,7 @@ Early adopters are welcome to try it out and report any problems found.
 - Mostly any SQL [queries](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLQuery), [commands](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLCommand) and [batch requests](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand).
 - Server-side scripts (via [ScriptCommand](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand) or [functions](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#Function)).
 - Command results conversion to custom types via [mapstructure](http://github.com/mitchellh/mapstructure).
-- Direct CRUD operations on `Document` objects with `CreateRecord`/`UpdateRecord`/`DeleteRecord`.
+- Direct CRUD operations on `Document` or `BytesRecord` objects.
 - Management of databases and record clusters.
 - Can be used for the golang `database/sql` API, with some cautions (see below).
 - Only supports OrientDB 2.x series.
@@ -25,7 +25,6 @@ Early adopters are welcome to try it out and report any problems found.
 - OrientDB 1.x.
 - Servers with cluster configuration (not tested).
 - Fetch plans are temporary disabled due to internal changes.
-- RidBags (LinkBags) support is temporary disabled.
 - Transactions in Go. Transactions in JS can be used instead.
 - Live queries.
 - Command results streaming.
@@ -34,6 +33,8 @@ Early adopters are welcome to try it out and report any problems found.
 - ORM-like API. See Issue #6.
 
 #### Caveat on using OrientGo as a database/sql API driver
+
+**WARNING: SQL API is disabled for now.**
 
 The golang `database/sql` API has some constraints that can be make it painful to work with OrientDB. For example:
 

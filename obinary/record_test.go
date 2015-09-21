@@ -19,13 +19,13 @@ func TestDeserializeRecordData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := orient.NewDocumentRecord()
+	rec := orient.NewEmptyDocument()
 	rec.SetSerializer(&obinary.BinaryRecordFormat{})
 	rec.Fill(orient.NewEmptyRID(), 0, data)
 
 	if doc, err := rec.ToDocument(); err != nil {
 		t.Fatal(err)
-	} else if len(doc.Fields) != 3 {
+	} else if len(doc.Fields()) != 3 {
 		t.Fatal("wrong fields count in document")
 	} else if doc.GetField("caretaker").Value.(string) != "Michael" ||
 		doc.GetField("name").Value.(string) != "Linus" ||

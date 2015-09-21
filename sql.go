@@ -1,5 +1,6 @@
 package orient
 
+/*
 import (
 	"database/sql"
 	"database/sql/driver"
@@ -120,12 +121,8 @@ func (db *Database) Exec(cmd string, args []driver.Value) (driver.Result, error)
 		return ogonoriResult{int64(rec), -1}, nil
 	case []OIdentifiable:
 		return ogonoriResult{int64(len(rec)), rec[len(rec)-1].GetIdentity().ClusterPos}, nil
-	case *DocumentRecord:
-		doc, err := rec.ToDocument()
-		if err != nil {
-			return ogonoriResult{-1, -1}, err
-		}
-		return ogonoriResult{1, doc.GetIdentity().ClusterPos}, err
+	case OIdentifiable:
+		return ogonoriResult{1, rec.GetIdentity().ClusterPos}, err
 	}
 	return nil, fmt.Errorf("exec with return values is not supported for now, out type: %T", o)
 }
@@ -201,7 +198,7 @@ func newRows(docs []OIdentifiable) (*ogonoriRows, error) {
 	}
 
 	for i := range docs {
-		if rdoc, ok := docs[i].(*DocumentRecord); ok {
+		if rdoc, ok := docs[i].(*Document); ok {
 			doc, err := rdoc.ToDocument()
 			if err != nil {
 				return nil, err
@@ -214,7 +211,7 @@ func newRows(docs []OIdentifiable) (*ogonoriRows, error) {
 
 	var fulldoc bool
 	if doc, ok := docs[0].(*Document); ok {
-		if doc.Classname == "" {
+		if doc.classname == "" {
 			cols = make([]string, 0, len(doc.FieldNames()))
 			for _, fname := range doc.FieldNames() {
 				cols = append(cols, fname)
@@ -223,7 +220,7 @@ func newRows(docs []OIdentifiable) (*ogonoriRows, error) {
 			fulldoc = true
 			// if Classname is set then the user queried for a full document
 			// not individual properties of a Document/Class
-			cols = []string{doc.Classname}
+			cols = []string{doc.classname}
 		}
 	}
 	return &ogonoriRows{docs: docs, cols: cols, fulldoc: fulldoc}, nil
@@ -329,3 +326,4 @@ func (st *ogonoriStmt) Close() error {
 	// that is referenced by a client driver
 	return nil
 }
+*/

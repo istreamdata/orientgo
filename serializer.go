@@ -52,10 +52,8 @@ type RecordSerializer interface {
 	// String, in case of RecordSerializer must return it's class name, as it will be sent to server
 	String() string
 
-	// TODO: ToStream and FromStream must operate with Record instead of interface{}
-
-	ToStream(w io.Writer, rec interface{}) error
-	FromStream(data []byte) (interface{}, error)
+	ToStream(w io.Writer, rec ORecord) error
+	FromStream(data []byte) (ORecord, error)
 
 	SetGlobalPropertyFunc(fnc GlobalPropertyFunc)
 }

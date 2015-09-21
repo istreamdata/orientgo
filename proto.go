@@ -61,10 +61,10 @@ type DBSession interface {
 	GetClusterDataRange(clusterName string) (begin, end int64, err error)
 	ClustersCount(withDeleted bool, clusterNames ...string) (int64, error)
 
-	CreateRecord(doc *Document) (err error)
+	CreateRecord(rec ORecord) (err error)
 	DeleteRecordByRID(rid RID, recVersion int) error
 	GetRecordByRID(rid RID, fetchPlan FetchPlan, ignoreCache bool) (rec ORecord, err error)
-	UpdateRecord(doc *Document) error
+	UpdateRecord(rec ORecord) error
 	CountRecords() (int64, error)
 
 	Command(cmd CustomSerializable) (result interface{}, err error)

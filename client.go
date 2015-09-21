@@ -293,13 +293,13 @@ func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (int
 }
 
 // CreateRecord saves a record to the database. Record RID and version will be changed.
-func (db *Database) CreateRecord(doc *Document) error {
+func (db *Database) CreateRecord(rec ORecord) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
 	}
 	defer db.pool.putConn(conn)
-	return conn.CreateRecord(doc)
+	return conn.CreateRecord(rec)
 }
 
 // DeleteRecordByRID removes a record from database
@@ -324,13 +324,13 @@ func (db *Database) GetRecordByRID(rid RID, fetchPlan FetchPlan, ignoreCache boo
 }
 
 // UpdateRecord updates given record in a database. Record version will be changed after the call.
-func (db *Database) UpdateRecord(doc *Document) error {
+func (db *Database) UpdateRecord(rec ORecord) error {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return err
 	}
 	defer db.pool.putConn(conn)
-	return conn.UpdateRecord(doc)
+	return conn.UpdateRecord(rec)
 }
 
 // CountRecords returns total records count.

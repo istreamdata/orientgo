@@ -23,6 +23,8 @@ install:
 
 script:
   - go test -v -race ./...
-  - go vet ./...
+  - go vet .
+  - go vet ./obinary
+  - go tool vet -methods=false ./obinary/rw
 #  - go test -covermode=atomic ./...
 #  - $HOME/gopath/bin/golint .

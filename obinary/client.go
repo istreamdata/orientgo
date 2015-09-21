@@ -263,7 +263,6 @@ func (c *Client) run() error {
 			return ErrBrokenProtocol{fmt.Errorf("unknown resp status: %d", status)}
 		}
 	}
-	return nil
 }
 
 type resp struct {

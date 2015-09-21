@@ -46,13 +46,14 @@ func equals(tb testing.TB, exp, act interface{}) {
 
 func TestReadErrorResponseWithSingleException(t *testing.T) {
 	buf := new(bytes.Buffer)
-	rw.WriteByte(buf, byte(1)) // indicates continue of exception class/msg array
-	rw.WriteStrings(buf, "org.foo.BlargException", "wibble wibble!!")
-	rw.WriteByte(buf, byte(0)) // indicates end of exception class/msg array
-	rw.WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
+	bw := rw.NewWriter(buf)
+	bw.WriteByte(byte(1)) // indicates continue of exception class/msg array
+	bw.WriteStrings("org.foo.BlargException", "wibble wibble!!")
+	bw.WriteByte(byte(0)) // indicates end of exception class/msg array
+	bw.WriteBytes([]byte("this is a stacktrace simulator\nEOL"))
 
 	var serverExc error
-	serverExc = obinary.ReadErrorResponse(buf)
+	serverExc = obinary.ReadErrorResponse(rw.NewReader(buf))
 
 	e, ok := serverExc.(orient.OServerException)
 	if !ok {
@@ -66,16 +67,17 @@ func TestReadErrorResponseWithSingleException(t *testing.T) {
 
 func TestReadErrorResponseWithMultipleExceptions(t *testing.T) {
 	buf := new(bytes.Buffer)
-	rw.WriteByte(buf, byte(1)) // indicates more exceptions to come
-	rw.WriteStrings(buf, "org.foo.BlargException", "Too many blorgles!!")
-	rw.WriteByte(buf, byte(1)) // indicates more exceptions to come
-	rw.WriteStrings(buf, "org.foo.FeebleException", "Not enough juice")
-	rw.WriteByte(buf, byte(1)) // indicates more exceptions to come
-	rw.WriteStrings(buf, "org.foo.WobbleException", "Orbital decay")
-	rw.WriteByte(buf, byte(0)) // indicates end of exceptions
-	rw.WriteBytes(buf, []byte("this is a stacktrace simulator\nEOL"))
+	bw := rw.NewWriter(buf)
+	bw.WriteByte(byte(1)) // indicates more exceptions to come
+	bw.WriteStrings("org.foo.BlargException", "Too many blorgles!!")
+	bw.WriteByte(byte(1)) // indicates more exceptions to come
+	bw.WriteStrings("org.foo.FeebleException", "Not enough juice")
+	bw.WriteByte(byte(1)) // indicates more exceptions to come
+	bw.WriteStrings("org.foo.WobbleException", "Orbital decay")
+	bw.WriteByte(byte(0)) // indicates end of exceptions
+	bw.WriteBytes([]byte("this is a stacktrace simulator\nEOL"))
 
-	serverExc := obinary.ReadErrorResponse(buf)
+	serverExc := obinary.ReadErrorResponse(rw.NewReader(buf))
 
 	e, ok := serverExc.(orient.OServerException)
 	if !ok {

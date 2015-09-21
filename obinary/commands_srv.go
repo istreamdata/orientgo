@@ -26,16 +26,18 @@ func (c *Client) ConnectToServer(adminUser, adminPassw string) (mgr *Manager, er
 		sessId int32
 		//token []byte
 	)
-	err = c.root.sendCmd(requestConnect, func(w io.Writer) {
-		rw.WriteStrings(w, driverName, driverVersion)
-		rw.WriteShort(w, int16(c.curProtoVers))
-		rw.WriteNull(w) // dbclient id - only for cluster config // TODO: change to use dbc.clusteredConfig once that is added
-		rw.WriteString(w, c.recordFormat.String())
-		rw.WriteBool(w, false) // use token (true) or session (false)
-		rw.WriteStrings(w, adminUser, adminPassw)
-	}, func(r io.Reader) {
-		sessId = rw.ReadInt(r)
-		_ = rw.ReadBytes(r) // token - ignore for now
+	err = c.root.sendCmd(requestConnect, func(w *rw.Writer) error {
+		w.WriteStrings(driverName, driverVersion)
+		w.WriteShort(int16(c.curProtoVers))
+		w.WriteNull() // dbclient id - only for cluster config // TODO: change to use dbc.clusteredConfig once that is added
+		w.WriteString(c.recordFormat.String())
+		w.WriteBool(false) // use token (true) or session (false)
+		w.WriteStrings(adminUser, adminPassw)
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		sessId = r.ReadInt()
+		_ = r.ReadBytes() // token - ignore for now
+		return r.Err()
 	})
 	if err != nil {
 		return
@@ -52,8 +54,8 @@ func (c *Client) Auth(adminUser, adminPassw string) (orient.DBAdmin, error) {
 // dbType must be type DocumentDBType or GraphDBType.
 // storageType must type PersistentStorageType or VolatileStorageType.
 func (m *Manager) CreateDatabase(dbname string, dbtype orient.DatabaseType, storageType orient.StorageType) error {
-	return m.sess.sendCmd(requestDbCreate, func(w io.Writer) {
-		rw.WriteStrings(w, dbname, string(dbtype), string(storageType))
+	return m.sess.sendCmd(requestDbCreate, func(w *rw.Writer) error {
+		return w.WriteStrings(dbname, string(dbtype), string(storageType))
 	}, nil)
 }
 
@@ -66,8 +68,8 @@ func (m *Manager) CreateDatabase(dbname string, dbtype orient.DatabaseType, stor
 // This is a "server" command, so you must have already called
 // ConnectToServer before calling this function.
 func (m *Manager) DropDatabase(dbname string, dbtype orient.StorageType) (err error) {
-	return m.sess.sendCmd(requestDbDrop, func(w io.Writer) {
-		rw.WriteStrings(w, dbname, string(dbtype))
+	return m.sess.sendCmd(requestDbDrop, func(w *rw.Writer) error {
+		return w.WriteStrings(dbname, string(dbtype))
 	}, nil)
 }
 
@@ -75,10 +77,11 @@ func (m *Manager) DropDatabase(dbname string, dbtype orient.StorageType) (err er
 // ConnectToServer, otherwise an authorization error will be returned.
 // The storageType param must be either PersistentStorageType or VolatileStorageType.
 func (m *Manager) DatabaseExists(dbname string, storageType orient.StorageType) (val bool, err error) {
-	err = m.sess.sendCmd(requestDbExists, func(w io.Writer) {
-		rw.WriteStrings(w, dbname, string(storageType))
-	}, func(r io.Reader) {
-		val = rw.ReadBool(r)
+	err = m.sess.sendCmd(requestDbExists, func(w *rw.Writer) error {
+		return w.WriteStrings(dbname, string(storageType))
+	}, func(r *rw.Reader) error {
+		val = r.ReadBool()
+		return r.Err()
 	})
 	return
 }
@@ -90,10 +93,10 @@ func (m *Manager) DatabaseExists(dbname string, storageType orient.StorageType) 
 //     key:  cars
 //     val:  plocal:/path/to/orientdb-community-2.0.1/databases/cars
 func (m *Manager) ListDatabases() (list map[string]string, err error) {
-	defer catch(&err)
 	var data []byte
-	err = m.sess.sendCmd(requestDbLIST, nil, func(r io.Reader) {
-		data = rw.ReadBytes(r)
+	err = m.sess.sendCmd(requestDbLIST, nil, func(r *rw.Reader) error {
+		data = r.ReadBytes()
+		return r.Err()
 	})
 	if err != nil {
 		return

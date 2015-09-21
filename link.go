@@ -36,18 +36,24 @@ type RidBag struct {
 func (bag *RidBag) SetOwner(doc *Document) {
 	bag.owner = doc
 }
-func (bag *RidBag) FromStream(r io.Reader) (err error) {
-	defer catch(&err)
-	first := rw.ReadByte(r)
+func (bag *RidBag) FromStream(r io.Reader) error {
+	br := rw.NewReader(r)
+	first := br.ReadByte()
+	if err := br.Err(); err != nil {
+		return err
+	}
 	if first&0x1 != 0 {
 		bag.delegate = newEmbeddedRidBag()
 	} else {
 		bag.delegate = newSBTreeRidBag()
 	}
 	if first&0x2 != 0 {
-		rw.ReadRawBytes(r, bag.id[:])
+		br.ReadRawBytes(bag.id[:])
 	}
-	return bag.delegate.deserializeDelegate(r)
+	if err := br.Err(); err != nil {
+		return err
+	}
+	return bag.delegate.deserializeDelegate(br)
 }
 func (bag *RidBag) ToStream(w io.Writer) error {
 	var first byte
@@ -58,11 +64,12 @@ func (bag *RidBag) ToStream(w io.Writer) error {
 	if hasUUID {
 		first |= 0x2
 	}
-	rw.WriteByte(w, first)
+	bw := rw.NewWriter(w)
+	bw.WriteByte(first)
 	if hasUUID {
-		rw.WriteRawBytes(w, bag.id[:])
+		bw.WriteRawBytes(bag.id[:])
 	}
-	return bag.delegate.serializeDelegate(w)
+	return bag.delegate.serializeDelegate(bw)
 }
 func (bag *RidBag) IsRemote() bool {
 	switch bag.delegate.(type) {
@@ -74,8 +81,8 @@ func (bag *RidBag) IsRemote() bool {
 }
 
 type ridBagDelegate interface {
-	deserializeDelegate(r io.Reader) error
-	serializeDelegate(w io.Writer) error
+	deserializeDelegate(br *rw.Reader) error
+	serializeDelegate(bw *rw.Writer) error
 }
 
 func newEmbeddedRidBag() ridBagDelegate { return &embeddedRidBag{} }
@@ -84,28 +91,26 @@ type embeddedRidBag struct {
 	links []OIdentifiable
 }
 
-func (bag *embeddedRidBag) deserializeDelegate(r io.Reader) (err error) {
-	defer catch(&err)
-	n := int(rw.ReadInt(r))
+func (bag *embeddedRidBag) deserializeDelegate(br *rw.Reader) error {
+	n := int(br.ReadInt())
 	bag.links = make([]OIdentifiable, n)
 	for i := range bag.links {
 		var rid RID
-		if err = rid.FromStream(r); err != nil {
-			return
+		if err := rid.FromStream(br); err != nil {
+			return err
 		}
 		bag.links[i] = rid
 	}
-	return nil
+	return br.Err()
 }
-func (bag *embeddedRidBag) serializeDelegate(w io.Writer) (err error) {
-	defer catch(&err)
-	rw.WriteInt(w, int32(len(bag.links)))
+func (bag *embeddedRidBag) serializeDelegate(bw *rw.Writer) error {
+	bw.WriteInt(int32(len(bag.links)))
 	for _, l := range bag.links {
-		if err = l.GetIdentity().ToStream(w); err != nil {
-			return
+		if err := l.GetIdentity().ToStream(bw); err != nil {
+			return err
 		}
 	}
-	return nil
+	return bw.Err()
 }
 
 func newSBTreeRidBag() ridBagDelegate { return &sbTreeRidBag{} }
@@ -128,37 +133,38 @@ type sbTreeRidBag struct {
 	size          int
 }
 
-func (bag *sbTreeRidBag) serializeDelegate(w io.Writer) (err error) {
-	defer catch(&err)
+func (bag *sbTreeRidBag) serializeDelegate(bw *rw.Writer) error {
 	if bag.collectionPtr == nil {
-		rw.WriteLong(w, -1)
-		rw.WriteLong(w, -1)
-		rw.WriteInt(w, -1)
+		bw.WriteLong(-1)
+		bw.WriteLong(-1)
+		bw.WriteInt(-1)
 	} else {
-		rw.WriteLong(w, bag.collectionPtr.fileId)
-		rw.WriteLong(w, bag.collectionPtr.pageIndex)
-		rw.WriteInt(w, int32(bag.collectionPtr.pageOffset))
+		bw.WriteLong(bag.collectionPtr.fileId)
+		bw.WriteLong(bag.collectionPtr.pageIndex)
+		bw.WriteInt(int32(bag.collectionPtr.pageOffset))
 	}
-	rw.WriteInt(w, -1) // TODO: need a real value for compatibility with <= 1.7.5
-	rw.WriteInt(w, 0)  // TODO: support changes in sbTreeRidBag
-	return
+	bw.WriteInt(-1) // TODO: cached size; need a real value for compatibility with <= 1.7.5
+	bw.WriteInt(0)  // TODO: support changes in sbTreeRidBag
+	return bw.Err()
 }
-func (bag *sbTreeRidBag) deserializeDelegate(r io.Reader) (err error) {
-	defer catch(&err)
-	fileId := rw.ReadLong(r)
-	pageIndex := rw.ReadLong(r)
-	pageOffset := int(rw.ReadInt(r))
-	rw.ReadInt(r) // Cached bag size. Not used after 1.7.5
+func (bag *sbTreeRidBag) deserializeDelegate(br *rw.Reader) error {
+	fileId := br.ReadLong()
+	pageIndex := br.ReadLong()
+	pageOffset := int(br.ReadInt())
+	br.ReadInt() // Cached bag size. Not used after 1.7.5
+	if err := br.Err(); err != nil {
+		return err
+	}
 	if fileId == -1 {
 		bag.collectionPtr = nil
 	} else {
 		bag.collectionPtr = newBonsaiCollectionPtr(fileId, pageIndex, pageOffset)
 	}
 	bag.size = -1
-	return bag.deserializeChanges(r)
+	return bag.deserializeChanges(br)
 }
-func (bag *sbTreeRidBag) deserializeChanges(r io.Reader) (err error) {
-	n := int(rw.ReadInt(r))
+func (bag *sbTreeRidBag) deserializeChanges(r *rw.Reader) (err error) {
+	n := int(r.ReadInt())
 	changes := make(map[RID][]interface{})
 
 	type change struct {
@@ -171,8 +177,8 @@ func (bag *sbTreeRidBag) deserializeChanges(r io.Reader) (err error) {
 		if err = rid.FromStream(r); err != nil {
 			return err
 		}
-		chval := int(rw.ReadInt(r))
-		chtp := int(rw.ReadByte(r))
+		chval := int(r.ReadInt())
+		chtp := int(r.ReadByte())
 		arr := changes[rid]
 		switch chtp {
 		case 1: // abs
@@ -180,11 +186,10 @@ func (bag *sbTreeRidBag) deserializeChanges(r io.Reader) (err error) {
 		case 0: // diff
 			arr = append(arr, change{diff: true, val: chval})
 		default:
-			err = fmt.Errorf("unknown change type: %d", chtp)
-			return
+			return fmt.Errorf("unknown change type: %d", chtp)
 		}
 		changes[rid] = arr
 	}
 	bag.changes = changes
-	return
+	return r.Err()
 }

@@ -4,32 +4,29 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
 )
 
-func (c *Client) sendClientInfo(w io.Writer) {
+func (c *Client) sendClientInfo(w *rw.Writer) {
 	if c.curProtoVers >= ProtoVersion7 {
-		rw.WriteStrings(w, driverName, driverVersion) // driver info
-		rw.WriteShort(w, int16(c.curProtoVers))       // protocol version
-		rw.WriteNull(w)                               // client id (needed only for cluster config)
+		w.WriteStrings(driverName, driverVersion) // driver info
+		w.WriteShort(int16(c.curProtoVers))       // protocol version
+		w.WriteNull()                             // client id (needed only for cluster config)
 	}
 	if c.curProtoVers > ProtoVersion21 {
-		rw.WriteString(w, c.recordFormat.String())
+		w.WriteString(c.recordFormat.String())
 	} else {
 		panic("CSV serializer is not supported")
 	}
 	if c.curProtoVers > ProtoVersion26 {
-		rw.WriteBool(w, false) // use token (true) or session (false)
+		w.WriteBool(false) // use token (true) or session (false)
 	}
 }
 
-func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pass string) (sess *session, db *ODatabase, err error) {
-	defer catch(&err)
-
+func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pass string) (*session, *ODatabase, error) {
 	var (
 		sessId int32
 		//token []byte
@@ -37,36 +34,38 @@ func (c *Client) openDBSess(dbname string, dbtype orient.DatabaseType, user, pas
 		clusterCfg []byte
 		//serverVers string
 	)
-	err = c.root.sendCmd(requestDbOpen, func(w io.Writer) {
+	err := c.root.sendCmd(requestDbOpen, func(w *rw.Writer) error {
 		c.sendClientInfo(w)
 
-		rw.WriteString(w, dbname)
+		w.WriteString(dbname)
 		if c.curProtoVers >= ProtoVersion8 {
-			rw.WriteString(w, string(dbtype))
+			w.WriteString(string(dbtype))
 		}
-		rw.WriteString(w, user)
-		rw.WriteString(w, pass)
-	}, func(r io.Reader) {
-		sessId = rw.ReadInt(r) // new session id
-		_ = rw.ReadBytes(r)    // token - may ignore this in session mode (is nil)
+		w.WriteString(user)
+		w.WriteString(pass)
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		sessId = r.ReadInt() // new session id
+		_ = r.ReadBytes()    // token - may ignore this in session mode (is nil)
 
-		n := int(rw.ReadShort(r))
+		n := int(r.ReadShort())
 		clusters = make([]OCluster, n)
 		for i := range clusters {
-			name := rw.ReadString(r)
-			id := rw.ReadShort(r)
+			name := r.ReadString()
+			id := r.ReadShort()
 			clusters[i] = OCluster{Name: name, Id: id}
 		}
-		clusterCfg = rw.ReadBytes(r)
-		_ = rw.ReadString(r) // serverVers - unused, OrientDB release info
+		clusterCfg = r.ReadBytes()
+		_ = r.ReadString() // serverVers - unused, OrientDB release info
+		return r.Err()
 	})
 	if err != nil {
 		return nil, nil, err
 	} else if sessId <= 0 {
 		return nil, nil, fmt.Errorf("wrong session id returned: %d", sessId)
 	}
-	sess = c.newSess(sessId)
-	db = NewDatabase(dbname, dbtype)
+	sess := c.newSess(sessId)
+	db := NewDatabase(dbname, dbtype)
 	db.Clusters = clusters
 	db.ClustCfg = clusterCfg
 	return sess, db, nil
@@ -82,7 +81,6 @@ type Database struct {
 // username and password.  Database type should be one of the obinary constants:
 // DocumentDbType or GraphDbType.
 func (c *Client) OpenDatabase(dbname string, dbtype orient.DatabaseType, user, pass string) (db *Database, err error) {
-	defer catch(&err)
 	// TODO: close previous DB? will connection drop in this case?
 	var (
 		sess *session
@@ -146,34 +144,28 @@ func (db *Database) refreshGlobalProperties() error {
 
 // loadConfigRecord loads record #0:0 for the current database, caching
 // some of the information returned into OStorageConfiguration
-func (db *Database) loadConfigRecord() (oschemaRID orient.RID, err error) {
-	defer catch(&err)
+func (db *Database) loadConfigRecord() (orient.RID, error) {
 	// The config record comes back as type 'b' (raw bytes), which should
 	// just be converted to a string then tokenized by the pipe char
-	var rec orient.ORecord
 	rid := orient.RID{ClusterID: 0, ClusterPos: 0}
-	rec, err = db.GetRecordByRID(rid, "*:-1 index:0", true) // based on Java client code
+	rec, err := db.GetRecordByRID(rid, "*:-1 index:0", true) // based on Java client code
 	if err != nil {
-		return
+		return orient.NewEmptyRID(), err
 	}
 	raw, ok := rec.(*orient.BytesRecord)
 	if !ok {
-		err = fmt.Errorf("expected raw record for config, got %T", rec)
-		return
+		return orient.NewEmptyRID(), fmt.Errorf("expected raw record for config, got %T", rec)
 	} else if len(raw.Data) == 0 {
-		err = fmt.Errorf("config record is empty")
-		return
+		return orient.NewEmptyRID(), fmt.Errorf("config record is empty")
 	}
 	sc := &OStorageConfiguration{}
 	if err = sc.parse(string(raw.Data)); err != nil {
-		err = fmt.Errorf("config parse error: %s", err)
-		return
+		return orient.NewEmptyRID(), fmt.Errorf("config parse error: %s", err)
 	}
 	db.db.storageMu.Lock()
 	db.db.StorageCfg = *sc
 	db.db.storageMu.Unlock()
-	oschemaRID = sc.schemaRID
-	return oschemaRID, err
+	return sc.schemaRID, nil
 }
 
 // loadSchema loads record #0:1 for the current database, caching the
@@ -224,16 +216,15 @@ func (db *Database) loadSchema(rid orient.RID) error {
 // has already been opened (via OpenDatabase). This should be called
 // when exiting an app or before starting a connection to a different
 // OrientDB database.
-func (db *Database) Close() (err error) {
-	defer catch(&err)
+func (db *Database) Close() error {
 	if db == nil || db.db == nil || db.sess == nil {
-		return
+		return nil
 	}
-	err = db.sess.sendCmd(requestDbClose, nil, nil)
+	err := db.sess.sendCmd(requestDbClose, nil, nil)
 	db.sess.cli.closeSess(db.sess.id, db)
 	db.sess = nil
 	db.db = nil
-	return
+	return err
 }
 
 // FetchDatabaseSize retrieves the size of the current database in bytes.
@@ -257,14 +248,16 @@ func (db *Database) CountRecords() (int64, error) {
 // a problem on the server end or the record did not exist in the database.
 func (db *Database) DeleteRecordByRID(rid orient.RID, recVersion int) error {
 	var status byte
-	err := db.sess.sendCmd(requestRecordDELETE, func(w io.Writer) {
+	err := db.sess.sendCmd(requestRecordDELETE, func(w *rw.Writer) error {
 		if err := rid.ToStream(w); err != nil {
-			panic(err)
+			return err
 		}
-		rw.WriteInt(w, int32(recVersion))
-		rw.WriteByte(w, 0) // sync mode ; 0 = synchronous; 1 = asynchronous
-	}, func(r io.Reader) {
-		status = rw.ReadByte(r)
+		w.WriteInt(int32(recVersion))
+		w.WriteByte(0) // sync mode ; 0 = synchronous; 1 = asynchronous
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		status = r.ReadByte()
+		return r.Err()
 	})
 	if err != nil {
 		return err
@@ -281,20 +274,21 @@ func (db *Database) DeleteRecordByRID(rid orient.RID, recVersion int) error {
 //
 // ignoreCache = true
 func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, ignoreCache bool) (rec orient.ORecord, err error) {
-	err = db.sess.sendCmd(requestRecordLOAD, func(w io.Writer) {
+	err = db.sess.sendCmd(requestRecordLOAD, func(w *rw.Writer) error {
 		if err := rid.ToStream(w); err != nil {
-			panic(err)
+			return err
 		}
-		rw.WriteString(w, string(fetchPlan))
+		w.WriteString(string(fetchPlan))
 		if db.sess.cli.curProtoVers >= ProtoVersion9 {
-			rw.WriteBool(w, ignoreCache)
+			w.WriteBool(ignoreCache)
 		}
 		if db.sess.cli.curProtoVers >= ProtoVersion13 {
-			rw.WriteBool(w, false)
+			w.WriteBool(false)
 		}
-	}, func(r io.Reader) {
-		if rw.ReadByte(r) == 0 {
-			return
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		if r.ReadByte() == 0 {
+			return r.Err()
 		}
 		var (
 			content []byte
@@ -302,13 +296,16 @@ func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, i
 			recType orient.RecordType
 		)
 		if db.sess.cli.curProtoVers <= ProtoVersion27 {
-			content = rw.ReadBytes(r)
-			version = int(rw.ReadInt(r))
-			recType = orient.RecordType(rw.ReadByte(r))
+			content = r.ReadBytes()
+			version = int(r.ReadInt())
+			recType = orient.RecordType(r.ReadByte())
 		} else {
-			recType = orient.RecordType(rw.ReadByte(r))
-			version = int(rw.ReadInt(r))
-			content = rw.ReadBytes(r)
+			recType = orient.RecordType(r.ReadByte())
+			version = int(r.ReadInt())
+			content = r.ReadBytes()
+		}
+		if err := r.Err(); err != nil {
+			return err
 		}
 		rec = orient.NewRecordOfType(recType)
 		switch rc := rec.(type) {
@@ -316,15 +313,20 @@ func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, i
 			rc.SetSerializer(db.sess.cli.recordFormat)
 		}
 		if err := rec.Fill(rid, version, content); err != nil {
-			panic(err)
+			return err
 		}
 		for {
-			status := rw.ReadByte(r)
+			status := r.ReadByte()
 			if status != 2 {
 				break
 			}
-			db.updateCachedRecord(db.readIdentifiable(r)) // .(orient.ORecord)
+			rec, err := db.readIdentifiable(r)
+			if err != nil {
+				return err
+			}
+			db.updateCachedRecord(rec) // .(orient.ORecord)
 		}
+		return r.Err()
 	})
 	return rec, err
 }
@@ -342,11 +344,12 @@ func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, e
 	if err != nil {
 		return
 	}
-	err = db.sess.sendCmd(requestDataClusterDATARANGE, func(w io.Writer) {
-		rw.WriteShort(w, clusterID)
-	}, func(r io.Reader) {
-		begin = rw.ReadLong(r)
-		end = rw.ReadLong(r)
+	err = db.sess.sendCmd(requestDataClusterDATARANGE, func(w *rw.Writer) error {
+		return w.WriteShort(clusterID)
+	}, func(r *rw.Reader) error {
+		begin = r.ReadLong()
+		end = r.ReadLong()
+		return r.Err()
 	})
 	return begin, end, err
 }
@@ -357,11 +360,13 @@ func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, e
 // The clusterID is returned if the command is successful.
 func (db *Database) AddCluster(name string) (clusterID int16, err error) {
 	name = strings.ToLower(name)
-	err = db.sess.sendCmd(requestDataClusterADD, func(w io.Writer) {
-		rw.WriteString(w, name)
-		rw.WriteShort(w, -1) // -1 means generate new cluster id
-	}, func(r io.Reader) {
-		clusterID = rw.ReadShort(r)
+	err = db.sess.sendCmd(requestDataClusterADD, func(w *rw.Writer) error {
+		w.WriteString(name)
+		w.WriteShort(-1) // -1 means generate new cluster id
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		clusterID = r.ReadShort()
+		return r.Err()
 	})
 	if err == nil {
 		db.db.Clusters = append(db.db.Clusters, OCluster{name, clusterID})
@@ -379,10 +384,11 @@ func (db *Database) DropCluster(clusterName string) error {
 		return err
 	}
 	var status byte
-	err = db.sess.sendCmd(requestDataClusterDROP, func(w io.Writer) {
-		rw.WriteShort(w, clusterID)
-	}, func(r io.Reader) {
-		status = rw.ReadByte(r)
+	err = db.sess.sendCmd(requestDataClusterDROP, func(w *rw.Writer) error {
+		return w.WriteShort(clusterID)
+	}, func(r *rw.Reader) error {
+		status = r.ReadByte()
+		return r.Err()
 	})
 	if err == nil && status != byte(1) {
 		err = fmt.Errorf("Drop cluster failed. Return code: %d.", status)
@@ -531,24 +537,25 @@ func (db *Database) ClustersCount(withDeleted bool, clusterNames ...string) (val
 		}
 		clusterIDs[i] = clusterID
 	}
-	err = db.sess.sendCmd(requestDataClusterCOUNT, func(w io.Writer) {
-		rw.WriteShort(w, int16(len(clusterIDs)))
+	err = db.sess.sendCmd(requestDataClusterCOUNT, func(w *rw.Writer) error {
+		w.WriteShort(int16(len(clusterIDs)))
 		for _, id := range clusterIDs {
-			rw.WriteShort(w, id)
+			w.WriteShort(id)
 		}
-		rw.WriteBool(w, withDeleted)
-	}, func(r io.Reader) {
-		val = rw.ReadLong(r)
+		w.WriteBool(withDeleted)
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		val = r.ReadLong()
+		return r.Err()
 	})
 	return
 }
 
 func (db *Database) getLongFromDB(cmd byte) (val int64, err error) {
 	val = -1
-	err = db.sess.sendCmd(cmd, func(w io.Writer) {
-		// nothing extra to send
-	}, func(r io.Reader) {
-		val = rw.ReadLong(r)
+	err = db.sess.sendCmd(cmd, nil, func(r *rw.Reader) error {
+		val = r.ReadLong()
+		return r.Err()
 	})
 	return
 }
@@ -576,7 +583,6 @@ func (db *Database) findClusterWithName(name string) (int16, error) {
 // you are currently connected to.
 // Does REQUEST_RECORD_CREATE OrientDB cmd (binary network protocol).
 func (db *Database) CreateRecord(doc *orient.Document) (err error) {
-	defer catch(&err)
 	if doc.Classname == "" {
 		return errors.New("classname must be present on Document to call CreateRecord")
 	}
@@ -592,20 +598,22 @@ func (db *Database) CreateRecord(doc *orient.Document) (err error) {
 		return
 	}
 
-	err = db.sess.sendCmd(requestRecordCREATE, func(w io.Writer) {
-		rw.WriteShort(w, clusterID)
-		rw.WriteBytes(w, rbuf.Bytes())
-		rw.WriteByte(w, byte('d')) // document record-type
-		rw.WriteByte(w, byte(0))   // synchronous mode indicator
-	}, func(r io.Reader) {
+	err = db.sess.sendCmd(requestRecordCREATE, func(w *rw.Writer) error {
+		w.WriteShort(clusterID)
+		w.WriteBytes(rbuf.Bytes())
+		w.WriteByte(byte('d')) // document record-type
+		w.WriteByte(byte(0))   // synchronous mode indicator
+		return w.Err()
+	}, func(r *rw.Reader) error {
 		if err = doc.RID.FromStream(r); err != nil {
 			panic(err)
 		}
-		doc.Version = int(rw.ReadInt(r))
-		nCollChanges := rw.ReadInt(r)
+		doc.Version = int(r.ReadInt())
+		nCollChanges := r.ReadInt()
 		if nCollChanges != 0 {
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
+		return r.Err()
 	})
 	// In the Java client, they now a 'select from XXX' at this point -> would that be useful here?
 	return
@@ -614,7 +622,6 @@ func (db *Database) CreateRecord(doc *orient.Document) (err error) {
 // UpdateRecord should be used update an existing record in the OrientDB database.
 // It does the REQUEST_RECORD_UPDATE OrientDB cmd (network binary protocol)
 func (db *Database) UpdateRecord(doc *orient.Document) (err error) {
-	defer catch(&err)
 	if doc == nil {
 		return fmt.Errorf("document is nil")
 	} else if doc.RID.ClusterID < 0 || doc.RID.ClusterPos < 0 {
@@ -625,22 +632,24 @@ func (db *Database) UpdateRecord(doc *orient.Document) (err error) {
 	if err = ser.ToStream(rbuf, doc); err != nil {
 		return
 	}
-	return db.sess.sendCmd(requestRecordUPDATE, func(w io.Writer) {
-		if err = doc.RID.ToStream(w); err != nil {
-			panic(err)
+	return db.sess.sendCmd(requestRecordUPDATE, func(w *rw.Writer) error {
+		if err := doc.RID.ToStream(w); err != nil {
+			return err
 		}
-		rw.WriteBool(w, true) // update-content flag
-		rw.WriteBytes(w, rbuf.Bytes())
-		rw.WriteInt(w, int32(doc.Version)) // record version
-		rw.WriteByte(w, byte('d'))         // record-type: document // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
-		rw.WriteByte(w, 0)                 // mode: synchronous
-	}, func(r io.Reader) {
-		doc.Version = int(rw.ReadInt(r))
-		nCollChanges := rw.ReadInt(r)
+		w.WriteBool(true) // update-content flag
+		w.WriteBytes(rbuf.Bytes())
+		w.WriteInt(int32(doc.Version)) // record version
+		w.WriteByte(byte('d'))         // record-type: document // TODO: how support 'b' (raw bytes) & 'f' (flat data)?
+		w.WriteByte(0)                 // mode: synchronous
+		return w.Err()
+	}, func(r *rw.Reader) error {
+		doc.Version = int(r.ReadInt())
+		nCollChanges := r.ReadInt()
 		if nCollChanges != 0 {
 			// if > 0, then have to deal with RidBag mgmt:
 			// [(uuid-most-sig-bits:long)(uuid-least-sig-bits:long)(updated-file-id:long)(updated-page-index:long)(updated-page-offset:int)]
 			panic("CreateRecord: Found case where number-collection-changes is not zero -> log case and impl code to handle")
 		}
+		return r.Err()
 	})
 }

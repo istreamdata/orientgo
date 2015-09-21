@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/istreamdata/orientgo"
+	"github.com/istreamdata/orientgo/obinary/rw"
 )
 
 func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
@@ -41,9 +42,15 @@ func testSerializeEmbMap(t *testing.T, off int, mp interface{}, origBase64 strin
 	for i := 0; i < off; i++ {
 		buf.WriteByte(0)
 	}
-	binaryRecordFormatV0{}.writeEmbeddedMap(buf, off, mp)
+	if err := (binaryRecordFormatV0{}).writeEmbeddedMap(rw.NewWriter(buf), off, mp); err != nil {
+		t.Fatal(err)
+	}
 	testBase64Compare(t, buf.Bytes(), origBase64)
-	out := binaryRecordFormatV0{}.readEmbeddedMap(bytes.NewReader(buf.Bytes()), nil)
+	r := rw.NewReadSeeker(bytes.NewReader(buf.Bytes()))
+	out, err := (binaryRecordFormatV0{}).readEmbeddedMap(r, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if reflect.TypeOf(out) != reflect.TypeOf(mp) {
 		t.Logf("types are not the same: %T -> %T", mp, out)
 	}
@@ -89,7 +96,9 @@ func testSerializeEmbCol(t *testing.T, off int, col interface{}, origBase64 stri
 	for i := 0; i < off; i++ {
 		buf.WriteByte(0)
 	}
-	binaryRecordFormatV0{}.writeEmbeddedCollection(buf, off, col, orient.UNKNOWN)
+	if err := (binaryRecordFormatV0{}).writeEmbeddedCollection(rw.NewWriter(buf), off, col, orient.UNKNOWN); err != nil {
+		t.Fatal(err)
+	}
 	testBase64Compare(t, buf.Bytes(), origBase64)
 }
 
@@ -144,9 +153,16 @@ func TestSerializeDocumentFieldMapAndArr(t *testing.T) {
 func TestSerializeDecimalV0(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	val := big.NewInt(123456789)
-	binaryRecordFormatV0{}.writeSingleValue(buf, 0, val, orient.DECIMAL, orient.UNKNOWN)
+	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, orient.DECIMAL, orient.UNKNOWN); err != nil {
+		t.Fatal(err)
+	}
 	testBase64Compare(t, buf.Bytes(), "AAAAAAAAAAQHW80V")
-	out := binaryRecordFormatV0{}.readSingleValue(bytes.NewReader(buf.Bytes()), orient.DECIMAL, nil)
+
+	r := rw.NewReadSeeker(bytes.NewReader(buf.Bytes()))
+	out, err := (binaryRecordFormatV0{}).readSingleValue(r, orient.DECIMAL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if val2, ok := out.(orient.Decimal); !ok {
 		t.Fatalf("expected Decimal, got: %T", out)
 	} else if val.Cmp(val2.Value) != 0 {
@@ -158,8 +174,15 @@ func TestSerializeDatetimeV0(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	val := time.Now()
 	val = time.Unix(val.Unix(), int64(val.Nanosecond()/1e6)*1e6) // precise to milliseconds
-	binaryRecordFormatV0{}.writeSingleValue(buf, 0, val, orient.DATETIME, orient.UNKNOWN)
-	out := binaryRecordFormatV0{}.readSingleValue(bytes.NewReader(buf.Bytes()), orient.DATETIME, nil)
+	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, orient.DATETIME, orient.UNKNOWN); err != nil {
+		t.Fatal(err)
+	}
+
+	r := rw.NewReadSeeker(bytes.NewReader(buf.Bytes()))
+	out, err := (binaryRecordFormatV0{}).readSingleValue(r, orient.DATETIME, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if val2, ok := out.(time.Time); !ok {
 		t.Fatalf("expected Time, got: %T", out)
 	} else if !val.Equal(val2) {

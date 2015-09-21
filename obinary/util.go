@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func catch(err *error) {
+func catch2(err *error) {
 	if r := recover(); r != nil {
 		switch rr := r.(type) {
 		case error:

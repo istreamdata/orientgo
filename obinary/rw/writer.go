@@ -15,91 +15,134 @@ const (
 	SizeDouble = SizeLong
 )
 
-func write(w io.Writer, o interface{}) {
-	if err := binary.Write(w, Order, o); err != nil {
-		panic(err)
+func NewWriter(w io.Writer) *Writer {
+	if bw, ok := w.(*Writer); ok {
+		return bw
 	}
+	return &Writer{W: w}
 }
 
-func WriteNull(w io.Writer) {
-	WriteInt(w, -1)
+type Writer struct {
+	err error
+	W   io.Writer
 }
 
-func WriteByte(w io.Writer, b byte) {
-	WriteRawBytes(w, []byte{b})
+func (w Writer) Err() error {
+	return w.err
 }
-
-// WriteShort writes a int16 in big endian order to the wfer
-func WriteShort(w io.Writer, n int16) {
-	buf := make([]byte, SizeShort)
-	Order.PutUint16(buf, uint16(n))
-	WriteRawBytes(w, buf)
-}
-
-// WriteInt writes a int32 in big endian order to the wfer
-func WriteInt(w io.Writer, n int32) {
-	buf := make([]byte, SizeInt)
-	Order.PutUint32(buf, uint32(n))
-	WriteRawBytes(w, buf)
-}
-
-// WriteLong writes a int64 in big endian order to the wfer
-func WriteLong(w io.Writer, n int64) {
-	buf := make([]byte, SizeLong)
-	Order.PutUint64(buf, uint64(n))
-	WriteRawBytes(w, buf)
-}
-
-func WriteStrings(w io.Writer, ss ...string) {
-	for _, s := range ss {
-		WriteString(w, s)
+func (w *Writer) Write(p []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
 	}
+	return w.W.Write(p)
 }
-
-func WriteString(w io.Writer, s string) {
-	WriteBytes(w, []byte(s))
+func (w *Writer) write(o interface{}) error {
+	if w.err != nil {
+		return w.err
+	}
+	if err := binary.Write(w.W, Order, o); err != nil {
+		w.err = err
+	}
+	return w.err
 }
 
 // WriteRawBytes just writes the bytes, not prefixed by the size of the []byte
-func WriteRawBytes(w io.Writer, bs []byte) {
-	if n, err := w.Write(bs); err != nil {
-		panic(err)
-	} else if n != len(bs) {
-		panic(fmt.Errorf("incorrect number of bytes written: %d", n))
+func (w *Writer) WriteRawBytes(bs []byte) error {
+	if w.err != nil {
+		return w.err
 	}
+	if n, err := w.W.Write(bs); err != nil {
+		w.err = err
+	} else if n != len(bs) {
+		w.err = fmt.Errorf("incorrect number of bytes written: %d", n)
+	}
+	return w.err
+}
+func (w *Writer) WriteByte(b byte) error {
+	return w.WriteRawBytes([]byte{b})
+}
+
+// WriteShort writes a int16 in big endian order to Writer
+func (w *Writer) WriteShort(n int16) error {
+	buf := make([]byte, SizeShort)
+	Order.PutUint16(buf, uint16(n))
+	return w.WriteRawBytes(buf)
+}
+
+// WriteInt writes a int32 in big endian order to Writer
+func (w *Writer) WriteInt(n int32) error {
+	buf := make([]byte, SizeInt)
+	Order.PutUint32(buf, uint32(n))
+	return w.WriteRawBytes(buf)
+}
+
+// WriteLong writes a int64 in big endian order to Writer
+func (w *Writer) WriteLong(n int64) error {
+	buf := make([]byte, SizeLong)
+	Order.PutUint64(buf, uint64(n))
+	return w.WriteRawBytes(buf)
+}
+
+func (w *Writer) WriteNull() error {
+	return w.WriteInt(-1)
 }
 
 // WriteBytes is meant to be used for writing a structure that the OrientDB will
-// interpret as a byte array, usually a serialized datastructure.  This means the
-// first thing written to the wfer is the size of the byte array.  If you want
+// interpret as a byte array, usually a serialized data structure.  This means the
+// first thing written to Writer is the size of the byte array.  If you want
 // to write bytes without the the size prefix, use WriteRawBytes instead.
-func WriteBytes(w io.Writer, bs []byte) {
-	WriteInt(w, int32(len(bs)))
-	WriteRawBytes(w, bs)
+func (w *Writer) WriteBytes(bs []byte) error {
+	w.WriteInt(int32(len(bs)))
+	w.WriteRawBytes(bs)
+	return w.err
 }
 
-// WriteBool writes byte(1) for true and byte(0) for false to the wfer,
+func (w *Writer) WriteString(s string) error {
+	return w.WriteBytes([]byte(s))
+}
+
+func (w *Writer) WriteStrings(ss ...string) error {
+	for _, s := range ss {
+		w.WriteString(s)
+	}
+	return w.err
+}
+
+// WriteBool writes byte(1) for true and byte(0) for false to Writer,
 // as specified by the OrientDB spec.
-func WriteBool(w io.Writer, b bool) {
+func (w *Writer) WriteBool(b bool) error {
 	if b {
-		WriteByte(w, byte(1))
+		w.WriteByte(byte(1))
 	} else {
-		WriteByte(w, byte(0))
+		w.WriteByte(byte(0))
 	}
+	return w.err
 }
 
-// WriteFloat writes a float32 in big endian order to the wfer
-func WriteFloat(w io.Writer, f float32) {
-	write(w, f)
+// WriteFloat writes a float32 in big endian order to Writer
+func (w *Writer) WriteFloat(f float32) error {
+	return w.write(f)
 }
 
-// WriteDouble writes a float64 in big endian order to the wfer
-func WriteDouble(w io.Writer, f float64) {
-	write(w, f)
+// WriteDouble writes a float64 in big endian order to Writer
+func (w *Writer) WriteDouble(f float64) error {
+	return w.write(f)
 }
 
-func Copy(w io.Writer, r io.Reader) {
-	if _, err := io.Copy(w, r); err != nil {
-		panic(err)
-	}
+// WriteVarint zigzag encodes the int64 passed in and then
+// translates that number to a protobuf/OrientDB varint, writing
+// the bytes of that varint to the io.Writer.
+func (w *Writer) WriteVarint(v int64) (int, error) {
+	buf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutVarint(buf, v)
+	return n, w.WriteRawBytes(buf[:n])
+}
+
+func (w *Writer) WriteBytesVarint(bs []byte) (int, error) {
+	vn, _ := w.WriteVarint(int64(len(bs)))
+	return vn + len(bs), w.WriteRawBytes(bs)
+}
+
+func (w *Writer) WriteStringVarint(s string) (int, error) {
+	return w.WriteBytesVarint([]byte(s))
 }

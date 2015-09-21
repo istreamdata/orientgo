@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/istreamdata/orientgo"
 	"github.com/istreamdata/orientgo/obinary/rw"
-	"io"
 )
 
 func (db *Database) serializer() orient.RecordSerializer {
@@ -15,22 +14,31 @@ func (db *Database) updateCachedRecord(rec interface{}) {
 	// TODO: implement records cache
 }
 
-func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
-	resType := rune(rw.ReadByte(r))
+func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error) {
+	resType := rune(r.ReadByte())
+	if err = r.Err(); err != nil {
+		return nil, err
+	}
 	switch resType {
 	case 'n': // null result
 		result = nil
 	case 'r': // single record
-		rec := db.readIdentifiable(r)
+		rec, err := db.readIdentifiable(r)
+		if err != nil {
+			return nil, err
+		}
 		if true { // TODO: try cast to Record
 			db.updateCachedRecord(rec)
 		}
 		result = rec
 	case 'l', 's': // collection of records
-		n := int(rw.ReadInt(r))
+		n := int(r.ReadInt())
 		recs := make([]orient.OIdentifiable, n) // TODO: do something special for Set type?
 		for i := range recs {
-			rec := db.readIdentifiable(r)
+			rec, err := db.readIdentifiable(r)
+			if err != nil {
+				return nil, err
+			}
 			if true { // TODO: try cast to Record
 				db.updateCachedRecord(rec)
 			}
@@ -40,11 +48,13 @@ func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
 	case 'i':
 		var recs []orient.OIdentifiable
 		for {
-			status := rw.ReadByte(r)
+			status := r.ReadByte()
 			if status <= 0 {
 				break
 			}
-			if rec := db.readIdentifiable(r); rec == nil {
+			if rec, err := db.readIdentifiable(r); err != nil {
+				return nil, err
+			} else if rec == nil {
 				continue
 			} else if status == 1 {
 				if true { // TODO: try cast to Record
@@ -55,29 +65,33 @@ func (db *Database) readSynchResult(r io.Reader) (result interface{}) {
 		}
 		result = recs
 	case 'a': // serialized type
-		s := rw.ReadString(r)
+		s := r.ReadString()
+		if err = r.Err(); err != nil {
+			return nil, err
+		}
 		result = stringRecordFormatAbs{}.FieldTypeFromStream(stringRecordFormatAbs{}.GetType(s), s)
 	default:
 		panic(fmt.Errorf("readSynchResult: not supported result type %v", resType))
 	}
 	if db.sess.cli.curProtoVers >= ProtoVersion17 {
 		for {
-			status := rw.ReadByte(r)
+			status := r.ReadByte()
 			if status <= 0 {
 				break
 			}
-			rec := db.readIdentifiable(r)
+			rec, err := db.readIdentifiable(r)
+			if err != nil {
+				return result, err
+			}
 			if rec != nil && status == 2 {
 				db.updateCachedRecord(rec)
 			}
 		}
 	}
-	return
+	return result, r.Err()
 }
 
 func (db *Database) Command(cmd orient.CustomSerializable) (result interface{}, err error) {
-	defer catch(&err)
-
 	var data []byte
 	data, err = orient.SerializeAnyStreamable(cmd)
 	if err != nil {
@@ -90,24 +104,29 @@ func (db *Database) Command(cmd orient.CustomSerializable) (result interface{}, 
 	// [(synch-result-type:byte)[(synch-result-content:?)]]+
 	// so the final value will by byte(0) to indicate the end of the array
 	// and we must use a loop here
-	err = db.sess.sendCmd(requestCommand, func(w io.Writer) {
+	err = db.sess.sendCmd(requestCommand, func(w *rw.Writer) error {
 		if live {
-			rw.WriteByte(w, byte('l'))
+			w.WriteByte(byte('l'))
 		} else if async {
-			rw.WriteByte(w, byte('a'))
+			w.WriteByte(byte('a'))
 		} else {
-			rw.WriteByte(w, byte('s'))
+			w.WriteByte(byte('s'))
 		}
-		rw.WriteBytes(w, data)
-	}, func(r io.Reader) {
+		w.WriteBytes(data)
+		return w.Err()
+	}, func(r *rw.Reader) error {
 		if async {
 			// TODO: async
 		} else {
-			result = db.readSynchResult(r)
+			result, err = db.readSynchResult(r)
+			if err != nil {
+				return err
+			}
 			if live {
 				// TODO: live
 			}
 		}
+		return r.Err()
 	})
 	return result, err
 }

@@ -110,20 +110,21 @@ func (rid RID) NextRID() RID {
 	return rid
 }
 
-func (rid *RID) FromStream(r io.Reader) (err error) {
-	defer catch(&err)
+func (rid *RID) FromStream(r io.Reader) error {
 	buf := make([]byte, RIDSerializedSize)
-	rw.ReadRawBytes(r, buf)
+	if err := rw.NewReader(r).ReadRawBytes(buf); err != nil {
+		return err
+	}
 	rid.ClusterID = int16(rw.Order.Uint16(buf))
 	rid.ClusterPos = int64(rw.Order.Uint64(buf[rw.SizeShort:]))
-	return
+	return nil
 }
 
-func (rid RID) ToStream(w io.Writer) (err error) {
-	defer catch(&err)
-	rw.WriteShort(w, rid.ClusterID)
-	rw.WriteLong(w, rid.ClusterPos)
-	return
+func (rid RID) ToStream(w io.Writer) error {
+	bw := rw.NewWriter(w)
+	bw.WriteShort(rid.ClusterID)
+	bw.WriteLong(rid.ClusterPos)
+	return bw.Err()
 }
 
 // ParseRID converts a string of form #N:M or N:M to a RID.

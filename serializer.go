@@ -98,13 +98,15 @@ type MapSerializable interface {
 }
 
 // SerializeAnyStreamable serializes a given object
-func SerializeAnyStreamable(o CustomSerializable) (data []byte, err error) {
-	defer catch(&err)
+func SerializeAnyStreamable(o CustomSerializable) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	rw.WriteString(buf, o.GetClassName())
-	if err = o.ToStream(buf); err != nil {
-		return
+	bw := rw.NewWriter(buf)
+	bw.WriteString(o.GetClassName())
+	if err := o.ToStream(bw); err != nil {
+		return nil, err
 	}
-	data = buf.Bytes()
-	return
+	if err := bw.Err(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

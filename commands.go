@@ -55,30 +55,30 @@ func (rq textReqCommand) GetText() string {
 	return rq.text
 }
 
-func (rq textReqCommand) ToStream(w io.Writer) (err error) {
-	defer catch(&err)
-
+func (rq textReqCommand) ToStream(w io.Writer) error {
 	params := arrayToParamsMap(rq.params)
-
-	rw.WriteString(w, rq.text)
-	if params == nil || reflect.ValueOf(params).Len() == 0 {
-		rw.WriteBool(w, false) // simple params are absent
-		rw.WriteBool(w, false) // composite keys are absent
-		return
-	}
-
-	rw.WriteBool(w, true) // simple params
 	buf := bytes.NewBuffer(nil)
 	doc := NewEmptyDocument()
 	doc.SetField("parameters", params)
-	if err = GetDefaultRecordSerializer().ToStream(buf, doc); err != nil {
-		return
+	if err := GetDefaultRecordSerializer().ToStream(buf, doc); err != nil {
+		return err
 	}
-	rw.WriteBytes(w, buf.Bytes())
+
+	bw := rw.NewWriter(w)
+
+	bw.WriteString(rq.text)
+	if params == nil || reflect.ValueOf(params).Len() == 0 {
+		bw.WriteBool(false) // simple params are absent
+		bw.WriteBool(false) // composite keys are absent
+		return bw.Err()
+	}
+
+	bw.WriteBool(true) // simple params
+	bw.WriteBytes(buf.Bytes())
 
 	// TODO: check for composite keys
-	rw.WriteBool(w, false) // composite keys
-	return
+	bw.WriteBool(false) // composite keys
+	return bw.Err()
 }
 
 // FunctionCommand is a command to call server-side function.
@@ -126,9 +126,10 @@ func NewScriptCommand(lang ScriptLang, body string, params ...interface{}) Scrip
 func (rq ScriptCommand) GetClassName() string { return "s" }
 
 // ToStream serializes command to specified Writer
-func (rq ScriptCommand) ToStream(w io.Writer) (err error) {
-	defer catch(&err)
-	rw.WriteString(w, rq.lang)
+func (rq ScriptCommand) ToStream(w io.Writer) error {
+	if err := rw.NewWriter(w).WriteString(rq.lang); err != nil {
+		return err
+	}
 	return rq.textReqCommand.ToStream(w)
 }
 
@@ -191,23 +192,27 @@ func (rq SQLQuery) FetchPlan(plan FetchPlan) SQLQuery {
 }
 
 // ToStream serializes command to specified Writer
-func (rq SQLQuery) ToStream(w io.Writer) (err error) {
-	defer catch(&err)
-	rw.WriteString(w, rq.text)
-	rw.WriteInt(w, int32(rq.limit))
-	rw.WriteString(w, rq.plan)
-	rw.WriteBytes(w, rq.serializeQueryParameters(rq.params))
-	return
+func (rq SQLQuery) ToStream(w io.Writer) error {
+	sparams, err := rq.serializeQueryParameters(rq.params)
+	if err != nil {
+		return err
+	}
+	bw := rw.NewWriter(w)
+	bw.WriteString(rq.text)
+	bw.WriteInt(int32(rq.limit))
+	bw.WriteString(rq.plan)
+	bw.WriteBytes(sparams)
+	return bw.Err()
 }
-func (rq SQLQuery) serializeQueryParameters(params []interface{}) []byte {
+func (rq SQLQuery) serializeQueryParameters(params []interface{}) ([]byte, error) {
 	if len(params) == 0 {
-		return nil
+		return nil, nil
 	}
 	doc := NewEmptyDocument()
 	doc.SetField("params", arrayToParamsMap(params)) // TODO: convertToRIDsIfPossible
 	buf := bytes.NewBuffer(nil)
 	if err := GetDefaultRecordSerializer().ToStream(buf, doc); err != nil {
-		panic(err)
+		return nil, err
 	}
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }

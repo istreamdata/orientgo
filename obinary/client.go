@@ -53,6 +53,8 @@ func Dial(addr string) (*Client, error) {
 		addr: addr, conn: conn,
 		br: bufio.NewReader(conn), bw: bufio.NewWriter(conn),
 	}
+	c.pr = rw.NewReader(c.br)
+	c.pw = rw.NewWriter(c.bw)
 	if err := c.handshakeVersion(); err != nil {
 		conn.Close()
 		return nil, err
@@ -74,7 +76,9 @@ type Client struct {
 
 	conn net.Conn
 	br   *bufio.Reader
+	pr   *rw.Reader
 	bw   *bufio.Writer
+	pw   *rw.Writer
 	cmuw sync.Mutex
 
 	root *session
@@ -91,13 +95,14 @@ type Client struct {
 	recordFormat orient.RecordSerializer
 }
 
-func (c *Client) handshakeVersion() (err error) {
-	defer catch(&err)
-
+func (c *Client) handshakeVersion() error {
 	c.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	defer c.conn.SetReadDeadline(time.Time{})
 
-	c.srvProtoVers = int(rw.ReadShort(c.conn))
+	c.srvProtoVers = int(c.pr.ReadShort())
+	if err := c.pr.Err(); err != nil {
+		return err
+	}
 	if c.srvProtoVers < MinProtocolVersion || c.srvProtoVers > MaxProtocolVersion {
 		return ErrUnsupportedVersion(c.srvProtoVers)
 	} else if c.srvProtoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
@@ -111,15 +116,18 @@ func (c *Client) handshakeVersion() (err error) {
 	return nil
 }
 
-func (c *Client) writeCmd(op byte, sid int32, wr func(io.Writer)) {
+func (c *Client) writeCmd(op byte, sid int32, wr func(*rw.Writer) error) error {
 	c.cmuw.Lock()
 	defer c.cmuw.Unlock()
-	rw.WriteByte(c.bw, op)
-	rw.WriteInt(c.bw, sid)
+	c.pw.WriteByte(op)
+	c.pw.WriteInt(sid)
 	if wr != nil {
-		wr(c.bw)
+		if err := wr(c.pw); err != nil {
+			return err
+		}
 	}
 	c.bw.Flush()
+	return c.pw.Err()
 }
 
 func (c *Client) newSess(id int32) *session {
@@ -202,26 +210,26 @@ func (c *Client) pushResp(id int32, r io.Reader, e error) {
 // incorporated into a single OServerException Error struct.
 // If error (the second return arg) is not nil, then there was a
 // problem reading the server exception on the wire.
-func readErrorResponse(r io.Reader) (serverException error) {
+func readErrorResponse(r *rw.Reader) (serverException error) {
 	var (
 		exClass, exMsg string
 	)
 	exc := make([]orient.Exception, 0, 1) // usually only one ?
 	for {
 		// before class/message combo there is a 1 (continue) or 0 (no more)
-		marker := rw.ReadByte(r)
+		marker := r.ReadByte()
 		if marker == byte(0) {
 			break
 		}
-		exClass = rw.ReadString(r)
-		exMsg = rw.ReadString(r)
+		exClass = r.ReadString()
+		exMsg = r.ReadString()
 		exc = append(exc, orient.UnknownException{Class: exClass, Message: exMsg})
 	}
 
 	// Next there *may* a serialized exception of bytes, but it is only
 	// useful to Java clients, so read and ignore if present.
 	// If there is no serialized exception, EOF will be returned
-	_ = rw.ReadBytes(r) // TODO: catch EOFs?
+	_ = r.ReadBytes()
 
 	for _, e := range exc {
 		switch e.ExcClass() {
@@ -232,31 +240,22 @@ func readErrorResponse(r io.Reader) (serverException error) {
 	return orient.OServerException{Exceptions: exc}
 }
 
-func (c *Client) run() (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch rr := r.(type) {
-			case ErrBrokenProtocol:
-				panic(r)
-			case error:
-				err = rr
-			default:
-				err = fmt.Errorf("%v", r)
-			}
-		}
-	}()
+func (c *Client) run() error {
 	var (
 		status byte
 		sessId int32
 	)
 	for { // TODO: close safely
-		status = rw.ReadByte(c.br)
-		sessId = rw.ReadInt(c.br)
+		status = c.pr.ReadByte()
+		sessId = c.pr.ReadInt()
+		if err := c.pr.Err(); err != nil {
+			return err
+		}
 		switch status {
 		case responseStatusOk:
 			c.pushResp(sessId, c.br, nil)
 		case responseStatusError:
-			e := readErrorResponse(c.br)
+			e := readErrorResponse(c.pr)
 			c.pushResp(sessId, nil, e)
 		case responseStatusPush:
 			return ErrBrokenProtocol{fmt.Errorf("server push is not supported yet")}
@@ -264,7 +263,7 @@ func (c *Client) run() (err error) {
 			return ErrBrokenProtocol{fmt.Errorf("unknown resp status: %d", status)}
 		}
 	}
-	//return
+	return nil
 }
 
 type resp struct {
@@ -291,13 +290,14 @@ func (s *session) catch(err *error) {
 	}
 }
 
-func (s *session) sendCmd(op byte, wr func(io.Writer), rd func(io.Reader)) (err error) {
+func (s *session) sendCmd(op byte, wr func(*rw.Writer) error, rd func(*rw.Reader) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	defer s.catch(&err)
-	s.cli.writeCmd(op, s.id, wr)
+	if err := s.cli.writeCmd(op, s.id, wr); err != nil {
+		return err
+	}
 	if op == requestDbClose {
-		return
+		return nil
 	}
 	resp, ok := <-s.in
 	if !ok {
@@ -307,7 +307,12 @@ func (s *session) sendCmd(op byte, wr func(io.Writer), rd func(io.Reader)) (err 
 	}
 	defer resp.Close()
 	if rd != nil {
-		rd(resp)
+		br := rw.NewReader(resp.ReadCloser.(io.Reader))
+		if err := rd(br); err != nil {
+			return err
+		} else if err = br.Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -342,19 +347,26 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (db *Database) readIdentifiable(r io.Reader) orient.OIdentifiable {
-	classId := rw.ReadShort(r)
+func (db *Database) readIdentifiable(r *rw.Reader) (orient.OIdentifiable, error) {
+	classId := r.ReadShort()
+	if err := r.Err(); err != nil {
+		return nil, err
+	}
 	switch classId {
 	case RecordNull:
-		return nil
+		return nil, nil
 	case RecordRID:
 		var rid orient.RID
 		if err := rid.FromStream(r); err != nil {
-			panic(err)
+			return nil, err
 		}
-		return rid
+		return rid, nil
 	default:
-		record := orient.NewRecordOfType(orient.RecordType(rw.ReadByte(r)))
+		tp := orient.RecordType(r.ReadByte())
+		if err := r.Err(); err != nil {
+			return nil, err
+		}
+		record := orient.NewRecordOfType(tp)
 		switch rec := record.(type) {
 		case *orient.DocumentRecord:
 			rec.SetSerializer(db.sess.cli.recordFormat)
@@ -362,14 +374,14 @@ func (db *Database) readIdentifiable(r io.Reader) orient.OIdentifiable {
 
 		var rid orient.RID
 		if err := rid.FromStream(r); err != nil {
-			panic(err)
+			return nil, err
 		}
-		version := int(rw.ReadInt(r))
-		content := rw.ReadBytes(r)
+		version := int(r.ReadInt())
+		content := r.ReadBytes()
 
 		if err := record.Fill(rid, version, content); err != nil {
-			panic(fmt.Errorf("cannot create record %T from content: %s", record, err))
+			return nil, fmt.Errorf("cannot create record %T from content: %s", record, err)
 		}
-		return record
+		return record, nil
 	}
 }

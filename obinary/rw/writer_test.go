@@ -10,7 +10,7 @@ import (
 func TestWriteBytes(t *testing.T) {
 	buf := new(bytes.Buffer)
 	byteMsg := []byte("I like Ike")
-	WriteBytes(buf, byteMsg)
+	NewWriter(buf).WriteBytes(byteMsg)
 
 	equals(t, 4+len(byteMsg), buf.Len())
 	bs := buf.Next(4)
@@ -23,7 +23,7 @@ func TestWriteBytes(t *testing.T) {
 func TestWriteRawBytes(t *testing.T) {
 	buf := new(bytes.Buffer)
 	byteMsg := []byte("I like Ike")
-	WriteRawBytes(buf, byteMsg)
+	NewWriter(buf).WriteRawBytes(byteMsg)
 
 	bs := buf.Next(len(byteMsg))
 	equals(t, byteMsg, bs)
@@ -31,14 +31,14 @@ func TestWriteRawBytes(t *testing.T) {
 	// write empty bytes
 	buf = new(bytes.Buffer)
 	byteMsg = []byte{}
-	WriteRawBytes(buf, byteMsg)
+	NewWriter(buf).WriteRawBytes(byteMsg)
 
 	equals(t, 0, buf.Len())
 }
 
 func TestWriteNull(t *testing.T) {
 	buf := new(bytes.Buffer)
-	WriteNull(buf)
+	NewWriter(buf).WriteNull()
 
 	equals(t, 4, buf.Len()) // null in OrientDB is -1 (int32)
 
@@ -49,9 +49,10 @@ func TestWriteNull(t *testing.T) {
 
 func TestWriteBool(t *testing.T) {
 	buf := new(bytes.Buffer)
-	WriteBool(buf, true)
-	WriteBool(buf, false)
-	WriteBool(buf, true)
+	bw := NewWriter(buf)
+	bw.WriteBool(true)
+	bw.WriteBool(false)
+	bw.WriteBool(true)
 
 	equals(t, 3, buf.Len())
 	bs := buf.Bytes()
@@ -63,28 +64,28 @@ func TestWriteBool(t *testing.T) {
 func TestWriteFloat(t *testing.T) {
 	f := float32(55.668209)
 	buf := new(bytes.Buffer)
-	WriteFloat(buf, f)
+	NewWriter(buf).WriteFloat(f)
 
 	equals(t, 4, buf.Len())
 
-	f2 := ReadFloat(buf)
+	f2 := NewReader(buf).ReadFloat()
 	equals(t, f, f2)
 }
 
 func TestWriteDouble(t *testing.T) {
 	f := float64(199999999999999999955.6682090323333337298)
 	buf := new(bytes.Buffer)
-	WriteDouble(buf, f)
+	NewWriter(buf).WriteDouble(f)
 
 	equals(t, 8, buf.Len())
 
-	f2 := ReadDouble(buf)
+	f2 := NewReader(buf).ReadDouble()
 	equals(t, f, f2)
 }
 
 func TestWriteString(t *testing.T) {
 	var buf bytes.Buffer
-	WriteString(&buf, "hello")
+	NewWriter(&buf).WriteString("hello")
 	equals(t, 9, buf.Len())
 
 	n, s := nextBinaryString(&buf)
@@ -94,7 +95,7 @@ func TestWriteString(t *testing.T) {
 
 func TestWriteStrings(t *testing.T) {
 	buf := new(bytes.Buffer)
-	WriteStrings(buf, "a", "a longer string", "golang")
+	NewWriter(buf).WriteStrings("a", "a longer string", "golang")
 	equals(t, (4*3)+len("a")+len("a longer string")+len("golang"), buf.Len())
 
 	// read back first string
@@ -117,13 +118,15 @@ func TestWriteManyTypes(t *testing.T) {
 	var (
 		buf bytes.Buffer
 		bs  []byte
+		bw  = NewWriter(&buf)
 	)
-	WriteByte(&buf, 0x1)
-	WriteString(&buf, "vått og tørt")
-	WriteShort(&buf, int16(29876))
-	WriteShort(&buf, int16(444))
-	WriteInt(&buf, 9999999)
-	WriteLong(&buf, MaxInt64)
+	bw.WriteByte(0x1)
+	bw.WriteString("vått og tørt")
+	bw.WriteShort(int16(29876))
+	bw.WriteShort(int16(444))
+	bw.WriteInt(9999999)
+	bw.WriteLong(MaxInt64)
+	equals(t, nil, bw.Err())
 
 	// read back
 	bs = buf.Next(1) // byte
@@ -164,4 +167,49 @@ func nextBinaryString(buf *bytes.Buffer) (int, string) {
 
 func bigEndianConvertToInt(bs []byte) int {
 	return int(binary.BigEndian.Uint32(bs))
+}
+
+func TestWriteBytesVarint_GoodData_5Bytes(t *testing.T) {
+	buf := new(bytes.Buffer)
+	NewWriter(buf).WriteBytesVarint([]byte("total"))
+
+	equals(t, 6, buf.Len())
+
+	n, err := buf.ReadByte()
+	equals(t, byte(10), n) // zigzag encoded value of 5 is 10
+	ok(t, err)
+
+	strbytes := buf.Next(5)
+	equals(t, "total", string(strbytes))
+
+	// // varint.ReadBytes expects a varint encoded int, followed by that many bytes
+	// outbytes, err := ReadBytes(buf)
+	// ok(t, err)
+	// equals(t, 5, len(outbytes))
+	// equals(t, "total", string(outbytes))
+}
+
+func TestWriteStringVarint_GoodData_5Bytes(t *testing.T) {
+	buf := new(bytes.Buffer)
+	NewWriter(buf).WriteStringVarint("total")
+
+	equals(t, 6, buf.Len())
+
+	n, err := buf.ReadByte()
+	equals(t, byte(10), n) // zigzag encoded value of 5 is 10
+	ok(t, err)
+
+	strbytes := buf.Next(5)
+	equals(t, "total", string(strbytes))
+}
+
+func TestWriteStringVarint_GoodData_EmptyString(t *testing.T) {
+	buf := new(bytes.Buffer)
+	NewWriter(buf).WriteStringVarint("")
+
+	equals(t, 1, buf.Len())
+
+	n, err := buf.ReadByte()
+	equals(t, byte(0), n)
+	ok(t, err)
 }

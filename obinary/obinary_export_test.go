@@ -1,7 +1,9 @@
 package obinary
 
-import "io"
+import (
+	"github.com/istreamdata/orientgo/obinary/rw"
+)
 
-func ReadErrorResponse(r io.Reader) (serverException error) {
+func ReadErrorResponse(r *rw.Reader) (serverException error) {
 	return readErrorResponse(r)
 }

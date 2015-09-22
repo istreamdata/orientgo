@@ -10,7 +10,7 @@ func (db *Database) serializer() orient.RecordSerializer {
 	return db.sess.cli.recordFormat
 }
 
-func (db *Database) updateCachedRecord(rec interface{}) {
+func (db *Database) updateCachedRecord(rec orient.ORecord) {
 	// TODO: implement records cache
 }
 
@@ -27,7 +27,7 @@ func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error
 		if err != nil {
 			return nil, err
 		}
-		if true { // TODO: try cast to Record
+		if rec, ok := rec.(orient.ORecord); ok {
 			db.updateCachedRecord(rec)
 		}
 		result = rec
@@ -39,7 +39,7 @@ func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error
 			if err != nil {
 				return nil, err
 			}
-			if true { // TODO: try cast to Record
+			if rec, ok := rec.(orient.ORecord); ok {
 				db.updateCachedRecord(rec)
 			}
 			recs[i] = rec
@@ -57,7 +57,7 @@ func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error
 			} else if rec == nil {
 				continue
 			} else if status == 1 {
-				if true { // TODO: try cast to Record
+				if rec, ok := rec.(orient.ORecord); ok {
 					db.updateCachedRecord(rec)
 				}
 				recs = append(recs, rec)
@@ -84,7 +84,9 @@ func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error
 				return result, err
 			}
 			if rec != nil && status == 2 {
-				db.updateCachedRecord(rec)
+				if rec, ok := rec.(orient.ORecord); ok {
+					db.updateCachedRecord(rec)
+				}
 			}
 		}
 	}

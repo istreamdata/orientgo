@@ -318,7 +318,9 @@ func (db *Database) GetRecordByRID(rid orient.RID, fetchPlan orient.FetchPlan, i
 			if err != nil {
 				return err
 			}
-			db.updateCachedRecord(rec) // .(orient.ORecord)
+			if rec, ok := rec.(orient.ORecord); ok {
+				db.updateCachedRecord(rec)
+			}
 		}
 		return r.Err()
 	})

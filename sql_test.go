@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/golang/glog"
-	"github.com/istreamdata/orientgo"
-	_ "github.com/istreamdata/orientgo/obinary"
+	"gopkg.in/istreamdata/orientgo.v2"
+	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
 	"strconv"
 )
 

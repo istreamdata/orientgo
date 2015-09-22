@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/obinary/rw"
+	"gopkg.in/istreamdata/orientgo.v2"
+	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
 
 func testBase64Compare(t *testing.T, out []byte, origBase64 string) {

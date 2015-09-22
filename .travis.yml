@@ -15,6 +15,10 @@ env:
   - ORIENT_VERS=2.0
 
 install:
+  - mkdir -p $GOPATH/src/gopkg.in/istreamdata
+  - mv $TRAVIS_BUILD_DIR $GOPATH/src/gopkg.in/istreamdata/orientgo.v2
+  - export TRAVIS_BUILD_DIR=$GOPATH/src/gopkg.in/istreamdata/orientgo.v2
+  - cd $GOPATH/src/gopkg.in/istreamdata/orientgo.v2
   - docker pull dennwc/orientdb:${ORIENT_VERS}
   - go get golang.org/x/tools/cmd/vet
 #  - go get golang.org/x/tools/cmd/cover

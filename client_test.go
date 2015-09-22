@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/istreamdata/orientgo"
+	"gopkg.in/istreamdata/orientgo.v2"
 )
 
 func init() {

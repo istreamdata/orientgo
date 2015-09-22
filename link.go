@@ -2,8 +2,8 @@ package orient
 
 import (
 	"fmt"
-	"github.com/istreamdata/orientgo/obinary/rw"
 	"github.com/nu7hatch/gouuid"
+	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 	"io"
 )
 

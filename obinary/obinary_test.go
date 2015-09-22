@@ -1,7 +1,7 @@
 package obinary_test
 
 import (
-	_ "github.com/istreamdata/orientgo/obinary"
+	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
 	"testing"
 )
 

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
-	"github.com/istreamdata/orientgo"
-	_ "github.com/istreamdata/orientgo/obinary"
+	"gopkg.in/istreamdata/orientgo.v2"
+	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
 	"net"
 	"os"
 )

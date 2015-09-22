@@ -16,8 +16,8 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/golang/glog"
-	"github.com/istreamdata/orientgo"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/istreamdata/orientgo.v2"
 	"runtime/debug"
 	"testing"
 )

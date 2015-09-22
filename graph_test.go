@@ -4,8 +4,8 @@ import (
 	//"fmt"
 	//	"sort"
 
-	"github.com/istreamdata/orientgo"
-	//"github.com/istreamdata/orientgo/oschema"
+	"gopkg.in/istreamdata/orientgo.v2"
+	//"gopkg.in/istreamdata/orientgo.v2/oschema"
 	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"testing"

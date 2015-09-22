@@ -2,7 +2,7 @@ package orient_test
 
 import (
 	"bytes"
-	"github.com/istreamdata/orientgo"
+	"gopkg.in/istreamdata/orientgo.v2"
 	"testing"
 )
 

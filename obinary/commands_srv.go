@@ -3,8 +3,8 @@ package obinary
 import (
 	"io"
 
-	"github.com/istreamdata/orientgo"
-	"github.com/istreamdata/orientgo/obinary/rw"
+	"gopkg.in/istreamdata/orientgo.v2"
+	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
 
 type Manager struct {

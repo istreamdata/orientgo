@@ -1,5 +1,6 @@
 # Overview
-[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
+[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=v1.0)](https://travis-ci.org/istreamdata/orientgo)
+[![GoDoc](https://godoc.org/gopkg.in/istreamdata/orientgo.v1?status.svg)](https://godoc.org/gopkg.in/istreamdata/orientgo.v1/obinary)
 
 **OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
@@ -7,7 +8,7 @@
 
 **Ownership of the ogonori library transferred to the istreamdata team**
 
-Soon [orientgo](https://github.com/dennwc/orientgo) will be merged as `v2` version of API. You can still use ogonori API using `gopkg.in/istreamdata/orientgo.v1` import path.
+**OrientGo** is merged as `v2` version of API. **Ogonori** API is deprecated, but you can still use it with `gopkg.in/istreamdata/orientgo.v1` import path.
 
 ----
 

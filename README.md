@@ -12,6 +12,11 @@ Driver is under active development. API in `orientgo` is potentially unstable (t
 
 Early adopters are welcome to try it out and report any problems found.
 
+### Ogonori
+
+Original ogonori API is deprecated. Still, it's source code have been frozen in `v1` branch. To use it, simply replace `github.com/quux00/ogonori` imports with
+`gopkg.in/istreamdata/orientgo.v1`.
+
 ### Supported features:
 - Mostly any SQL [queries](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLQuery), [commands](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLCommand) and [batch requests](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand).
 - Server-side scripts (via [ScriptCommand](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand) or [functions](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#Function)).
@@ -27,14 +32,13 @@ Early adopters are welcome to try it out and report any problems found.
 - Fetch plans are temporary disabled due to internal changes.
 - Transactions in Go. Transactions in JS can be used instead.
 - Live queries.
-- Command results streaming.
-- Non-integer OrientDB DECIMAL values. Integers are ok.
+- Command results streaming ([#26](https://github.com/istreamdata/orientgo/issues/26)).
 - OrientDB CUSTOM type.
-- ORM-like API. See Issue #6.
+- ORM-like API. See Issue [#6](https://github.com/istreamdata/orientgo/issues/6).
 
 #### Caveat on using OrientGo as a database/sql API driver
 
-**WARNING: SQL API is disabled for now.**
+**WARNING: database/sql API is disabled for now.**
 
 The golang `database/sql` API has some constraints that can be make it painful to work with OrientDB. For example:
 

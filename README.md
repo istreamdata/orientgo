@@ -1,5 +1,5 @@
 # Overview
-[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=master)](https://travis-ci.org/istreamdata/orientgo)
+[![Build Status](https://travis-ci.org/istreamdata/orientgo.svg?branch=v2)](https://travis-ci.org/istreamdata/orientgo)
 [![GoDoc](https://godoc.org/gopkg.in/istreamdata/orientgo.v2?status.svg)](https://godoc.org/gopkg.in/istreamdata/orientgo.v2)
 
 **OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
@@ -14,8 +14,8 @@ Early adopters are welcome to try it out and report any problems found.
 
 ### Ogonori
 
-Original ogonori API is deprecated. Still, it's source code have been frozen in `v1` branch. To use it, simply replace `github.com/quux00/ogonori` imports with
-`gopkg.in/istreamdata/orientgo.v1`.
+Original ogonori API is deprecated. Still, it's source code have been frozen in [v1.0](https://github.com/istreamdata/orientgo/tree/v1.0) branch.
+To use it, simply replace `github.com/quux00/ogonori` imports with `gopkg.in/istreamdata/orientgo.v1`.
 
 ### Supported features:
 - Mostly any SQL [queries](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLQuery), [commands](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#SQLCommand) and [batch requests](http://godoc.org/gopkg.in/istreamdata/orientgo.v2#ScriptCommand).

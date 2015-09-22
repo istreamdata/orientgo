@@ -15,9 +15,9 @@ env:
 matrix:
   include:
     - go: 1.4
-      env:
-        - ORIENT_VERS=2.1.1
-        - ORIENT_VERS=2.0
+      env: ORIENT_VERS=2.1.1
+    - go: 1.4
+      env: ORIENT_VERS=2.0
 
 install:
   - mkdir -p $GOPATH/src/gopkg.in/istreamdata

@@ -24,7 +24,7 @@ type DocEntry struct {
 }
 
 func (fld *DocEntry) String() string {
-	return fmt.Sprintf("Entry<%s(%d): %v>", fld.Name, fld.Type, fld.Value)
+	return fmt.Sprintf("Entry<%s(%s): %v>", fld.Name, fld.Type, fld.Value)
 }
 
 type Document struct {
@@ -314,6 +314,14 @@ func (doc *Document) RecordType() RecordType { return RecordTypeDocument }
 // ToDocument decodes a record to Document
 func (doc *Document) ToDocument() (*Document, error) {
 	return doc, nil
+}
+
+func (doc *Document) ToStruct(o interface{}) error {
+	mp, err := doc.ToMap()
+	if err != nil {
+		return err
+	}
+	return mapToStruct(mp, o)
 }
 
 /*

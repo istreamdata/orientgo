@@ -2,7 +2,6 @@ package orient
 
 import (
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"reflect"
 )
 
@@ -67,6 +66,10 @@ func (e errorResult) Close() error                 { return e.err }
 func (e errorResult) Next(result interface{}) bool { return false }
 func (e errorResult) All(result interface{}) error { return e.err }
 
+func newResults(o interface{}) Results {
+	return &unknownResult{result: o}
+}
+
 // unknownResult is a generic result type that uses reflection to iterate over returned records
 type unknownResult struct {
 	err    error
@@ -102,6 +105,34 @@ func (r *unknownResult) All(result interface{}) error {
 	return convertTypes(targ, reflect.ValueOf(r.result))
 }
 
+type ErrUnsupportedConversion struct {
+	From reflect.Value
+	To   reflect.Value
+}
+
+func (e ErrUnsupportedConversion) Error() string {
+	var a, b string
+	if e.From.IsValid() {
+		a = fmt.Sprintf("%v(%v)", e.From.Type(), e.From.Kind())
+	} else {
+		a = "<nil>"
+	}
+	if e.To.IsValid() {
+		b = fmt.Sprintf("%v(%v)", e.To.Type(), e.To.Kind())
+	} else {
+		b = "<nil>"
+	}
+	return fmt.Sprintf("unsupported conversion: %v -> %v", a, b)
+}
+
+func mapToStruct(m interface{}, val interface{}) error {
+	dec, err := newMapDecoder(val)
+	if err != nil {
+		return err
+	}
+	return dec.Decode(m)
+}
+
 func convertTypes(targ, src reflect.Value) error {
 	//	fmt.Printf("conv: %T -> %T, %+v -> %+v\n", src.Interface(), targ.Interface(), src.Interface(), targ.Interface())
 	//	defer func(){
@@ -129,7 +160,7 @@ func convertTypes(targ, src reflect.Value) error {
 	if targ.Kind() == reflect.Struct || (targ.Kind() == reflect.Ptr && targ.Type().Elem().Kind() == reflect.Struct) {
 		switch rec := src.Interface().(type) {
 		case map[string]interface{}:
-			return mapstructure.Decode(rec, targ.Addr().Interface())
+			return mapToStruct(rec, targ.Addr().Interface())
 		case MapSerializable:
 			m, err := rec.ToMap()
 			if err != nil {
@@ -143,6 +174,17 @@ func convertTypes(targ, src reflect.Value) error {
 				return err
 			}
 			return convertTypes(targ, reflect.ValueOf(doc))
+		}
+		if src.Kind() == reflect.Slice {
+			switch src.Len() {
+			case 0:
+				return fmt.Errorf("no records returned, while expecting one")
+			case 1:
+				return convertTypes(targ, src.Index(0))
+			default:
+				return fmt.Errorf("multiple records returned (%d), while expecting one: %s",
+					src.Len(), ErrUnsupportedConversion{From: src, To: targ})
+			}
 		}
 	} else if targ.Kind() == reflect.Slice {
 		if src.Kind() == reflect.Slice { // slice into slice
@@ -195,16 +237,5 @@ func convertTypes(targ, src reflect.Value) error {
 			return convertTypes(targ, reflect.ValueOf(doc))
 		}
 	}
-	var a, b string
-	if src.IsValid() {
-		a = fmt.Sprintf("%v(%v)", src.Type(), src.Kind())
-	} else {
-		a = "<nil>"
-	}
-	if targ.IsValid() {
-		b = fmt.Sprintf("%v(%v)", targ.Type(), targ.Kind())
-	} else {
-		b = "<nil>"
-	}
-	return fmt.Errorf("unsupported conversion: %v -> %v", a, b)
+	return ErrUnsupportedConversion{From: src, To: targ}
 }

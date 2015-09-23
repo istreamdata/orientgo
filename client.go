@@ -357,7 +357,7 @@ func (db *Database) Command(cmd OCommandRequestText) Results {
 	if err != nil {
 		return errorResult{err: err}
 	}
-	return &unknownResult{result: result}
+	return newResults(result)
 }
 
 func sqlEscape(s string) string { // TODO: get rid of it

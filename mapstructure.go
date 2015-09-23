@@ -1,4 +1,4 @@
-package obinary
+package orient
 
 import (
 	"github.com/mitchellh/mapstructure"
@@ -7,8 +7,8 @@ import (
 )
 
 var mapDecoderHooks = []mapstructure.DecodeHookFunc{
-	StringToTimeHookFunc,
-	StringToByteSliceHookFunc,
+	stringToTimeHookFunc,
+	stringToByteSliceHookFunc,
 }
 
 // RegisterMapDecoderHook allows to register additional hook for map decoder
@@ -17,7 +17,7 @@ func RegisterMapDecoderHook(hook mapstructure.DecodeHookFunc) {
 }
 
 // NewMapDecoder returns decoder configured for decoding data into result with all registered hooks.
-func NewMapDecoder(result interface{}) (*mapstructure.Decoder, error) {
+func newMapDecoder(result interface{}) (*mapstructure.Decoder, error) {
 	return mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(mapDecoderHooks...),
 		Metadata:   nil,
@@ -27,18 +27,18 @@ func NewMapDecoder(result interface{}) (*mapstructure.Decoder, error) {
 
 // StringToTimeHookFunc returns a DecodeHookFunc that converts
 // strings to time.Time using RFC3339Nano format.
-func StringToTimeHookFunc(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+func stringToTimeHookFunc(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
 	if f.Kind() != reflect.String {
 		return data, nil
 	}
-	if t != reflect.TypeOf(time.Now()) {
+	if t != reflect.TypeOf(time.Time{}) {
 		return data, nil
 	}
 	return time.Parse(time.RFC3339Nano, data.(string))
 }
 
 // StringToByteSliceHookFunc returns a DecodeHookFunc that converts strings to []byte.
-func StringToByteSliceHookFunc(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+func stringToByteSliceHookFunc(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
 	if f.Kind() != reflect.String {
 		return data, nil
 	}

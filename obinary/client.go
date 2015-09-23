@@ -51,7 +51,7 @@ func Dial(addr string) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{
-		addr: addr, conn: conn,
+		addr: addr, conn: conn, done: make(chan struct{}),
 		br: bufio.NewReader(conn), bw: bufio.NewWriter(conn),
 	}
 	c.pr = rw.NewReader(c.br)
@@ -74,6 +74,8 @@ func Dial(addr string) (*Client, error) {
 // or OpenDatabase, to connect to a database on the server.
 type Client struct {
 	addr string
+
+	done chan struct{}
 
 	conn net.Conn
 	br   *bufio.Reader
@@ -195,6 +197,7 @@ func (c *Client) pushResp(id int32, r io.Reader, e error) {
 	}
 	if r == nil { // no reader, error returned
 		select {
+		case <-c.done:
 		case <-to:
 		case s.in <- resp{err: e}:
 		}
@@ -202,6 +205,7 @@ func (c *Client) pushResp(id int32, r io.Reader, e error) {
 	}
 	done := make(chan struct{})
 	select {
+	case <-c.done:
 	case <-to: // connection expects that response will be read, so stream is broken
 		panic(ErrBrokenProtocol{fmt.Errorf("no session %d found", id)})
 	case s.in <- resp{ReadCloser: newReadChanCloser(r, done)}:
@@ -245,6 +249,7 @@ func readErrorResponse(r *rw.Reader) (serverException error) {
 }
 
 func (c *Client) run() error {
+	defer close(c.done)
 	var (
 		status byte
 		sessId int32
@@ -302,22 +307,26 @@ func (s *session) sendCmd(op byte, wr func(*rw.Writer) error, rd func(*rw.Reader
 	if op == requestDbClose {
 		return nil
 	}
-	resp, ok := <-s.in
-	if !ok {
-		return ErrClosedConnection
-	} else if resp.err != nil {
-		return resp.err
-	}
-	defer resp.Close()
-	if rd != nil {
-		br := rw.NewReader(resp.ReadCloser.(io.Reader))
-		if err := rd(br); err != nil {
-			return err
-		} else if err = br.Err(); err != nil {
-			return err
+	select {
+	case <-s.cli.done:
+		return fmt.Errorf("server gone")
+	case resp, ok := <-s.in:
+		if !ok {
+			return ErrClosedConnection
+		} else if resp.err != nil {
+			return resp.err
 		}
+		defer resp.Close()
+		if rd != nil {
+			br := rw.NewReader(resp.ReadCloser.(io.Reader))
+			if err := rd(br); err != nil {
+				return err
+			} else if err = br.Err(); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
-	return nil
 }
 
 func (c *Client) getCurrDB() *Database {

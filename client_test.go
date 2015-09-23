@@ -42,8 +42,8 @@ func TestInitialize(t *testing.T) {
 
 	mapDBs, err := sess.ListDatabases()
 	Nil(t, err)
-	gratefulTestPath, ok := mapDBs["GratefulDeadConcerts"]
-	True(t, ok, "GratefulDeadConcerts not in DB list")
+	gratefulTestPath, ok := mapDBs["default"]
+	True(t, ok, "default not in DB list")
 	True(t, strings.HasPrefix(gratefulTestPath, "plocal"), "plocal prefix for db path")
 
 	dbexists, err := sess.DatabaseExists(dbDocumentName, orient.Persistent)

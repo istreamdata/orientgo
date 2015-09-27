@@ -2,7 +2,6 @@ package orient
 
 import (
 	"github.com/golang/glog"
-	"math/big"
 	"reflect"
 	"time"
 )
@@ -198,12 +197,14 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = LINK
 	case []OIdentifiable, []RID:
 		ftype = LINKLIST
-	case big.Int, *big.Int:
-		ftype = DECIMAL
 	case *RidBag:
 		ftype = LINKBAG
 	// TODO: more types need to be added
 	default:
+		if isDecimal(val) {
+			ftype = DECIMAL
+			return
+		}
 		switch reflect.TypeOf(val).Kind() {
 		case reflect.Map:
 			ftype = EMBEDDEDMAP

@@ -2,7 +2,16 @@ package orient
 
 import "math/big"
 
-type Decimal struct { // TODO: use big.Float for Go 1.5
+func isDecimal(o interface{}) bool {
+	switch o.(type) {
+	case *big.Int, Decimal:
+		return true
+	default:
+		return false
+	}
+}
+
+type Decimal struct {
 	Scale int
 	Value *big.Int
 }

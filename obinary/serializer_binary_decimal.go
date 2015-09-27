@@ -6,8 +6,6 @@ import (
 	"math/big"
 )
 
-// TODO: use big.Float for Go 1.5
-
 func (f binaryRecordFormatV0) readDecimal(r *rw.ReadSeeker) interface{} {
 	scale := int(r.ReadInt())
 	value := big.NewInt(0).SetBytes(r.ReadBytes())

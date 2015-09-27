@@ -15,7 +15,7 @@ import (
 	"os"
 )
 
-var orientVersion = "2.1.2"
+var orientVersion = "2.1"
 
 const (
 	dbName = "default"
@@ -374,5 +374,25 @@ func TestScriptJSMap(t *testing.T) {
 		t.Skipf("wrong array leng: %+v(%d)", o, len(o))
 	} else if o[0] == nil {
 		t.Skipf("nil record: %+v(%T)", o, o)
+	}
+}
+
+func TestCommandStringQuotes(t *testing.T) {
+	cli, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	const name = `Para Que Peliar "Besame"`
+	doc := orient.NewEmptyDocument()
+	doc.SetField("name", name)
+	doc.SetClassNameIfExists("V")
+	err := cli.CreateRecord(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var odoc *orient.Document
+	err = cli.Command(orient.NewSQLQuery(`SELECT FROM V WHERE name = ?`, name)).All(&odoc)
+	if err != nil {
+		t.Fatal(err)
+	} else if val := odoc.GetField("name").Value.(string); val != name {
+		t.Fatalf("strings are different: %v vs %v", val, name)
 	}
 }

@@ -6,7 +6,11 @@
 
 # Status
 
-OrientDB versions supported: **2.0 - 2.1.2**
+OrientDB versions supported: **2.0.15 - 2.1.2**
+
+**Not supported versions:**
+
+- 2.1.0 (due to a bug in OrientDB, see [#28](https://github.com/istreamdata/orientgo/issues/28))
 
 Driver is under active development. API in `orientgo` is potentially unstable (though getting more stable now).
 
@@ -54,7 +58,7 @@ You are welcome to initiate pull request and suggest a more user-friendly API. W
 
 1) Install [Docker](https://docs.docker.com)
 
-2) Pull OrientDB image: `docker pull dennwc/orientdb:2.1.2`
+2) Pull OrientDB image: `docker pull dennwc/orientdb:2.1`
 
 3) `go test -v ./...`
 

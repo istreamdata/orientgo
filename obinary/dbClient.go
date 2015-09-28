@@ -95,7 +95,7 @@ func (c *Client) handshakeVersion() (err error) {
 	defer c.conn.SetReadDeadline(time.Time{})
 
 	c.protoVers = rw.ReadShort(c.conn)
-	if c.protoVers < MinProtocolVersion || c.protoVers > MaxProtocolVersion {
+	if c.protoVers < MinProtocolVersion {
 		return ErrUnsupportedVersion(c.protoVers)
 	} else if c.protoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
 		return ErrUnsupportedVersion(c.protoVers)

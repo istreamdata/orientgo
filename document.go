@@ -24,7 +24,10 @@ type DocEntry struct {
 }
 
 func (fld *DocEntry) String() string {
-	return fmt.Sprintf("Entry<%s(%s): %v>", fld.Name, fld.Type, fld.Value)
+	if id, ok := fld.Value.(OIdentifiable); ok {
+		return fmt.Sprintf("{%s(%s): %v}", fld.Name, fld.Type, id.GetIdentity())
+	}
+	return fmt.Sprintf("{%s(%s): %v}", fld.Name, fld.Type, fld.Value)
 }
 
 type Document struct {
@@ -227,32 +230,30 @@ func adjustDateToMidnight(val interface{}) interface{} {
 }
 
 func (doc *Document) String() string {
-	// TODO: support for encoded format
+	class := doc.classname
+	if class == "" {
+		class = "nil"
+	}
+	if doc.serialized {
+		return fmt.Sprintf("Document{Class: %s, RID: %s, Vers: %d, Fields: [serialized]}",
+			class, doc.RID, doc.Vers)
+	}
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString(fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: \n",
-		doc.classname, doc.RID, doc.Vers))
+	_, err := buf.WriteString(fmt.Sprintf("Document{Class: %s, RID: %s, Vers: %d, Fields: [\n",
+		class, doc.RID, doc.Vers))
 	if err != nil {
 		panic(err)
 	}
 
 	for _, fld := range doc.fields {
-		_, err = buf.WriteString(fmt.Sprintf("  %s\n", fld.String()))
+		_, err = buf.WriteString(fmt.Sprintf("  %s,\n", fld.String()))
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	buf.Truncate(buf.Len() - 1)
-	buf.WriteString(">\n")
+	buf.WriteString("]}\n")
 	return buf.String()
-}
-
-// StringNoFields is a String() method that elides the fields.
-// This is useful when the fields include links and there are
-// circular links.
-func (doc *Document) StringNoFields() string {
-	return fmt.Sprintf("Document<Classname: %s; RID: %s; Version: %d; fields: [...]>",
-		doc.classname, doc.RID, doc.Vers)
 }
 
 func (doc *Document) ToMap() (map[string]interface{}, error) {

@@ -1,7 +1,6 @@
 package orient
 
 import (
-	"encoding/base64"
 	"fmt"
 )
 
@@ -65,7 +64,7 @@ func NewRecordOfType(tp RecordType) ORecord {
 func NewBytesRecord() *BytesRecord { return &BytesRecord{} }
 
 // BytesRecord is a rawest representation of a record. It's schema less.
-// Use this if you need to store byte[] without matter about the content.
+// Use this if you need to store []byte without matter about the content.
 // Useful also to store multimedia contents and binary files.
 type BytesRecord struct {
 	RID  RID
@@ -73,7 +72,7 @@ type BytesRecord struct {
 	Data []byte
 }
 
-func (r BytesRecord) Content() (data []byte, err error) {
+func (r BytesRecord) Content() ([]byte, error) {
 	return r.Data, nil
 }
 
@@ -113,5 +112,5 @@ func (r *BytesRecord) Fill(rid RID, version int, content []byte) error {
 }
 
 func (r BytesRecord) String() string {
-	return fmt.Sprintf("{%s %d %d}:%s", r.RID, r.Vers, len(r.Data), base64.StdEncoding.EncodeToString(r.Data))
+	return fmt.Sprintf("Bytes{RID: %s, Vers: %d, Data: [%d]}", r.RID, r.Vers, len(r.Data))
 }

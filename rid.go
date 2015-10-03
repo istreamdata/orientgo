@@ -27,7 +27,7 @@ const (
 	clusterIdInvalid  = -1
 	clusterPosInvalid = -1
 
-	RIDSerializedSize = rw.SizeShort + rw.SizeLong
+	ridSerializedSize = rw.SizeShort + rw.SizeLong
 )
 
 // RID encapsulates the two aspects of an OrientDB RecordID - ClusterID:ClusterPos.
@@ -111,7 +111,7 @@ func (rid RID) NextRID() RID {
 }
 
 func (rid *RID) FromStream(r io.Reader) error {
-	buf := make([]byte, RIDSerializedSize)
+	buf := make([]byte, ridSerializedSize)
 	if err := rw.NewReader(r).ReadRawBytes(buf); err != nil {
 		return err
 	}

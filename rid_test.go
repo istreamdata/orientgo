@@ -44,8 +44,8 @@ func testRIDSerialize(t *testing.T, s string) {
 	buf := bytes.NewBuffer(nil)
 	if err := orient.MustParseRID(s).ToStream(buf); err != nil {
 		t.Fatal(err)
-	} else if buf.Len() != orient.RIDSerializedSize {
-		t.Fatalf("wrong serialized size: %d vs %d", buf.Len(), orient.RIDSerializedSize)
+	} else if buf.Len() != 10 {
+		t.Fatalf("wrong serialized size: %d vs %d", buf.Len(), 10)
 	}
 	rid := orient.NewEmptyRID()
 	if err := rid.FromStream(buf); err != nil {

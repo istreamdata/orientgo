@@ -185,7 +185,7 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = SHORT
 	case byte, int8:
 		ftype = BYTE
-	case *Document: // TODO: and DocumentSerializable?
+	case *Document, DocumentSerializable:
 		ftype = EMBEDDED
 	case float32:
 		ftype = FLOAT
@@ -205,7 +205,11 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			ftype = DECIMAL
 			return
 		}
-		switch reflect.TypeOf(val).Kind() {
+		rt := reflect.TypeOf(val)
+		if rt.Kind() == reflect.Ptr {
+			rt = rt.Elem()
+		}
+		switch rt.Kind() {
 		case reflect.Map:
 			ftype = EMBEDDEDMAP
 		case reflect.Slice, reflect.Array:
@@ -226,6 +230,8 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			ftype = LONG
 		case reflect.String:
 			ftype = STRING
+		case reflect.Struct:
+			ftype = EMBEDDED
 		default:
 			glog.Warningf("unknown type in serialization: %T, kind: %v", val, reflect.TypeOf(val).Kind())
 		}

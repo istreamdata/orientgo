@@ -83,6 +83,90 @@ func TestInitialize(t *testing.T) {
 //	graphCommandsSQLAPI(graphConxStr)
 */
 
+func TestRecordsNativeAPIStructs(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	type Cat struct {
+		Name      string `mapstructure:"name"`
+		CareTaker string `mapstructure:"caretaker"`
+		Age       int32  `mapstructure:"age"`
+	}
+	catWinston := Cat{
+		Name:      "Winston",
+		CareTaker: "Churchill",
+		Age:       7,
+	}
+
+	// ---[ creation ]---
+
+	winston := orient.NewDocument("Cat")
+	err := winston.From(catWinston)
+	Nil(t, err)
+	Equals(t, -1, int(winston.RID.ClusterID))
+	Equals(t, -1, int(winston.RID.ClusterPos))
+	Equals(t, -1, int(winston.Vers))
+	err = db.CreateRecord(winston)
+	Nil(t, err)
+	True(t, int(winston.RID.ClusterID) > -1, "RID should be filled in")
+	True(t, int(winston.RID.ClusterPos) > -1, "RID should be filled in")
+	True(t, int(winston.Vers) > -1, "Version should be filled in")
+
+	// ---[ update STRING and INTEGER field ]---
+
+	versionBefore := winston.Vers
+	catWinston.CareTaker = "Lolly"
+	catWinston.Age = 8
+	err = winston.From(catWinston) // this updates the fields locally
+	Nil(t, err)
+
+	err = db.UpdateRecord(winston) // update the field in the remote DB
+	Nil(t, err)
+	True(t, versionBefore < winston.Vers, "version should have incremented")
+
+	var cats []Cat
+	err = db.Command(orient.NewSQLQuery("select * from Cat where @rid=" + winston.RID.String())).All(&cats)
+	Nil(t, err)
+	Equals(t, 1, len(cats))
+
+	winstonFromQuery := cats[0]
+	Equals(t, catWinston, winstonFromQuery)
+
+	// ---[ next creation ]---
+	catDaemon := Cat{Name: "Daemon", CareTaker: "Matt", Age: 4}
+
+	daemon := orient.NewDocument("Cat")
+	err = daemon.From(catDaemon)
+	Nil(t, err)
+	err = db.CreateRecord(daemon)
+	Nil(t, err)
+
+	catIndy := Cat{Name: "Indy", Age: 6}
+
+	indy := orient.NewDocument("Cat")
+	err = indy.From(catIndy)
+	Nil(t, err)
+	err = db.CreateRecord(indy)
+	Nil(t, err)
+
+	sql := fmt.Sprintf("select from Cat where @rid=%s or @rid=%s or @rid=%s ORDER BY name",
+		winston.RID, daemon.RID, indy.RID)
+	cats = nil
+	err = db.Command(orient.NewSQLQuery(sql)).All(&cats)
+	Nil(t, err)
+	Equals(t, 3, len(cats))
+	Equals(t, catDaemon, cats[0])
+	Equals(t, catIndy, cats[1])
+	Equals(t, catWinston, cats[2])
+
+	sql = fmt.Sprintf("DELETE FROM [%s, %s, %s]", winston.RID, daemon.RID, indy.RID)
+	err = db.Command(orient.NewSQLCommand(sql)).Err()
+	Nil(t, err)
+}
+
 func TestRecordsNativeAPI(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)

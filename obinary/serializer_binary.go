@@ -737,13 +737,18 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 			edoc = &d
 		case *orient.Document:
 			edoc = d
-		default:
-			cur, err := o.(orient.DocumentSerializable).ToDocument()
+		case orient.DocumentSerializable:
+			edoc, err = o.(orient.DocumentSerializable).ToDocument()
 			if err != nil {
-				panic(err)
+				return
 			}
-			cur.SetField(documentSerializableClassName, cur.ClassName()) // TODO: pass empty value as nil?
-			edoc = cur
+			edoc.SetField(documentSerializableClassName, edoc.ClassName()) // TODO: pass empty value as nil?
+		default:
+			edoc = orient.NewEmptyDocument()
+			if err = edoc.From(o); err != nil {
+				return err
+			}
+			// TODO: set classname of struct?
 		}
 		err = f.Serialize(edoc, w, off, false)
 	case orient.EMBEDDEDSET, orient.EMBEDDEDLIST:

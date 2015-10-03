@@ -7,6 +7,8 @@ import (
 
 	//	"database/sql/driver"
 	//	"github.com/golang/glog"
+	"reflect"
+	"strings"
 )
 
 var (
@@ -232,7 +234,7 @@ func adjustDateToMidnight(val interface{}) interface{} {
 func (doc *Document) String() string {
 	class := doc.classname
 	if class == "" {
-		class = "nil"
+		class = "<nil>"
 	}
 	if doc.serialized {
 		return fmt.Sprintf("Document{Class: %s, RID: %s, Vers: %d, Fields: [serialized]}",
@@ -312,17 +314,71 @@ func (doc *Document) Fill(rid RID, version int, content []byte) error {
 }
 func (doc *Document) RecordType() RecordType { return RecordTypeDocument }
 
-// ToDocument decodes a record to Document
+// ToDocument implement DocumentSerializable interface. In this case, Document just returns itself.
 func (doc *Document) ToDocument() (*Document, error) {
 	return doc, nil
 }
 
+// ToStruct fills provided struct with content of a Document. Argument must be a pointer to structure.
 func (doc *Document) ToStruct(o interface{}) error {
 	mp, err := doc.ToMap()
 	if err != nil {
 		return err
 	}
 	return mapToStruct(mp, o)
+}
+
+func (doc *Document) setFieldsFrom(rv reflect.Value) error {
+	switch rv.Kind() {
+	case reflect.Struct:
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			fld := rt.Field(i)
+			if !isExported(fld.Name) {
+				continue
+			}
+			name := fld.Name
+			tags := strings.Split(fld.Tag.Get(TagName), ",")
+			if tags[0] == "-" {
+				continue
+			}
+			if tags[0] != "" {
+				name = tags[0]
+			}
+			squash := (len(tags) > 1 && tags[1] == "squash") // TODO: change default behavior to squash if field is anonymous
+			if squash {
+				if err := doc.setFieldsFrom(rv.Field(i)); err != nil {
+					return fmt.Errorf("field '%s': %s", name, err)
+				}
+			} else {
+				doc.SetField(name, rv.Field(i).Interface())
+			}
+		}
+		return nil
+	case reflect.Map:
+		for _, key := range rv.MapKeys() {
+			doc.SetField(fmt.Sprint(key.Interface()), rv.MapIndex(key).Interface())
+		}
+		return nil
+	default:
+		return fmt.Errorf("only maps and structs are supported, got: %T", rv.Interface())
+	}
+}
+
+// From sets Document fields to values provided in argument (which can be a map or a struct).
+//
+// From uses TagName field tag to determine field name and conversion parameters.
+// For now it supports only one special tag parameter: ",squash" which can be used to inline fields into parent struct.
+func (doc *Document) From(o interface{}) error {
+	// TODO: clear fields and serialized data
+	if o == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(o)
+	if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Interface {
+		rv = rv.Elem()
+	}
+	return doc.setFieldsFrom(rv)
 }
 
 /*

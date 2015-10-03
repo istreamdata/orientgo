@@ -1,16 +1,12 @@
 package orient
 
 import (
-	"fmt"
+	"unicode"
 )
 
-func catch(err *error) {
-	if r := recover(); r != nil {
-		switch rr := r.(type) {
-		case error:
-			*err = rr
-		default:
-			*err = fmt.Errorf("%v", r)
-		}
+func isExported(s string) bool {
+	if s == "" {
+		return false
 	}
+	return unicode.IsUpper(([]rune(s))[0])
 }

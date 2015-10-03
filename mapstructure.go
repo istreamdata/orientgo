@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// TagName is a name for a struct tag used for types conversion using reflect
+var TagName = "mapstructure"
+
 var mapDecoderHooks = []mapstructure.DecodeHookFunc{
 	stringToTimeHookFunc,
 	stringToByteSliceHookFunc,
@@ -22,6 +25,7 @@ func newMapDecoder(result interface{}) (*mapstructure.Decoder, error) {
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(mapDecoderHooks...),
 		Metadata:   nil,
 		Result:     result,
+		TagName:    TagName,
 	})
 }
 

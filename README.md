@@ -4,6 +4,8 @@
 
 **OrientGo** is a Go client for the [OrientDB](http://orientdb.com/orientdb/) database.
 
+![OrientGo Logo](https://raw.github.com/istreamdata/orientgo/v2/logo/orientgo.png)
+
 # Status
 
 OrientDB versions supported: **2.0.15 - 2.1.2**

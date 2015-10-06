@@ -396,3 +396,54 @@ func TestCommandStringQuotes(t *testing.T) {
 		t.Fatalf("strings are different: %v vs %v", val, name)
 	}
 }
+
+func TestSQLQueryParams(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	var doc *orient.Document
+	err := db.Command(orient.NewSQLQuery(`SELECT FROM Cat WHERE name=? AND age=?`, "Linus", 15)).All(&doc)
+	if err != nil {
+		t.Fatal(err)
+	} else if doc.GetField("name").Value.(string) != "Linus" {
+		t.Fatal("wrong field value")
+	}
+}
+
+func TestSQLCommandParams(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	var doc *orient.Document
+	err := db.Command(orient.NewSQLCommand(`SELECT FROM Cat WHERE name=? AND age=?`, "Linus", 15)).All(&doc)
+	if err != nil {
+		t.Fatal(err)
+	} else if doc.GetField("name").Value.(string) != "Linus" {
+		t.Fatal("wrong field value")
+	}
+}
+
+func TestSQLBatchParams(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	var doc *orient.Document
+	err := db.Command(orient.NewScriptCommand(orient.LangSQL, `
+	LET cat = SELECT FROM Cat WHERE name=? AND age=?
+	RETURN $cat
+	`, "Linus", 15)).All(&doc)
+	if err != nil {
+		t.Fatal(err)
+	} else if doc.GetField("name").Value.(string) != "Linus" {
+		t.Fatal("wrong field value")
+	}
+}

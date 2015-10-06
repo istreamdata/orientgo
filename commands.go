@@ -38,7 +38,7 @@ func arrayToParamsMap(params []interface{}) interface{} {
 	return mp
 }
 
-func newTextReqCommand(text string, params ...interface{}) textReqCommand {
+func newTextReqCommand(text string, params []interface{}) textReqCommand {
 	return textReqCommand{text: text, params: params}
 }
 
@@ -147,7 +147,7 @@ type SQLCommand struct {
 //		NewSQLCommand("INSERT INTO People (id, name) VALUES (?, ?)", id, name)
 //
 func NewSQLCommand(sql string, params ...interface{}) SQLCommand {
-	return SQLCommand{newTextReqCommand(sql, params...)}
+	return SQLCommand{newTextReqCommand(sql, params)}
 }
 
 // GetClassName returns Java class name

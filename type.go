@@ -38,6 +38,9 @@ const (
 	UNKNOWN      OType = 255 // driver addition
 )
 
+// detect the int size (32 or 64)
+const intSize = 32 << (^uint(0) >> 63)
+
 func (t OType) String() string { // do not change - it may be used as field type for SQL queries
 	switch t {
 	case BOOLEAN:
@@ -179,10 +182,16 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = BOOLEAN
 	case int32:
 		ftype = INTEGER
-	case int, int64:
+	case int64:
 		ftype = LONG
 	case int16:
 		ftype = SHORT
+	case int:
+		if intSize == 32 {
+			ftype = INTEGER
+		} else {
+			ftype = LONG
+		}
 	case byte, int8:
 		ftype = BYTE
 	case *Document, DocumentSerializable:
@@ -226,8 +235,14 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			ftype = SHORT
 		case reflect.Int32:
 			ftype = INTEGER
-		case reflect.Int64, reflect.Int:
+		case reflect.Int64:
 			ftype = LONG
+		case reflect.Int:
+			if intSize == 32 {
+				ftype = INTEGER
+			} else {
+				ftype = LONG
+			}
 		case reflect.String:
 			ftype = STRING
 		case reflect.Struct:

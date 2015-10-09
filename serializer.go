@@ -14,7 +14,7 @@ type ErrTypeSerialization struct {
 }
 
 func (e ErrTypeSerialization) Error() string {
-	return fmt.Sprintf("Serializer (%T)%s don't support record of type %T", e.Serializer, e.Serializer, e.Val)
+	return fmt.Sprintf("Serializer (%T)%v has no support for type %T", e.Serializer, e.Serializer, e.Val)
 }
 
 // CustomSerializable is an interface for objects that can be sent on wire

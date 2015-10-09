@@ -226,7 +226,7 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			ftype = SHORT
 		case reflect.Int32:
 			ftype = INTEGER
-		case reflect.Int64:
+		case reflect.Int64, reflect.Int:
 			ftype = LONG
 		case reflect.String:
 			ftype = STRING

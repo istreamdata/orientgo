@@ -429,6 +429,40 @@ func TestSQLCommandParams(t *testing.T) {
 	}
 }
 
+func TestSQLCommandParamsCustomType(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	type Age int
+	type Name string
+
+	var doc *orient.Document
+	err := db.Command(orient.NewSQLCommand(`SELECT FROM Cat WHERE name=? AND age=?`, Name("Linus"), Age(15))).All(&doc)
+	if err != nil {
+		t.Fatal(err)
+	} else if doc.GetField("name").Value.(string) != "Linus" {
+		t.Fatal("wrong field value")
+	} else if doc.GetField("age").Value.(int32) != 15 {
+		t.Fatal("wrong field value")
+	}
+
+	var cat *struct {
+		Name Name
+		Age  Age
+	}
+	err = db.Command(orient.NewSQLCommand(`SELECT FROM Cat WHERE name=? AND age=?`, Name("Linus"), Age(15))).All(&cat)
+	if err != nil {
+		t.Fatal(err)
+	} else if cat.Name != "Linus" {
+		t.Fatal("wrong field value")
+	} else if cat.Age != 15 {
+		t.Fatal("wrong field value")
+	}
+}
+
 func TestSQLBatchParams(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)

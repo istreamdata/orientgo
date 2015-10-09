@@ -4,6 +4,7 @@ import (
 	"github.com/golang/glog"
 	"reflect"
 	"time"
+	"unsafe"
 )
 
 // OType is an enum for the various data types supported by OrientDB.
@@ -37,6 +38,9 @@ const (
 	ANY          OType = 23
 	UNKNOWN      OType = 255 // driver addition
 )
+
+// detect the int size (4 or 8 bytes)
+const intSize = unsafe.Sizeof(int(0))
 
 func (t OType) String() string { // do not change - it may be used as field type for SQL queries
 	switch t {
@@ -179,10 +183,16 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = BOOLEAN
 	case int32:
 		ftype = INTEGER
-	case int, int64:
+	case int64:
 		ftype = LONG
 	case int16:
 		ftype = SHORT
+	case int:
+		if intSize == 4 {
+			ftype = INTEGER
+		} else {
+			ftype = LONG
+		}
 	case byte, int8:
 		ftype = BYTE
 	case *Document, DocumentSerializable:
@@ -226,8 +236,14 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			ftype = SHORT
 		case reflect.Int32:
 			ftype = INTEGER
-		case reflect.Int64, reflect.Int:
+		case reflect.Int64:
 			ftype = LONG
+		case reflect.Int:
+			if intSize == 4 {
+				ftype = INTEGER
+			} else {
+				ftype = LONG
+			}
 		case reflect.String:
 			ftype = STRING
 		case reflect.Struct:

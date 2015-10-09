@@ -3,16 +3,16 @@ package orient_test
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
 	"gopkg.in/istreamdata/orientgo.v2"
 	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
-	"net"
-	"os"
 )
 
 var orientVersion = "2.1"
@@ -460,6 +460,76 @@ func TestSQLCommandParamsCustomType(t *testing.T) {
 		t.Fatal("wrong field value")
 	} else if cat.Age != 15 {
 		t.Fatal("wrong field value")
+	}
+}
+
+func TestSQLInnerStruct(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	type Inner struct {
+		Name string
+	}
+	type Item struct {
+		One   Inner
+		Inner []Inner
+	}
+
+	one, two := Inner{Name: "one"}, Inner{Name: "two"}
+
+	err := db.Command(orient.NewSQLCommand(`CREATE VERTEX V CONTENT ` + orient.MarshalContent(Item{One: one, Inner: []Inner{one, two}}))).Err()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var obj *Item
+	err = db.Command(orient.NewSQLQuery(`SELECT FROM V WHERE One IS NOT NULL`)).All(&obj)
+	if err != nil {
+		t.Fatal(err)
+	} else if obj.One != one {
+		t.Fatal("wrong value")
+	} else if len(obj.Inner) != 2 || obj.Inner[0] != one || obj.Inner[1] != two {
+		t.Fatal("wrong list value")
+	}
+}
+
+func TestNativeInnerStruct(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+	SeedDB(t, db)
+
+	type Inner struct {
+		Name string
+	}
+	type Item struct {
+		One   Inner
+		Inner []Inner
+	}
+
+	one, two := Inner{Name: "one"}, Inner{Name: "two"}
+
+	doc := orient.NewDocument("V")
+	err := doc.From(Item{One: one, Inner: []Inner{one, two}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.CreateRecord(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var obj *Item
+	err = db.Command(orient.NewSQLQuery(`SELECT FROM V WHERE One IS NOT NULL`)).All(&obj)
+	if err != nil {
+		t.Fatal(err)
+	} else if obj.One != one {
+		t.Fatal("wrong value")
+	} else if len(obj.Inner) != 2 || obj.Inner[0] != one || obj.Inner[1] != two {
+		t.Fatal("wrong list value")
 	}
 }
 

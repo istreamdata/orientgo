@@ -189,3 +189,42 @@ func TestSerializeDatetimeV0(t *testing.T) {
 		t.Fatalf("values differs: %v != %v", val, val2)
 	}
 }
+
+func testDocumentToStruct(t *testing.T, dataBase64 string) {
+	data, err := base64.StdEncoding.DecodeString(dataBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := orient.NewEmptyDocument()
+	err = doc.Fill(orient.NewEmptyRID(), 0, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type Inner struct {
+		Name string
+	}
+	type Item struct {
+		One   Inner
+		Inner []Inner
+	}
+
+	one, two := Inner{Name: "one"}, Inner{Name: "two"}
+
+	var obj *Item
+	if err = doc.ToStruct(&obj); err != nil {
+		t.Fatal(err)
+	} else if obj.One != one {
+		t.Fatal("item is wrong")
+	} else if len(obj.Inner) != 2 || obj.Inner[0] != one || obj.Inner[1] != two {
+		t.Fatal("list is wrong")
+	}
+}
+
+func TestDocumentInnerStruct(t *testing.T) {
+	testDocumentToStruct(t, "AAJWBk9uZQAAABgJCklubmVyAAAAKAoAAAhOYW1lAAAAJAcABm9uZQQXCQAITmFtZQAAADcHAAZvbmUJAAhOYW1lAAAASAcABnR3bw==")
+}
+
+func TestDocumentInnerMapToStruct(t *testing.T) {
+	testDocumentToStruct(t, "AAJWBk9uZQAAABgMCklubmVyAAAAKAoAAgcITmFtZQAAACQHBm9uZQQXDAIHCE5hbWUAAAA3BwZvbmUMAgcITmFtZQAAAEgHBnR3bw==")
+}

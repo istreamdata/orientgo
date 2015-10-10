@@ -64,6 +64,9 @@ func TestDBAuthWrong(t *testing.T) {
 
 func SpinOrientServer(t *testing.T) (string, func()) {
 	const port = 2424
+	if orientVersion == "local" {
+		return fmt.Sprintf("localhost:%d", port), func() {}
+	}
 
 	dport_api := docker.Port("2424/tcp")
 	dport_web := docker.Port("2480/tcp")

@@ -92,6 +92,7 @@ const (
 	ProtoVersion9  = 9
 	ProtoVersion13 = 13
 	ProtoVersion17 = 17
+	ProtoVersion19 = 19
 	ProtoVersion21 = 21
 	ProtoVersion23 = 23
 	ProtoVersion24 = 24

@@ -1,4 +1,4 @@
-package obinary
+package orient
 
 import (
 	"bytes"
@@ -8,9 +8,29 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/istreamdata/orientgo.v2"
 	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
+
+func TestDeserializeRecordData(t *testing.T) {
+	data, err := base64.StdEncoding.DecodeString(`AAASY2FyZXRha2VyAAAAJQcIbmFtZQAAAC0HBmFnZQAAADMBAA5NaWNoYWVsCkxpbnVzHg==`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := NewEmptyDocument()
+	rec.SetSerializer(&BinaryRecordFormat{})
+	rec.Fill(NewEmptyRID(), 0, data)
+
+	if doc, err := rec.ToDocument(); err != nil {
+		t.Fatal(err)
+	} else if len(doc.Fields()) != 3 {
+		t.Fatal("wrong fields count in document")
+	} else if doc.GetField("caretaker").Value.(string) != "Michael" ||
+		doc.GetField("name").Value.(string) != "Linus" ||
+		doc.GetField("age").Value.(int32) != 15 {
+		t.Fatal("wrong values in document: ", doc)
+	}
+}
 
 func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
 	orig, _ := base64.StdEncoding.DecodeString(origBase64)
@@ -22,7 +42,7 @@ func testBase64Compare(t *testing.T, out []byte, origBase64 string) {
 func TestSerializeCommandNoParams(t *testing.T) {
 	query := "SELECT FROM V WHERE Id = ?"
 	buf := bytes.NewBuffer(nil)
-	if err := orient.NewSQLCommand(query).ToStream(buf); err != nil {
+	if err := NewSQLCommand(query).ToStream(buf); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), "AAAAGlNFTEVDVCBGUk9NIFYgV0hFUkUgSWQgPSA/AAA=")
@@ -31,7 +51,7 @@ func TestSerializeCommandNoParams(t *testing.T) {
 func TestSerializeCommandIntParam(t *testing.T) {
 	query := "SELECT FROM V WHERE Id = ?"
 	buf := bytes.NewBuffer(nil)
-	if err := orient.NewSQLCommand(query, int32(25)).ToStream(buf); err != nil {
+	if err := NewSQLCommand(query, int32(25)).ToStream(buf); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), "AAAAGlNFTEVDVCBGUk9NIFYgV0hFUkUgSWQgPSA/AQAAAB0AABRwYXJhbWV0ZXJzAAAAEwwAAgcCMAAAABwBMgA=")
@@ -96,7 +116,7 @@ func testSerializeEmbCol(t *testing.T, off int, col interface{}, origBase64 stri
 	for i := 0; i < off; i++ {
 		buf.WriteByte(0)
 	}
-	if err := (binaryRecordFormatV0{}).writeEmbeddedCollection(rw.NewWriter(buf), off, col, orient.UNKNOWN); err != nil {
+	if err := (binaryRecordFormatV0{}).writeEmbeddedCollection(rw.NewWriter(buf), off, col, UNKNOWN); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), origBase64)
@@ -116,14 +136,14 @@ func TestSerializeEmbeddedColStringOffsV0(t *testing.T) {
 	)
 }
 
-func testSerializeDoc(t *testing.T, doc *orient.Document, origBase64 string) {
+func testSerializeDoc(t *testing.T, doc *Document, origBase64 string) {
 	buf := bytes.NewBuffer(nil)
-	orient.GetDefaultRecordSerializer().ToStream(buf, doc)
+	GetDefaultRecordSerializer().ToStream(buf, doc)
 	testBase64Compare(t, buf.Bytes(), origBase64)
 }
 
 func TestSerializeDocumentEmpty(t *testing.T) {
-	doc := orient.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	doc.SetField("parameters", map[string]interface{}{})
 	testSerializeDoc(t,
 		doc,
@@ -132,7 +152,7 @@ func TestSerializeDocumentEmpty(t *testing.T) {
 }
 
 func TestSerializeDocumentFieldStringMap(t *testing.T) {
-	doc := orient.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	doc.SetField("parameters", map[string]string{"one": "two"})
 	testSerializeDoc(t,
 		doc,
@@ -141,7 +161,7 @@ func TestSerializeDocumentFieldStringMap(t *testing.T) {
 }
 
 func TestSerializeDocumentFieldMapAndArr(t *testing.T) {
-	doc := orient.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	doc.SetField("map", map[string]string{"one": "two"})
 	doc.SetField("arr", []string{"a", "b", "c"})
 	testSerializeDoc(t,
@@ -153,17 +173,17 @@ func TestSerializeDocumentFieldMapAndArr(t *testing.T) {
 func TestSerializeDecimalV0(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	val := big.NewInt(123456789)
-	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, orient.DECIMAL, orient.UNKNOWN); err != nil {
+	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, DECIMAL, UNKNOWN); err != nil {
 		t.Fatal(err)
 	}
 	testBase64Compare(t, buf.Bytes(), "AAAAAAAAAAQHW80V")
 
 	r := rw.NewReadSeeker(bytes.NewReader(buf.Bytes()))
-	out, err := (binaryRecordFormatV0{}).readSingleValue(r, orient.DECIMAL, nil)
+	out, err := (binaryRecordFormatV0{}).readSingleValue(r, DECIMAL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val2, ok := out.(orient.Decimal); !ok {
+	if val2, ok := out.(Decimal); !ok {
 		t.Fatalf("expected Decimal, got: %T", out)
 	} else if val.Cmp(val2.Value) != 0 {
 		t.Fatalf("values differs: %v != %v", val, val2)
@@ -174,12 +194,12 @@ func TestSerializeDatetimeV0(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	val := time.Now()
 	val = time.Unix(val.Unix(), int64(val.Nanosecond()/1e6)*1e6) // precise to milliseconds
-	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, orient.DATETIME, orient.UNKNOWN); err != nil {
+	if err := (binaryRecordFormatV0{}).writeSingleValue(rw.NewWriter(buf), 0, val, DATETIME, UNKNOWN); err != nil {
 		t.Fatal(err)
 	}
 
 	r := rw.NewReadSeeker(bytes.NewReader(buf.Bytes()))
-	out, err := (binaryRecordFormatV0{}).readSingleValue(r, orient.DATETIME, nil)
+	out, err := (binaryRecordFormatV0{}).readSingleValue(r, DATETIME, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,8 +215,8 @@ func testDocumentToStruct(t *testing.T, dataBase64 string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc := orient.NewEmptyDocument()
-	err = doc.Fill(orient.NewEmptyRID(), 0, data)
+	doc := NewEmptyDocument()
+	err = doc.Fill(NewEmptyRID(), 0, data)
 	if err != nil {
 		t.Fatal(err)
 	}

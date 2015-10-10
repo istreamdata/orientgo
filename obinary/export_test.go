@@ -5,5 +5,5 @@ import (
 )
 
 func ReadErrorResponse(r *rw.Reader) (serverException error) {
-	return readErrorResponse(r)
+	return readErrorResponse(r, CurrentProtoVersion)
 }

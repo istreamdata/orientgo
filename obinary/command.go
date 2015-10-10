@@ -69,7 +69,8 @@ func (db *Database) readSynchResult(r *rw.Reader) (result interface{}, err error
 		if err = r.Err(); err != nil {
 			return nil, err
 		}
-		result = stringRecordFormatAbs{}.FieldTypeFromStream(stringRecordFormatAbs{}.GetType(s), s)
+		format := orient.StringRecordFormatAbs{}
+		result = format.FieldTypeFromStream(format.GetType(s), s)
 	default:
 		panic(fmt.Errorf("readSynchResult: not supported result type %v", resType))
 	}

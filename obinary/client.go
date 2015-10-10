@@ -218,7 +218,7 @@ func (c *Client) pushResp(id int32, r io.Reader, e error) {
 // incorporated into a single OServerException Error struct.
 // If error (the second return arg) is not nil, then there was a
 // problem reading the server exception on the wire.
-func readErrorResponse(r *rw.Reader) (serverException error) {
+func readErrorResponse(r *rw.Reader, protoVers int) (serverException error) {
 	var (
 		exClass, exMsg string
 	)
@@ -234,10 +234,11 @@ func readErrorResponse(r *rw.Reader) (serverException error) {
 		exc = append(exc, orient.UnknownException{Class: exClass, Message: exMsg})
 	}
 
-	// Next there *may* a serialized exception of bytes, but it is only
+	// Next there is a serialized exception of bytes, but it is only
 	// useful to Java clients, so read and ignore if present.
-	// If there is no serialized exception, EOF will be returned
-	_ = r.ReadBytes()
+	if protoVers >= ProtoVersion19 {
+		_ = r.ReadBytes()
+	}
 
 	for _, e := range exc {
 		switch e.ExcClass() {
@@ -264,7 +265,7 @@ func (c *Client) run() error {
 		case responseStatusOk:
 			c.pushResp(sessId, c.br, nil)
 		case responseStatusError:
-			e := readErrorResponse(c.pr)
+			e := readErrorResponse(c.pr, c.curProtoVers)
 			c.pushResp(sessId, nil, e)
 		case responseStatusPush:
 			return ErrBrokenProtocol{fmt.Errorf("server push is not supported yet")}

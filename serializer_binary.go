@@ -1,4 +1,4 @@
-package obinary
+package orient
 
 import (
 	"bytes"
@@ -8,17 +8,16 @@ import (
 	"runtime"
 	"time"
 
-	"gopkg.in/istreamdata/orientgo.v2"
 	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
 
 func init() {
-	orient.RegisterRecordFormat(BinaryFormatName, func() orient.RecordSerializer { return &BinaryRecordFormat{} })
-	orient.SetDefaultRecordFormat(BinaryFormatName)
+	RegisterRecordFormat(binaryFormatName, func() RecordSerializer { return &BinaryRecordFormat{} })
+	SetDefaultRecordFormat(binaryFormatName)
 }
 
 const (
-	BinaryFormatName           = "ORecordSerializerBinary"
+	binaryFormatName           = "ORecordSerializerBinary"
 	binaryFormatCurrentVersion = 0
 	millisecPerDay             = 86400000
 )
@@ -27,7 +26,7 @@ const (
 	documentSerializableClassName = "__orientdb_serilized_class__ "
 )
 
-var nilRID = orient.RID{ClusterID: -2, ClusterPos: -1}
+var nilRID = RID{ClusterID: -2, ClusterPos: -1}
 
 var (
 	binaryFormatVerions = []func() binaryRecordFormat{
@@ -36,24 +35,24 @@ var (
 )
 
 type binaryRecordFormat interface {
-	Serialize(doc *orient.Document, w io.Writer, off int, classOnly bool) error
-	Deserialize(doc *orient.Document, r *rw.ReadSeeker) error
+	Serialize(doc *Document, w io.Writer, off int, classOnly bool) error
+	Deserialize(doc *Document, r *rw.ReadSeeker) error
 
-	SetGlobalPropertyFunc(fnc orient.GlobalPropertyFunc)
+	SetGlobalPropertyFunc(fnc GlobalPropertyFunc)
 }
 
 type BinaryRecordFormat struct {
-	fnc orient.GlobalPropertyFunc
+	fnc GlobalPropertyFunc
 }
 
-func (BinaryRecordFormat) String() string { return BinaryFormatName }
-func (f *BinaryRecordFormat) SetGlobalPropertyFunc(fnc orient.GlobalPropertyFunc) {
+func (BinaryRecordFormat) String() string { return binaryFormatName }
+func (f *BinaryRecordFormat) SetGlobalPropertyFunc(fnc GlobalPropertyFunc) {
 	f.fnc = fnc
 }
-func (f BinaryRecordFormat) ToStream(w io.Writer, rec orient.ORecord) error {
-	doc, ok := rec.(*orient.Document)
+func (f BinaryRecordFormat) ToStream(w io.Writer, rec ORecord) error {
+	doc, ok := rec.(*Document)
 	if !ok {
-		return orient.ErrTypeSerialization{Val: rec, Serializer: f}
+		return ErrTypeSerialization{Val: rec, Serializer: f}
 	}
 	// TODO: can send empty document to stream if serialization fails?
 	bw := rw.NewWriter(w)
@@ -70,7 +69,7 @@ func (f BinaryRecordFormat) ToStream(w io.Writer, rec orient.ORecord) error {
 	}
 	return bw.Err()
 }
-func (f BinaryRecordFormat) FromStream(data []byte) (out orient.ORecord, err error) {
+func (f BinaryRecordFormat) FromStream(data []byte) (out ORecord, err error) {
 	if len(data) < 1 {
 		err = io.ErrUnexpectedEOF
 		return
@@ -87,7 +86,7 @@ func (f BinaryRecordFormat) FromStream(data []byte) (out orient.ORecord, err err
 
 	ser := binaryFormatVerions[vers]()
 	ser.SetGlobalPropertyFunc(f.fnc)
-	doc := orient.NewEmptyDocument()
+	doc := NewEmptyDocument()
 	if err = ser.Deserialize(doc, br); err != nil {
 		return
 	}
@@ -96,17 +95,17 @@ func (f BinaryRecordFormat) FromStream(data []byte) (out orient.ORecord, err err
 
 type globalProperty struct {
 	Name string
-	Type orient.OType
+	Type OType
 }
 
 type binaryRecordFormatV0 struct {
-	getGlobalPropertyFunc orient.GlobalPropertyFunc
+	getGlobalPropertyFunc GlobalPropertyFunc
 }
 
-func (f *binaryRecordFormatV0) SetGlobalPropertyFunc(fnc orient.GlobalPropertyFunc) {
+func (f *binaryRecordFormatV0) SetGlobalPropertyFunc(fnc GlobalPropertyFunc) {
 	f.getGlobalPropertyFunc = fnc
 }
-func (f binaryRecordFormatV0) getGlobalProperty(doc *orient.Document, leng int) orient.OGlobalProperty {
+func (f binaryRecordFormatV0) getGlobalProperty(doc *Document, leng int) OGlobalProperty {
 	id := (leng * -1) - 1
 
 	if f.getGlobalPropertyFunc == nil {
@@ -118,7 +117,7 @@ func (f binaryRecordFormatV0) getGlobalProperty(doc *orient.Document, leng int) 
 	}
 	return prop
 }
-func (f binaryRecordFormatV0) Deserialize(doc *orient.Document, r *rw.ReadSeeker) error {
+func (f binaryRecordFormatV0) Deserialize(doc *Document, r *rw.ReadSeeker) error {
 
 	className := f.readString(r)
 	if err := r.Err(); err != nil {
@@ -131,7 +130,7 @@ func (f binaryRecordFormatV0) Deserialize(doc *orient.Document, r *rw.ReadSeeker
 	var (
 		fieldName string
 		valuePos  int
-		valueType orient.OType
+		valueType OType
 		last      int64
 	)
 	for {
@@ -155,7 +154,7 @@ func (f binaryRecordFormatV0) Deserialize(doc *orient.Document, r *rw.ReadSeeker
 			prop := f.getGlobalProperty(doc, leng)
 			fieldName = prop.Name
 			valuePos = int(f.readInteger(r))
-			if prop.Type != orient.ANY {
+			if prop.Type != ANY {
 				valueType = prop.Type
 			} else {
 				valueType = f.readOType(r)
@@ -178,7 +177,7 @@ func (f binaryRecordFormatV0) Deserialize(doc *orient.Document, r *rw.ReadSeeker
 			r.Seek(headerCursor, 0)
 			doc.RawSetField(fieldName, value, valueType)
 		} else {
-			doc.RawSetField(fieldName, nil, orient.UNKNOWN)
+			doc.RawSetField(fieldName, nil, UNKNOWN)
 		}
 	}
 
@@ -201,15 +200,15 @@ func (f binaryRecordFormatV0) readString(r *rw.ReadSeeker) string {
 func (f binaryRecordFormatV0) readInteger(r *rw.ReadSeeker) int32 {
 	return r.ReadInt()
 }
-func (f binaryRecordFormatV0) readOType(r *rw.ReadSeeker) orient.OType {
-	return orient.OType(f.readByte(r))
+func (f binaryRecordFormatV0) readOType(r *rw.ReadSeeker) OType {
+	return OType(f.readByte(r))
 }
-func (f binaryRecordFormatV0) readOptimizedLink(r *rw.ReadSeeker) orient.RID {
-	return orient.RID{ClusterID: int16(r.ReadVarint()), ClusterPos: int64(r.ReadVarint())}
+func (f binaryRecordFormatV0) readOptimizedLink(r *rw.ReadSeeker) RID {
+	return RID{ClusterID: int16(r.ReadVarint()), ClusterPos: int64(r.ReadVarint())}
 }
-func (f binaryRecordFormatV0) readLinkCollection(r *rw.ReadSeeker) []orient.OIdentifiable {
+func (f binaryRecordFormatV0) readLinkCollection(r *rw.ReadSeeker) []OIdentifiable {
 	n := int(r.ReadVarint())
-	out := make([]orient.OIdentifiable, n)
+	out := make([]OIdentifiable, n)
 	for i := range out {
 		if id := f.readOptimizedLink(r); id != nilRID {
 			out[i] = id
@@ -217,13 +216,13 @@ func (f binaryRecordFormatV0) readLinkCollection(r *rw.ReadSeeker) []orient.OIde
 	}
 	return out
 }
-func (f binaryRecordFormatV0) readEmbeddedCollection(r *rw.ReadSeeker, doc *orient.Document) ([]interface{}, error) {
+func (f binaryRecordFormatV0) readEmbeddedCollection(r *rw.ReadSeeker, doc *Document) ([]interface{}, error) {
 	n := int(r.ReadVarint())
-	if vtype := f.readOType(r); vtype == orient.ANY {
+	if vtype := f.readOType(r); vtype == ANY {
 		out := make([]interface{}, n) // TODO: convert to determined slice type with reflect?
 		var err error
 		for i := range out {
-			if itemType := f.readOType(r); itemType != orient.ANY {
+			if itemType := f.readOType(r); itemType != ANY {
 				out[i], err = f.readSingleValue(r, itemType, doc)
 				if err != nil {
 					return nil, err
@@ -235,18 +234,18 @@ func (f binaryRecordFormatV0) readEmbeddedCollection(r *rw.ReadSeeker, doc *orie
 	// TODO: @orient: manage case where type is known
 	return nil, r.Err()
 }
-func (f binaryRecordFormatV0) readLinkMap(r *rw.ReadSeeker, doc *orient.Document) (interface{}, error) {
+func (f binaryRecordFormatV0) readLinkMap(r *rw.ReadSeeker, doc *Document) (interface{}, error) {
 	size := int(r.ReadVarint())
 	if size == 0 {
 		return nil, r.Err()
 	}
 	type entry struct {
 		Key interface{}
-		Val orient.OIdentifiable
+		Val OIdentifiable
 	}
 	var (
 		result   = make([]entry, 0, size) // TODO: can't return just this slice, need some public implementation
-		keyTypes = make(map[orient.OType]bool, 2)
+		keyTypes = make(map[OType]bool, 2)
 	)
 	for i := 0; i < size; i++ {
 		keyType := f.readOType(r)
@@ -263,16 +262,16 @@ func (f binaryRecordFormatV0) readLinkMap(r *rw.ReadSeeker, doc *orient.Document
 		}
 	}
 	if len(keyTypes) == 1 { // TODO: reflect-based converter
-		tp := orient.UNKNOWN
+		tp := UNKNOWN
 		for k, _ := range keyTypes {
 			tp = k
 			break
 		}
 		switch tp {
-		case orient.UNKNOWN:
+		case UNKNOWN:
 			return result, nil
-		case orient.STRING:
-			mp := make(map[string]orient.OIdentifiable, len(result))
+		case STRING:
+			mp := make(map[string]OIdentifiable, len(result))
 			for _, kv := range result {
 				mp[kv.Key.(string)] = kv.Val
 			}
@@ -285,7 +284,7 @@ func (f binaryRecordFormatV0) readLinkMap(r *rw.ReadSeeker, doc *orient.Document
 	}
 	//return result
 }
-func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *orient.Document) (interface{}, error) {
+func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *Document) (interface{}, error) {
 	size := int(r.ReadVarint())
 	if size == 0 {
 		return nil, r.Err()
@@ -297,8 +296,8 @@ func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *orient.Docu
 	}
 	var (
 		result     = make([]entry, 0, size) // TODO: can't return just this slice, need some public implementation
-		keyTypes   = make(map[orient.OType]bool, 1)
-		valueTypes = make(map[orient.OType]bool, 2)
+		keyTypes   = make(map[OType]bool, 1)
+		valueTypes = make(map[OType]bool, 2)
 	)
 	for i := 0; i < size; i++ {
 		keyType := f.readOType(r)
@@ -335,11 +334,11 @@ func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *orient.Docu
 	//fmt.Printf("embedded map: types: %+v, vals: %+v\n", keyTypes, valueTypes)
 	var (
 		keyType reflect.Type
-		valType reflect.Type = orient.UNKNOWN.ReflectType()
+		valType reflect.Type = UNKNOWN.ReflectType()
 	)
 	if len(keyTypes) == 1 {
 		for k, _ := range keyTypes {
-			if k == orient.UNKNOWN {
+			if k == UNKNOWN {
 				return result, nil
 			}
 			keyType = k.ReflectType()
@@ -360,7 +359,7 @@ func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *orient.Docu
 	}
 	return rv.Interface(), nil
 }
-func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient.OType, doc *orient.Document) (value interface{}, err error) {
+func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType OType, doc *Document) (value interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if ic, ok := r.(*runtime.TypeAssertionError); ok {
@@ -371,26 +370,26 @@ func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient
 		}
 	}()
 	switch valueType {
-	case orient.INTEGER:
+	case INTEGER:
 		value = int32(r.ReadVarint())
-	case orient.LONG:
+	case LONG:
 		value = int64(r.ReadVarint())
-	case orient.SHORT:
+	case SHORT:
 		value = int16(r.ReadVarint())
-	case orient.STRING:
+	case STRING:
 		value = f.readString(r)
-	case orient.DOUBLE:
+	case DOUBLE:
 		value = r.ReadDouble()
-	case orient.FLOAT:
+	case FLOAT:
 		value = r.ReadFloat()
-	case orient.BYTE:
+	case BYTE:
 		value = f.readByte(r)
-	case orient.BOOLEAN:
+	case BOOLEAN:
 		value = f.readByte(r) == 1
-	case orient.DATETIME:
+	case DATETIME:
 		longTime := r.ReadVarint()
 		value = time.Unix(longTime/1000, (longTime%1000)*1e6)
-	case orient.DATE:
+	case DATE:
 		//	long savedTime = OVarIntSerializer.readAsLong(bytes) * MILLISEC_PER_DAY;
 		//	int offset = ODateHelper.getDatabaseTimeZone().getOffset(savedTime);
 		//	value = new Date(savedTime - offset);
@@ -399,8 +398,8 @@ func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient
 		//		_, offset := t.Zone()
 		//		value = t.Add(-time.Duration(offset) * time.Second)
 		value = t
-	case orient.EMBEDDED:
-		doc2 := orient.NewEmptyDocument()
+	case EMBEDDED:
+		doc2 := NewEmptyDocument()
 		if err = f.Deserialize(doc2, r); err != nil {
 			return nil, err
 		}
@@ -417,30 +416,30 @@ func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient
 	//	}
 	//	} else
 	//	ODocumentInternal.addOwner((ODocument) value, document);
-	case orient.EMBEDDEDSET, orient.EMBEDDEDLIST:
+	case EMBEDDEDSET, EMBEDDEDLIST:
 		value, err = f.readEmbeddedCollection(r, doc)
-	case orient.LINKSET, orient.LINKLIST:
+	case LINKSET, LINKLIST:
 		value = f.readLinkCollection(r)
-	case orient.BINARY:
+	case BINARY:
 		value = f.readBinary(r)
-	case orient.LINK:
+	case LINK:
 		value = f.readOptimizedLink(r)
-	case orient.LINKMAP:
+	case LINKMAP:
 		value, err = f.readLinkMap(r, doc)
-	case orient.EMBEDDEDMAP:
+	case EMBEDDEDMAP:
 		value, err = f.readEmbeddedMap(r, doc)
-	case orient.DECIMAL:
+	case DECIMAL:
 		value = f.readDecimal(r)
-	case orient.LINKBAG:
-		bag := orient.NewRidBag()
+	case LINKBAG:
+		bag := NewRidBag()
 		if err = bag.FromStream(r); err != nil {
 			return nil, err
 		}
 		bag.SetOwner(doc)
 		value = bag
-	case orient.TRANSIENT:
-	case orient.ANY:
-	case orient.CUSTOM:
+	case TRANSIENT:
+	case ANY:
+	case CUSTOM:
 		// TODO: implement via Register global function
 		panic("CUSTOM type is not supported for now")
 		//	try {
@@ -462,7 +461,7 @@ func (f binaryRecordFormatV0) readSingleValue(r *rw.ReadSeeker, valueType orient
 	return
 }
 
-func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off int, classOnly bool) error {
+func (f binaryRecordFormatV0) Serialize(doc *Document, w io.Writer, off int, classOnly bool) error {
 	buf := bytes.NewBuffer(nil)
 	bw := rw.NewWriter(buf)
 
@@ -481,8 +480,8 @@ func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off i
 	type item struct {
 		Pos   int
 		Ptr   int
-		Field *orient.DocEntry
-		Type  orient.OType
+		Field *DocEntry
+		Type  OType
 	}
 
 	var (
@@ -495,7 +494,7 @@ func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off i
 		it.Pos = buf.Len() // save buffer offset of pointer
 		bw.WriteInt(0)     // placeholder for data pointer
 		tp := f.getFieldType(entry)
-		if tp == orient.UNKNOWN {
+		if tp == UNKNOWN {
 			return fmt.Errorf("Can't serialize type %T with Document binary serializer", entry.Type)
 		}
 		bw.WriteByte(byte(tp))
@@ -528,7 +527,7 @@ func (f binaryRecordFormatV0) Serialize(doc *orient.Document, w io.Writer, off i
 	}
 	return rw.NewWriter(w).WriteRawBytes(data)
 }
-func (f binaryRecordFormatV0) serializeClass(w *rw.Writer, doc *orient.Document) (int, error) {
+func (f binaryRecordFormatV0) serializeClass(w *rw.Writer, doc *Document) (int, error) {
 	// TODO: final OClass clazz = ODocumentInternal.getImmutableSchemaClass(document); if (clazz == null) ...
 	if class := doc.ClassName(); class == "" {
 		return f.writeEmptyString(w)
@@ -545,7 +544,7 @@ func (binaryRecordFormatV0) writeBinary(w *rw.Writer, v []byte) (int, error) {
 func (f binaryRecordFormatV0) writeEmptyString(w *rw.Writer) (int, error) {
 	return f.writeBinary(w, nil)
 }
-func (binaryRecordFormatV0) writeOType(w *rw.Writer, tp orient.OType) int {
+func (binaryRecordFormatV0) writeOType(w *rw.Writer, tp OType) int {
 	w.WriteByte(byte(tp))
 	return rw.SizeByte
 }
@@ -554,7 +553,7 @@ func (f binaryRecordFormatV0) writeNullLink(w *rw.Writer) int {
 	n2, _ := w.WriteVarint(int64(nilRID.ClusterPos))
 	return n1 + n2
 }
-func (f binaryRecordFormatV0) writeOptimizedLink(w *rw.Writer, ide orient.OIdentifiable) (int, error) {
+func (f binaryRecordFormatV0) writeOptimizedLink(w *rw.Writer, ide OIdentifiable) (int, error) {
 	// TODO: link = recursiveLinkSave(link)
 	rid := ide.GetIdentity()
 	if !rid.IsValid() {
@@ -566,7 +565,7 @@ func (f binaryRecordFormatV0) writeOptimizedLink(w *rw.Writer, ide orient.OIdent
 }
 func (f binaryRecordFormatV0) writeLinkCollection(w *rw.Writer, o interface{}) error {
 	switch col := o.(type) {
-	case []orient.RID:
+	case []RID:
 		w.WriteVarint(int64(len(col)))
 		for _, rid := range col {
 			if rid == nilRID {
@@ -577,7 +576,7 @@ func (f binaryRecordFormatV0) writeLinkCollection(w *rw.Writer, o interface{}) e
 				}
 			}
 		}
-	case []orient.OIdentifiable:
+	case []OIdentifiable:
 		w.WriteVarint(int64(len(col)))
 		for _, item := range col {
 			if item.GetIdentity() == nilRID {
@@ -588,7 +587,7 @@ func (f binaryRecordFormatV0) writeLinkCollection(w *rw.Writer, o interface{}) e
 				}
 			}
 		}
-	case orient.OIdentifiableCollection:
+	case OIdentifiableCollection:
 		// TODO: assert (!(value instanceof OMVRBTreeRIDSet))
 		w.WriteVarint(int64(col.Len()))
 		for item := range col.OIdentifiableIterator() {
@@ -606,12 +605,12 @@ func (f binaryRecordFormatV0) writeLinkCollection(w *rw.Writer, o interface{}) e
 	return w.Err()
 }
 func (f binaryRecordFormatV0) writeLinkMap(w *rw.Writer, o interface{}) error {
-	m := o.(map[string]orient.OIdentifiable) // TODO: can use reflect to support map[Stringer]orient.OIdentifiable
+	m := o.(map[string]OIdentifiable) // TODO: can use reflect to support map[Stringer]OIdentifiable
 	w.WriteVarint(int64(len(m)))
 	for k, v := range m {
 		// TODO @orient: check skip of complex types
 		// FIXME @orient: changed to support only string key on map
-		f.writeOType(w, orient.STRING)
+		f.writeOType(w, STRING)
 		f.writeString(w, k)
 		if v == nil {
 			f.writeNullLink(w)
@@ -626,7 +625,7 @@ func (f binaryRecordFormatV0) writeLinkMap(w *rw.Writer, o interface{}) error {
 func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interface{}) error {
 	mv := reflect.ValueOf(o)
 	if mv.Kind() != reflect.Map {
-		panic(fmt.Sprintf("only maps are supported as %v, got %T", orient.EMBEDDEDMAP, o))
+		panic(fmt.Sprintf("only maps are supported as %v, got %T", EMBEDDEDMAP, o))
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -635,7 +634,7 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interfac
 	type item struct {
 		Pos  int
 		Val  interface{}
-		Type orient.OType
+		Type OType
 		Ptr  int
 	}
 
@@ -650,13 +649,13 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interfac
 		v := mv.MapIndex(kv).Interface()
 		// TODO @orient: check skip of complex types
 		// FIXME @orient: changed to support only string key on map
-		f.writeOType(bw, orient.STRING)
+		f.writeOType(bw, STRING)
 		f.writeString(bw, fmt.Sprint(k)) // convert key to string
 		it := item{Pos: buf.Len(), Val: v}
 		bw.WriteInt(0) // ptr placeholder
 		tp := f.getTypeFromValueEmbedded(v)
-		if tp == orient.UNKNOWN {
-			panic(orient.ErrTypeSerialization{Val: v, Serializer: f})
+		if tp == UNKNOWN {
+			panic(ErrTypeSerialization{Val: v, Serializer: f})
 		}
 		it.Type = tp
 		f.writeOType(bw, tp)
@@ -665,7 +664,7 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interfac
 
 	for i := range items {
 		ptr := buf.Len()
-		if err := f.writeSingleValue(bw, off+ptr, items[i].Val, items[i].Type, orient.UNKNOWN); err != nil {
+		if err := f.writeSingleValue(bw, off+ptr, items[i].Val, items[i].Type, UNKNOWN); err != nil {
 			return err
 		}
 		if ptr != buf.Len() {
@@ -685,7 +684,7 @@ func (f binaryRecordFormatV0) writeEmbeddedMap(w *rw.Writer, off int, o interfac
 	}
 	return w.WriteRawBytes(data)
 }
-func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interface{}, tp, linkedType orient.OType) (err error) {
+func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interface{}, tp, linkedType OType) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if ic, ok := r.(*runtime.TypeAssertionError); ok {
@@ -696,23 +695,23 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 		}
 	}()
 	switch tp {
-	case orient.BYTE:
+	case BYTE:
 		w.WriteByte(toByte(o))
-	case orient.BOOLEAN:
+	case BOOLEAN:
 		w.WriteBool(toBool(o))
-	case orient.SHORT:
+	case SHORT:
 		w.WriteVarint(int64(toInt16(o)))
-	case orient.INTEGER:
+	case INTEGER:
 		w.WriteVarint(int64(toInt32(o)))
-	case orient.LONG:
+	case LONG:
 		w.WriteVarint(int64(toInt64(o)))
-	case orient.STRING:
+	case STRING:
 		f.writeString(w, toString(o))
-	case orient.FLOAT:
+	case FLOAT:
 		w.WriteFloat(o.(float32))
-	case orient.DOUBLE:
+	case DOUBLE:
 		w.WriteDouble(o.(float64))
-	case orient.DATETIME: // unix time in milliseconds
+	case DATETIME: // unix time in milliseconds
 		if t, ok := o.(int64); ok {
 			w.WriteVarint(t)
 		} else {
@@ -720,7 +719,7 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 			it := t.Unix()*1000 + int64(t.Nanosecond())/1e6
 			w.WriteVarint(it)
 		}
-	case orient.DATE:
+	case DATE:
 		if t, ok := o.(int64); ok {
 			w.WriteVarint(t)
 		} else {
@@ -730,48 +729,48 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 			// TODO: int offset = ODateHelper.getDatabaseTimeZone().getOffset(dateValue)
 			w.WriteVarint((it + offset) / millisecPerDay)
 		}
-	case orient.EMBEDDED:
-		var edoc *orient.Document
+	case EMBEDDED:
+		var edoc *Document
 		switch d := o.(type) {
-		case orient.Document:
+		case Document:
 			edoc = &d
-		case *orient.Document:
+		case *Document:
 			edoc = d
-		case orient.DocumentSerializable:
-			edoc, err = o.(orient.DocumentSerializable).ToDocument()
+		case DocumentSerializable:
+			edoc, err = o.(DocumentSerializable).ToDocument()
 			if err != nil {
 				return
 			}
 			edoc.SetField(documentSerializableClassName, edoc.ClassName()) // TODO: pass empty value as nil?
 		default:
-			edoc = orient.NewEmptyDocument()
+			edoc = NewEmptyDocument()
 			if err = edoc.From(o); err != nil {
 				return err
 			}
 			// TODO: set classname of struct?
 		}
 		err = f.Serialize(edoc, w, off, false)
-	case orient.EMBEDDEDSET, orient.EMBEDDEDLIST:
+	case EMBEDDEDSET, EMBEDDEDLIST:
 		err = f.writeEmbeddedCollection(w, off, o, linkedType)
-	case orient.DECIMAL:
+	case DECIMAL:
 		f.writeDecimal(w, o)
-	case orient.BINARY:
+	case BINARY:
 		_, err = f.writeBinary(w, o.([]byte))
-	case orient.LINKSET, orient.LINKLIST:
+	case LINKSET, LINKLIST:
 		err = f.writeLinkCollection(w, o)
-	case orient.LINK:
-		_, err = f.writeOptimizedLink(w, o.(orient.OIdentifiable))
-	case orient.LINKMAP:
+	case LINK:
+		_, err = f.writeOptimizedLink(w, o.(OIdentifiable))
+	case LINKMAP:
 		err = f.writeLinkMap(w, o)
-	case orient.EMBEDDEDMAP:
+	case EMBEDDEDMAP:
 		err = f.writeEmbeddedMap(w, off, o)
-	case orient.LINKBAG:
-		err = o.(*orient.RidBag).ToStream(w)
-	case orient.CUSTOM:
-		val := o.(orient.CustomSerializable)
+	case LINKBAG:
+		err = o.(*RidBag).ToStream(w)
+	case CUSTOM:
+		val := o.(CustomSerializable)
 		f.writeString(w, val.GetClassName())
 		err = val.ToStream(w)
-	case orient.TRANSIENT, orient.ANY:
+	case TRANSIENT, ANY:
 	default:
 		panic(fmt.Errorf("unknown type: %v", tp))
 	}
@@ -780,37 +779,37 @@ func (f binaryRecordFormatV0) writeSingleValue(w *rw.Writer, off int, o interfac
 	}
 	return
 }
-func (f binaryRecordFormatV0) writeEmbeddedCollection(w *rw.Writer, off int, o interface{}, linkedType orient.OType) error {
+func (f binaryRecordFormatV0) writeEmbeddedCollection(w *rw.Writer, off int, o interface{}, linkedType OType) error {
 	mv := reflect.ValueOf(o)
 	// TODO: handle OEmbeddedList
 	if mv.Kind() != reflect.Slice && mv.Kind() != reflect.Array {
-		panic(fmt.Sprintf("only maps are supported as %v, got %T", orient.EMBEDDEDMAP, o))
+		panic(fmt.Sprintf("only maps are supported as %v, got %T", EMBEDDEDMAP, o))
 	}
 
 	buf := bytes.NewBuffer(nil)
 	bw := rw.NewWriter(buf)
 	bw.WriteVarint(int64(mv.Len()))
 	// TODO @orient: manage embedded type from schema and auto-determined.
-	f.writeOType(bw, orient.ANY)
+	f.writeOType(bw, ANY)
 	for i := 0; i < mv.Len(); i++ {
 		item := mv.Index(i).Interface()
 		// TODO @orient: manage in a better way null entry
 		if item == nil {
-			f.writeOType(bw, orient.ANY)
+			f.writeOType(bw, ANY)
 			continue
 		}
-		var tp orient.OType = linkedType
-		if tp == orient.UNKNOWN {
+		var tp OType = linkedType
+		if tp == UNKNOWN {
 			tp = f.getTypeFromValueEmbedded(item)
 		}
-		if tp != orient.UNKNOWN {
+		if tp != UNKNOWN {
 			f.writeOType(bw, tp)
 			ptr := buf.Len()
-			if err := f.writeSingleValue(bw, off+ptr, item, tp, orient.UNKNOWN); err != nil {
+			if err := f.writeSingleValue(bw, off+ptr, item, tp, UNKNOWN); err != nil {
 				return err
 			}
 		} else {
-			panic(orient.ErrTypeSerialization{Val: item, Serializer: f})
+			panic(ErrTypeSerialization{Val: item, Serializer: f})
 		}
 	}
 	if err := bw.Err(); err != nil {
@@ -818,31 +817,31 @@ func (f binaryRecordFormatV0) writeEmbeddedCollection(w *rw.Writer, off int, o i
 	}
 	return w.WriteRawBytes(buf.Bytes())
 }
-func (binaryRecordFormatV0) getLinkedType(doc *orient.Document, tp orient.OType, key string) orient.OType {
-	if tp != orient.EMBEDDEDLIST && tp != orient.EMBEDDEDSET && tp != orient.EMBEDDEDMAP {
-		return orient.UNKNOWN
+func (binaryRecordFormatV0) getLinkedType(doc *Document, tp OType, key string) OType {
+	if tp != EMBEDDEDLIST && tp != EMBEDDEDSET && tp != EMBEDDEDMAP {
+		return UNKNOWN
 	}
 	// TODO: OClass clazz = ODocumentInternal.getImmutableSchemaClass(document); if (clazz != null) ...
-	return orient.UNKNOWN
+	return UNKNOWN
 }
-func (f binaryRecordFormatV0) getFieldType(fld *orient.DocEntry) orient.OType {
+func (f binaryRecordFormatV0) getFieldType(fld *DocEntry) OType {
 	tp := fld.Type
-	if tp != orient.UNKNOWN {
+	if tp != UNKNOWN {
 		return tp
 	}
 	// TODO: implement this:
 	//	final OProperty prop = entry.property;
 	//	if (prop != null) type = prop.getType();
-	if tp == orient.UNKNOWN || tp == orient.ANY {
-		tp = orient.OTypeForValue(fld.Value)
+	if tp == UNKNOWN || tp == ANY {
+		tp = OTypeForValue(fld.Value)
 	}
 	return tp
 }
-func (f binaryRecordFormatV0) getTypeFromValueEmbedded(o interface{}) orient.OType {
-	tp := orient.OTypeForValue(o)
-	if tp == orient.LINK {
-		if doc, ok := o.(*orient.Document); ok && doc.GetIdentity().IsValid() {
-			tp = orient.EMBEDDED
+func (f binaryRecordFormatV0) getTypeFromValueEmbedded(o interface{}) OType {
+	tp := OTypeForValue(o)
+	if tp == LINK {
+		if doc, ok := o.(*Document); ok && doc.GetIdentity().IsValid() {
+			tp = EMBEDDED
 		}
 	}
 	return tp

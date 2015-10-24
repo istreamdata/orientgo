@@ -13,6 +13,7 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"gopkg.in/istreamdata/orientgo.v2"
 	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
+	"reflect"
 )
 
 var orientVersion = "2.1"
@@ -495,6 +496,80 @@ func TestSQLInnerStruct(t *testing.T) {
 		t.Fatal("wrong value")
 	} else if len(obj.Inner) != 2 || obj.Inner[0] != one || obj.Inner[1] != two {
 		t.Fatal("wrong list value")
+	}
+}
+
+func TestSQLStructSelect(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+
+	type Item struct {
+		Name string
+	}
+
+	arr := []Item{
+		{Name: "one"}, {Name: "two"},
+	}
+
+	for _, it := range arr {
+		doc := orient.NewDocument("V")
+		if err := doc.From(it); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.CreateRecord(doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	{
+		var out []Item
+		err := db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name IS NOT NULL`)).All(&out)
+		if err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(arr, out) {
+			t.Fatal("wrong results")
+		}
+
+		out = nil
+		err = db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name = "one"`)).All(&out)
+		if err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(arr[:1], out) {
+			t.Fatal("wrong results")
+		}
+
+		out = nil
+		err = db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name = "unk"`)).All(&out)
+		if err != nil {
+			t.Fatal(err)
+		} else if len(out) != 0 {
+			t.Fatal("wrong results")
+		}
+	}
+	{
+		var out *Item
+		err := db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name IS NOT NULL`)).All(&out)
+		if err == nil {
+			t.Fatal("error expected")
+		} else if _, ok := err.(orient.ErrMultipleRecords); !ok {
+			t.Fatal("wrong error type returned")
+		}
+
+		out = nil
+		err = db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name = "one"`)).All(&out)
+		if err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(&arr[0], out) {
+			t.Fatal("wrong results")
+		}
+
+		out = nil
+		err = db.Command(orient.NewSQLQuery(`SELECT * FROM V WHERE Name = "unk"`)).All(&out)
+		if err != orient.ErrNoRecord {
+			t.Fatal("wrong error type returned")
+		}
 	}
 }
 

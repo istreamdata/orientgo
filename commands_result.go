@@ -178,12 +178,11 @@ func convertTypes(targ, src reflect.Value) error {
 		if src.Kind() == reflect.Slice {
 			switch src.Len() {
 			case 0:
-				return fmt.Errorf("no records returned, while expecting one")
+				return ErrNoRecord
 			case 1:
 				return convertTypes(targ, src.Index(0))
 			default:
-				return fmt.Errorf("multiple records returned (%d), while expecting one: %s",
-					src.Len(), ErrUnsupportedConversion{From: src, To: targ})
+				return ErrMultipleRecords{N: src.Len(), Err: ErrUnsupportedConversion{From: src, To: targ}}
 			}
 		}
 	} else if targ.Kind() == reflect.Slice {

@@ -1,6 +1,9 @@
 package orient
 
-import "bytes"
+import (
+	"bytes"
+	"fmt"
+)
 
 // Exception is an interface for Java-based Exceptions.
 type Exception interface {
@@ -56,4 +59,17 @@ type ErrInvalidConn struct {
 
 func (e ErrInvalidConn) Error() string {
 	return "Invalid Connection: %s" + e.Msg
+}
+
+// ErrNoRecord is returned when trying to deserialize an empty result set into a single value.
+var ErrNoRecord = fmt.Errorf("no records returned, while expecting one")
+
+// ErrMultipleRecords is returned when trying to deserialize a result set with multiple records into a single value.
+type ErrMultipleRecords struct {
+	N   int
+	Err error
+}
+
+func (e ErrMultipleRecords) Error() string {
+	return fmt.Sprintf("multiple records returned (%d), while expecting one: %s", e.N, e.Err)
 }

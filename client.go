@@ -228,7 +228,9 @@ func (db *Database) Size() (int64, error) {
 
 // Close closes database session.
 func (db *Database) Close() error {
-	db.pool.clear()
+	if db != nil && db.pool != nil {
+		db.pool.clear()
+	}
 	return nil
 }
 

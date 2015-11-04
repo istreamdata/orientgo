@@ -629,3 +629,23 @@ func TestSQLBatchParams(t *testing.T) {
 		t.Fatal("wrong field value")
 	}
 }
+
+func TestSelectDocumentAsMap(t *testing.T) {
+	cli, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+
+	type Item struct {
+		Name string
+	}
+	var out map[string]*Item
+	err := cli.Command(orient.NewScriptCommand(orient.LangJS, `
+var docs = (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJSON('{"one":{"Name":"record"}}'); docs`,
+	)).All(&out)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(out) != 1 {
+		t.Error("wrong docs count")
+	} else if !reflect.DeepEqual(out, map[string]*Item{"one": &Item{"record"}}) {
+		t.Error("wrong data returned")
+	}
+}

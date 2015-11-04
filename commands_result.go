@@ -158,9 +158,13 @@ func convertTypes(targ, src reflect.Value) error {
 	//	}
 
 	if targ.Kind() == reflect.Struct || (targ.Kind() == reflect.Ptr && targ.Type().Elem().Kind() == reflect.Struct) {
+		if targ.Kind() == reflect.Ptr && targ.IsNil() {
+			targ.Set(reflect.New(targ.Type().Elem()))
+		}
+		if src.Kind() == reflect.Map {
+			return mapToStruct(src.Interface(), targ.Addr().Interface())
+		}
 		switch rec := src.Interface().(type) {
-		case map[string]interface{}:
-			return mapToStruct(rec, targ.Addr().Interface())
 		case MapSerializable:
 			m, err := rec.ToMap()
 			if err != nil {
@@ -208,11 +212,11 @@ func convertTypes(targ, src reflect.Value) error {
 		if src.Kind() == reflect.Map {
 			targ.Set(reflect.MakeMap(targ.Type()))
 			for _, k := range src.MapKeys() {
-				nk := reflect.Zero(targ.Type().Key())
+				nk := reflect.New(targ.Type().Key()).Elem()
 				if err := convertTypes(nk, k); err != nil {
 					return err
 				}
-				nv := reflect.Zero(targ.Type().Elem())
+				nv := reflect.New(targ.Type().Elem()).Elem()
 				if err := convertTypes(nv, src.MapIndex(k)); err != nil {
 					return err
 				}

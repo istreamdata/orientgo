@@ -10,13 +10,13 @@ go:
   - 1.5.1
 
 env:
-  - ORIENT_VERS=2.1
+  - ORIENT_VERS=2.1.5
 
 matrix:
   include:
-    - go: 1.4
-      env: ORIENT_VERS=2.1.1
-    - go: 1.4
+    - go: 1.5.1
+      env: ORIENT_VERS=2.1.2
+    - go: 1.5.1
       env: ORIENT_VERS=2.0
 
 install:

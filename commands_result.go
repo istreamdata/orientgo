@@ -133,11 +133,15 @@ func mapToStruct(m interface{}, val interface{}) error {
 	return dec.Decode(m)
 }
 
+const debugTypeConversion = false
+
 func convertTypes(targ, src reflect.Value) error {
-	//	fmt.Printf("conv: %T -> %T, %+v -> %+v\n", src.Interface(), targ.Interface(), src.Interface(), targ.Interface())
-	//	defer func(){
-	//		fmt.Printf("conv out: %T -> %T, %+v -> %+v\n", src.Interface(), targ.Interface(), src.Interface(), targ.Interface())
-	//	}()
+	if debugTypeConversion {
+		fmt.Printf("conv: %T -> %T, %+v -> %+v\n", src.Interface(), targ.Interface(), src.Interface(), targ.Interface())
+		defer func() {
+			fmt.Printf("conv out: %T -> %T, %+v -> %+v\n", src.Interface(), targ.Interface(), src.Interface(), targ.Interface())
+		}()
+	}
 	if targ.Type() == src.Type() {
 		targ.Set(src)
 		return nil
@@ -163,31 +167,6 @@ func convertTypes(targ, src reflect.Value) error {
 		}
 		if src.Kind() == reflect.Map {
 			return mapToStruct(src.Interface(), targ.Addr().Interface())
-		}
-		switch rec := src.Interface().(type) {
-		case MapSerializable:
-			m, err := rec.ToMap()
-			if err != nil {
-				return err
-			}
-			return convertTypes(targ, reflect.ValueOf(m))
-		case *Document: // Document implements DocumentSerializable for convenience, no need to convert it
-		case DocumentSerializable:
-			doc, err := rec.ToDocument()
-			if err != nil {
-				return err
-			}
-			return convertTypes(targ, reflect.ValueOf(doc))
-		}
-		if src.Kind() == reflect.Slice {
-			switch src.Len() {
-			case 0:
-				return ErrNoRecord
-			case 1:
-				return convertTypes(targ, src.Index(0))
-			default:
-				return ErrMultipleRecords{N: src.Len(), Err: ErrUnsupportedConversion{From: src, To: targ}}
-			}
 		}
 	} else if targ.Kind() == reflect.Slice {
 		if src.Kind() == reflect.Slice { // slice into slice
@@ -224,21 +203,35 @@ func convertTypes(targ, src reflect.Value) error {
 			}
 			return nil
 		}
-		switch rec := src.Interface().(type) {
-		case MapSerializable:
-			m, err := rec.ToMap()
-			if err != nil {
-				return err
-			}
-			return convertTypes(targ, reflect.ValueOf(m))
-		case *Document:
-		case DocumentSerializable:
-			doc, err := rec.ToDocument()
-			if err != nil {
-				return err
-			}
-			return convertTypes(targ, reflect.ValueOf(doc))
+	}
+
+	switch rec := src.Interface().(type) {
+	case MapSerializable:
+		m, err := rec.ToMap()
+		if err != nil {
+			return err
+		}
+		return convertTypes(targ, reflect.ValueOf(m))
+	case *Document: // Document implements DocumentSerializable for convenience, no need to convert it
+	case DocumentSerializable:
+		doc, err := rec.ToDocument()
+		if err != nil {
+			return err
+		}
+		return convertTypes(targ, reflect.ValueOf(doc))
+	}
+
+	// Target is now converted, process the result set
+	if src.Kind() == reflect.Slice {
+		switch src.Len() {
+		case 0:
+			return ErrNoRecord
+		case 1:
+			return convertTypes(targ, src.Index(0))
+		default:
+			return ErrMultipleRecords{N: src.Len(), Err: ErrUnsupportedConversion{From: src, To: targ}}
 		}
 	}
+
 	return ErrUnsupportedConversion{From: src, To: targ}
 }

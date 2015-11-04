@@ -30,8 +30,10 @@ type Classer interface {
 }
 
 var (
-	recordFormats       = make(map[string]func() RecordSerializer)
-	recordFormatDefault = ""
+	recordFormats = map[string]func() RecordSerializer{
+		binaryFormatName: func() RecordSerializer { return &BinaryRecordFormat{} },
+	}
+	recordFormatDefault = binaryFormatName
 )
 
 // Serializable is an interface for objects that can be serialized to stream
@@ -70,7 +72,11 @@ func SetDefaultRecordFormat(name string) {
 
 // GetRecordFormat returns record serializer by class name
 func GetRecordFormat(name string) RecordSerializer {
-	return recordFormats[name]()
+	f := recordFormats[name]
+	if f == nil {
+		panic(fmt.Errorf("unknown record format: %s", name))
+	}
+	return f()
 }
 
 // GetDefaultRecordSerializer returns default record serializer

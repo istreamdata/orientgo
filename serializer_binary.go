@@ -11,10 +11,10 @@ import (
 	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
 
-func init() {
-	RegisterRecordFormat(binaryFormatName, func() RecordSerializer { return &BinaryRecordFormat{} })
-	SetDefaultRecordFormat(binaryFormatName)
-}
+//func init() {
+//	RegisterRecordFormat(binaryFormatName, func() RecordSerializer { return &BinaryRecordFormat{} })
+//	SetDefaultRecordFormat(binaryFormatName)
+//}
 
 const (
 	binaryFormatName           = "ORecordSerializerBinary"

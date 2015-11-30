@@ -649,3 +649,37 @@ var docs = (new com.orientechnologies.orient.core.record.impl.ODocument()).fromJ
 		t.Error("wrong data returned")
 	}
 }
+
+func TestConcurrentModification(t *testing.T) {
+	notShort(t)
+	db, closer := SpinOrientAndOpenDB(t, false)
+	defer closer()
+	defer catch()
+
+	const n = 5
+
+	doc := orient.NewEmptyDocument()
+	doc.SetField("name", "")
+	err := db.CreateRecord(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pause := make(chan struct{})
+	errc := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			<-pause
+			errc <- db.Command(orient.NewSQLCommand(
+				fmt.Sprintf(`UPDATE %s SET name=?`, doc.RID),
+				fmt.Sprintf("data%d", i),
+			)).Err()
+		}(i)
+	}
+	close(pause)
+	for i := 0; i < n; i++ {
+		if err := <-errc; err != nil {
+			t.Errorf("(%T): %v", err, err)
+		}
+	}
+}

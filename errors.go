@@ -5,6 +5,21 @@ import (
 	"fmt"
 )
 
+var (
+	exceptions = make(map[string]func(e Exception) Exception)
+)
+
+// RegException registers a function to convert server exception based on it's class.
+func RegException(class string, fnc func(e Exception) Exception) {
+	exceptions[class] = fnc
+}
+
+func init() {
+	RegException("com.orientechnologies.orient.core.exception.OConcurrentModificationException", func(e Exception) Exception {
+		return ErrConcurrentModification{e}
+	})
+}
+
 // Exception is an interface for Java-based Exceptions.
 type Exception interface {
 	error
@@ -72,4 +87,26 @@ type ErrMultipleRecords struct {
 
 func (e ErrMultipleRecords) Error() string {
 	return fmt.Sprintf("multiple records returned (%d), while expecting one: %s", e.N, e.Err)
+}
+
+func convertError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errs, ok := err.(OServerException); ok {
+		for _, e := range errs.Exceptions {
+			if fnc, ok := exceptions[e.ExcClass()]; ok {
+				return fnc(e)
+			}
+		}
+	}
+	return err
+}
+
+type ErrConcurrentModification struct {
+	Exception
+}
+
+func (e ErrConcurrentModification) Error() string {
+	return fmt.Sprintf("concurrent modification: %v", e.Exception)
 }

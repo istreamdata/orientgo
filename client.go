@@ -6,6 +6,28 @@ import (
 	"strings"
 )
 
+const concurrentRetriesDefault = 5
+
+var (
+	concurrentRetries = concurrentRetriesDefault
+)
+
+// SetRetryCountConcurrent sets a retry count when ErrConcurrentModification occurs.
+//
+// n == 0 - use default value
+//
+// n < 0 - no limit for retries
+//
+// n > 0 - maximum of n retries
+func SetRetryCountConcurrent(n int) {
+	if n == 0 {
+		n = concurrentRetriesDefault
+	} else if n < 0 {
+		n = -1
+	}
+	concurrentRetries = n
+}
+
 const poolLimit = 6
 
 // FetchPlan is an additional parameter to queries, that instructs DB how to handle linked documents.
@@ -355,9 +377,18 @@ func (db *Database) Command(cmd OCommandRequestText) Results {
 		return errorResult{err: err}
 	}
 	defer db.pool.putConn(conn)
-	result, err := conn.Command(cmd)
+	var result interface{}
+	for i := 0; concurrentRetries < 0 || i < concurrentRetries; i++ {
+		result, err = conn.Command(cmd)
+		err = convertError(err)
+		switch err.(type) {
+		case ErrConcurrentModification:
+			continue
+		}
+		break
+	}
 	if err != nil {
-		return errorResult{err: err}
+		return errorResult{err: convertError(err)}
 	}
 	return newResults(result)
 }

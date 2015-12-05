@@ -1,5 +1,7 @@
 package orient
 
+import "log"
+
 type OClass struct {
 	Name             string
 	ShortName        string
@@ -56,8 +58,12 @@ func NewOClassFromDocument(doc *Document) *OClass {
 		oclass.ClusterSelection = fld.Value.(string)
 	}
 	if fld := doc.GetField("customFields"); fld != nil && fld.Value != nil {
-		oclass.CustomFields = make(map[string]string)
-		panic("customFields handling NOT IMPLEMENTED: Don't know what data structure is coming back from the server (need example)")
+		if m, ok := fld.Value.(map[string]string); ok {
+			oclass.CustomFields = m
+		} else {
+			log.Printf("unknown type for customFields: %T\n", fld.Value)
+			oclass.CustomFields = make(map[string]string)
+		}
 	}
 
 	return oclass

@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"gopkg.in/istreamdata/orientgo.v2"
 	"gopkg.in/istreamdata/orientgo.v2/obinary/rw"
 )
@@ -111,7 +111,7 @@ func (c *Client) handshakeVersion() error {
 	} else if c.srvProtoVers < minBinarySerializerVersion { // may switch to CSV serialization, but we don't care for now
 		return ErrUnsupportedVersion(c.srvProtoVers)
 	} else if c.srvProtoVers > MaxProtocolVersion {
-		glog.Warningf("OrientDB version is unsupported by driver: %d vs %d. Will fallback to protocol %d.",
+		log.Printf("OrientDB version is unsupported by driver: %d vs %d. Will fallback to protocol %d.",
 			MaxProtocolVersion, c.srvProtoVers, CurrentProtoVersion)
 	}
 	c.recordFormat = orient.GetDefaultRecordSerializer()

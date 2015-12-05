@@ -6,7 +6,6 @@ import (
 	"time"
 
 	//	"database/sql/driver"
-	//	"github.com/golang/glog"
 	"reflect"
 	"strings"
 )

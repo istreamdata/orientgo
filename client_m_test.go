@@ -2,24 +2,19 @@ package orient_test
 
 import (
 	//	"database/sql"
-	//	"log"
 	//	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
-	//	"runtime/debug"
-	//	"runtime/pprof"
 	//	"strconv"
 	"fmt"
-
-	//	"net/http"
+	"log"
 	_ "net/http/pprof"
-
-	"github.com/golang/glog"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/istreamdata/orientgo.v2"
 	"runtime/debug"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/istreamdata/orientgo.v2"
 )
 
 // Flags - specify these on the cmd line to change from the defaults
@@ -95,11 +90,11 @@ func dropDatabase(t *testing.T, dbc orient.Client, dbname string, dbtype orient.
 	Nil(t, err)
 	dbexists, err := sess.DatabaseExists(dbname, orient.Persistent)
 	if err != nil {
-		glog.Warning(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	if dbexists {
-		glog.Warningf("ERROR: Deletion of database %s failed\n", dbname)
+		log.Printf("ERROR: Deletion of database %s failed\n", dbname)
 	}
 }
 
@@ -984,12 +979,12 @@ func removeProperty(db *orient.Database, class, property string) {
 	sql := fmt.Sprintf("UPDATE %s REMOVE %s", class, property)
 	err := db.Command(orient.NewSQLCommand(sql)).Err()
 	if err != nil {
-		glog.Warningf("WARN: clean up error: %v\n", err)
+		log.Printf("WARN: clean up error: %v\n", err)
 	}
 	sql = fmt.Sprintf("DROP PROPERTY %s.%s", class, property)
 	err = db.Command(orient.NewSQLCommand(sql)).Err()
 	if err != nil {
-		glog.Warningf("WARN: clean up error: %v\n", err)
+		log.Printf("WARN: clean up error: %v\n", err)
 	}
 }
 

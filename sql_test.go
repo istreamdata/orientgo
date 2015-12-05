@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/glog"
 	"gopkg.in/istreamdata/orientgo.v2"
 	_ "gopkg.in/istreamdata/orientgo.v2/obinary"
 	"strconv"

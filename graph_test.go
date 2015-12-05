@@ -6,13 +6,11 @@ import (
 
 	"gopkg.in/istreamdata/orientgo.v2"
 	//"gopkg.in/istreamdata/orientgo.v2/oschema"
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func createOgonoriGraphDb(t *testing.T, dbc orient.Client) {
-	glog.Infoln("- - - - - - CREATE GRAPHDB - - - - - - -")
 
 	sess, err := dbc.Auth(srvUser, srvPass)
 	assert.Nil(t, err)

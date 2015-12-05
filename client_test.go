@@ -2,6 +2,7 @@ package orient_test
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"runtime/debug"
 	"sort"
@@ -10,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"gopkg.in/istreamdata/orientgo.v2"
 )
 
@@ -20,7 +20,7 @@ func init() {
 
 func catch() {
 	if r := recover(); r != nil {
-		glog.Errorf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
+		log.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
 	}
 }
 func notShort(t *testing.T) {
@@ -738,8 +738,6 @@ func TestCommandsNativeAPI(t *testing.T) {
 	Equals(t, int32(15), ageField.Value)
 	Equals(t, "Michael", caretakerField.Value)
 
-	glog.Infof("docs returned by RID: %v\n", *(docs[0]))
-
 	// ---[ cluster data range ]---
 	//	begin, end, err := db.FetchClusterDataRange("cat")
 	//	Nil(t, err)
@@ -843,7 +841,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	defer func() {
 		err = db.Command(orient.NewSQLCommand("DROP CLASS Patient")).Err()
 		if err != nil {
-			glog.Warningf("WARN: clean up error: %v\n", err)
+			log.Printf("WARN: clean up error: %v\n", err)
 			return
 		}
 

@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/golang/glog"
 )
 
 // Driver name for database/sql package

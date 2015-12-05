@@ -1,7 +1,7 @@
 package orient
 
 import (
-	"github.com/golang/glog"
+	"log"
 	"reflect"
 	"time"
 	"unsafe"
@@ -249,7 +249,7 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		case reflect.Struct:
 			ftype = EMBEDDED
 		default:
-			glog.Warningf("unknown type in serialization: %T, kind: %v", val, reflect.TypeOf(val).Kind())
+			log.Printf("unknown type in serialization: %T, kind: %v", val, reflect.TypeOf(val).Kind())
 		}
 	}
 	return

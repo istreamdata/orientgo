@@ -56,7 +56,7 @@ type DBSession interface {
 	ReloadSchema() error
 	GetCurDB() *ODatabase
 
-	AddCluster(clusterName string) (clusterID int16, err error)
+	AddClusterWithID(clusterName string, id int16) (clusterID int16, err error)
 	DropCluster(clusterName string) (err error)
 	GetClusterDataRange(clusterName string) (begin, end int64, err error)
 	ClustersCount(withDeleted bool, clusterNames ...string) (int64, error)

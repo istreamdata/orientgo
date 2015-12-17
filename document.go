@@ -52,11 +52,23 @@ func NewDocument(className string) *Document {
 	return doc
 }
 
-// TODO: have this replace NewDocument and change NewDocument to take RID and Version (???)
+// NewEmptyDocument creates new empty document.
 func NewEmptyDocument() *Document {
 	return &Document{
 		BytesRecord: BytesRecord{
 			RID:  NewEmptyRID(),
+			Vers: -1,
+		},
+		fields: make(map[string]*DocEntry),
+		ser:    GetDefaultRecordSerializer(),
+	}
+}
+
+// NewDocumentFromRID creates new empty document with given RID.
+func NewDocumentFromRID(rid RID) *Document {
+	return &Document{
+		BytesRecord: BytesRecord{
+			RID:  rid,
 			Vers: -1,
 		},
 		fields: make(map[string]*DocEntry),

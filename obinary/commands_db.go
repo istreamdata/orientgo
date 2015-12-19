@@ -350,15 +350,16 @@ func (db *Database) GetClusterDataRange(clusterName string) (begin, end int64, e
 	return begin, end, err
 }
 
-// AddCluster adds a cluster to the current database. It is a
-// database-level operation, so OpenDatabase must have already
+// AddClusterWithID adds a cluster to the current database with a given cluster position.
+// It is a database-level operation, so OpenDatabase must have already
 // been called first in order to start a session with the database.
 // The clusterID is returned if the command is successful.
-func (db *Database) AddCluster(name string) (clusterID int16, err error) {
+func (db *Database) AddClusterWithID(name string, id int16) (clusterID int16, err error) {
 	name = strings.ToLower(name)
+	clusterID = id
 	err = db.sess.sendCmd(requestDataClusterADD, func(w *rw.Writer) error {
 		w.WriteString(name)
-		w.WriteShort(-1) // -1 means generate new cluster id
+		w.WriteShort(clusterID)
 		return w.Err()
 	}, func(r *rw.Reader) error {
 		clusterID = r.ReadShort()
@@ -582,7 +583,10 @@ func (db *Database) CreateRecord(rec orient.ORecord) error {
 	clusterID := int16(-1) // indicates new class/cluster
 	switch r := rec.(type) {
 	case *orient.Document:
-		if oclass, ok := db.db.Classes[r.ClassName()]; ok {
+		rid := rec.GetIdentity()
+		if rid.ClusterID > 0 {
+			clusterID = rid.ClusterID
+		} else if oclass, ok := db.db.Classes[r.ClassName()]; ok {
 			clusterID = int16(oclass.DefaultClusterId) // TODO: need way to allow user to specify a non-default cluster
 		}
 		r.SetSerializer(db.serializer())

@@ -278,12 +278,17 @@ func (db *Database) GetCurDB() *ODatabase {
 
 // AddCluster creates new cluster with given name and returns its ID.
 func (db *Database) AddCluster(name string) (int16, error) {
+	return db.AddClusterWithID(name, -1) // -1 means generate new cluster id
+}
+
+// AddClusterWithID creates new cluster with given cluster position and name
+func (db *Database) AddClusterWithID(name string, clusterID int16) (int16, error) {
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return 0, err
 	}
 	defer db.pool.putConn(conn)
-	return conn.AddCluster(name)
+	return conn.AddClusterWithID(name, clusterID)
 }
 
 // DropCluster deletes cluster from database

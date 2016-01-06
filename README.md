@@ -65,6 +65,10 @@ You are welcome to initiate pull request and suggest a more user-friendly API. W
 
 3) `go test -v ./...`
 
+## Examples
+
+Dial example - dial_example_test.go
+
 ## LICENSE
 
 The MIT License

@@ -355,7 +355,13 @@ func (f binaryRecordFormatV0) readEmbeddedMap(r *rw.ReadSeeker, doc *Document) (
 	}
 	rv := reflect.MakeMap(reflect.MapOf(keyType, valType))
 	for _, kv := range result {
-		rv.SetMapIndex(reflect.ValueOf(kv.Key), reflect.ValueOf(kv.Val))
+		var value reflect.Value
+		if kv.Val == nil {
+			value = reflect.Zero(valType)
+		} else {
+			value = reflect.ValueOf(kv.Val)
+		}
+		rv.SetMapIndex(reflect.ValueOf(kv.Key), value)
 	}
 	return rv.Interface(), nil
 }

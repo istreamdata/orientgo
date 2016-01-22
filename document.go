@@ -102,6 +102,8 @@ func (doc *Document) Content() ([]byte, error) {
 	// TODO: can track field changes and invalidate content if necessary - no need to serialize each time
 	if doc.serialized {
 		return doc.BytesRecord.Content()
+	} else if doc.ser == nil {
+		return nil, fmt.Errorf("document is not serialized and no serializer is set")
 	}
 	buf := bytes.NewBuffer(nil)
 	if err := doc.ser.ToStream(buf, doc); err != nil {

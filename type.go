@@ -209,6 +209,8 @@ func OTypeForValue(val interface{}) (ftype OType) {
 		ftype = LINKLIST
 	case *RidBag:
 		ftype = LINKBAG
+	case time.Time:
+		ftype = DATETIME
 	// TODO: more types need to be added
 	default:
 		if isDecimal(val) {
@@ -244,6 +246,14 @@ func OTypeForValue(val interface{}) (ftype OType) {
 			} else {
 				ftype = LONG
 			}
+		case reflect.Uint:
+			if intSize == 4 {
+				ftype = INTEGER
+			} else {
+				ftype = LONG
+			}
+		case reflect.Uint64:
+			ftype = LONG
 		case reflect.String:
 			ftype = STRING
 		case reflect.Struct:

@@ -38,10 +38,6 @@ func init() {
 	}()
 }
 
-func TestBuild(t *testing.T) {
-
-}
-
 func TestNewDB(t *testing.T) {
 	_, closer := SpinOrient(t)
 	defer closer()

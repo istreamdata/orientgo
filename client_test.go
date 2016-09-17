@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"os/exec"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -26,6 +29,66 @@ func catch() {
 func notShort(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
+	}
+}
+
+func TestFDLeak(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.SkipNow()
+	}
+	openedFDs := func() int {
+		out, err := exec.Command("lsof", "-p", fmt.Sprint(os.Getpid())).Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Count(string(out), "\n") - 1
+	}
+	addr, rm := SpinOrientServer(t)
+	defer rm()
+
+	leak := func() {
+		client, err := orient.Dial(addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		dbName := "leak_test"
+		admin, err := client.Auth(srvUser, srvPass)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if ok, _ := admin.DatabaseExists(dbName, orient.Persistent); !ok {
+			err = admin.CreateDatabase(dbName, orient.GraphDB, orient.Persistent)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		db, err := client.Open(dbName, orient.GraphDB, dbUser, dbPass)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Closing Database session pool
+		defer func() {
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+	fds := openedFDs()
+	for i := 0; i < 1; i++ {
+		leak()
+	}
+	time.Sleep(time.Second)
+	if n := openedFDs(); n != fds {
+		t.Fatalf("leaked fd: %d != %d", n, fds)
 	}
 }
 

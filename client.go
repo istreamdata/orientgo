@@ -28,7 +28,8 @@ func SetRetryCountConcurrent(n int) {
 	concurrentRetries = n
 }
 
-const poolLimit = 6
+// MaxConnections limits the number of opened connections.
+var MaxConnections = 6
 
 // FetchPlan is an additional parameter to queries, that instructs DB how to handle linked documents.
 //
@@ -81,7 +82,7 @@ func Dial(addr string) (*Client, error) {
 
 func newConnPool(size int, dial func() (DBSession, error)) *connPool {
 	if size <= 0 {
-		size = poolLimit
+		size = MaxConnections
 	}
 	p := &connPool{
 		dial: dial,
@@ -166,11 +167,24 @@ func (c *Client) Auth(user, pass string) (*Admin, error) {
 	return &Admin{c, m}, nil
 }
 
+type sessionAndConn struct {
+	DBSession
+	conn DBConnection
+}
+
+func (s sessionAndConn) Close() error {
+	err := s.DBSession.Close()
+	if err1 := s.conn.Close(); err == nil {
+		err = err1
+	}
+	return err
+}
+
 // Open initiates a new database session, allowing to make queries to selected database.
 //
 // For database management use Auth instead.
 func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Database, error) {
-	db := &Database{newConnPool(poolLimit, func() (DBSession, error) {
+	db := &Database{pool: newConnPool(MaxConnections, func() (DBSession, error) {
 		conn, err := c.dial()
 		if err != nil {
 			return nil, err
@@ -180,8 +194,8 @@ func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Dat
 			conn.Close()
 			return nil, err
 		}
-		return ds, nil
-	}), c}
+		return sessionAndConn{DBSession: ds, conn: conn}, nil
+	}), cli: c}
 	conn, err := db.pool.getConn()
 	if err != nil {
 		return nil, err

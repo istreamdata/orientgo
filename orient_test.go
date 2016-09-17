@@ -401,7 +401,7 @@ func TestSQLQueryParams(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	var doc *orient.Document
@@ -417,7 +417,7 @@ func TestSQLCommandParams(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	var doc *orient.Document
@@ -433,7 +433,7 @@ func TestSQLCommandParamsCustomType(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	type Age int
@@ -467,7 +467,7 @@ func TestSQLInnerStruct(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	type Inner struct {
@@ -499,7 +499,7 @@ func TestSQLStructSelect(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 
 	type Item struct {
 		Name string
@@ -573,7 +573,7 @@ func TestNativeInnerStruct(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	type Inner struct {
@@ -611,7 +611,7 @@ func TestSQLBatchParams(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	var doc *orient.Document
@@ -650,7 +650,7 @@ func TestConcurrentModification(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 
 	const n = 5
 

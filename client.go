@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const concurrentRetriesDefault = 5
@@ -81,16 +82,20 @@ func Dial(addr string) (*Client, error) {
 }
 
 func newConnPool(size int, dial func() (DBSession, error)) *connPool {
-	if size <= 0 {
+	if size == 0 {
 		size = MaxConnections
 	}
 	p := &connPool{
 		dial: dial,
-		ch:   make(chan DBSession, size),
-		toks: make(chan struct{}, size),
 	}
-	for i := 0; i < size; i++ {
-		p.toks <- struct{}{}
+	if size > 0 {
+		p.ch = make(chan DBSession, size)
+		p.toks = make(chan struct{}, size)
+		for i := 0; i < size; i++ {
+			p.toks <- struct{}{}
+		}
+	} else {
+		p.ch = make(chan DBSession, 10)
 	}
 	return p
 }
@@ -102,27 +107,34 @@ type connPool struct {
 }
 
 func (p *connPool) getConn() (DBSession, error) {
+	var dt <-chan time.Time
+	if p.toks == nil {
+		dt = time.After(time.Millisecond * 100)
+	}
 	select {
 	case conn := <-p.ch:
 		return conn, nil
 	case <-p.toks:
-		if p.dial == nil {
-			return nil, nil
-		}
-		conn, err := p.dial()
-		if err != nil {
-			return nil, err
-		}
-		return conn, nil
+	case <-dt:
 	}
+	if p.dial == nil {
+		return nil, nil
+	}
+	conn, err := p.dial()
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 func (p *connPool) putConn(conn DBSession) {
 	select {
 	case p.ch <- conn:
 	default:
-		select {
-		case p.toks <- struct{}{}:
-		default:
+		if p.toks != nil {
+			select {
+			case p.toks <- struct{}{}:
+			default:
+			}
 		}
 		conn.Close()
 	}
@@ -184,7 +196,7 @@ func (s sessionAndConn) Close() error {
 //
 // For database management use Auth instead.
 func (c *Client) Open(name string, dbType DatabaseType, user, pass string) (*Database, error) {
-	db := &Database{pool: newConnPool(MaxConnections, func() (DBSession, error) {
+	db := &Database{pool: newConnPool(0, func() (DBSession, error) {
 		conn, err := c.dial()
 		if err != nil {
 			return nil, err

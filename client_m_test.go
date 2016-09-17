@@ -973,8 +973,6 @@ func toInt(value interface{}) int {
 	panic(fmt.Sprintf("Value %v cannot be cast to int", value))
 }
 
-// ------
-
 func removeProperty(db *orient.Database, class, property string) {
 	sql := fmt.Sprintf("UPDATE %s REMOVE %s", class, property)
 	err := db.Command(orient.NewSQLCommand(sql)).Err()
@@ -988,9 +986,7 @@ func removeProperty(db *orient.Database, class, property string) {
 	}
 }
 
-// ------
 // Sort OLinks by RID
-
 type byRID []orient.OIdentifiable
 
 func (slnk byRID) Len() int {
@@ -1005,9 +1001,7 @@ func (slnk byRID) Less(i, j int) bool {
 	return slnk[i].GetIdentity().String() < slnk[j].GetIdentity().String()
 }
 
-// ------
 // sort Documents by name field
-
 type byEmbeddedCatName []interface{}
 
 func (a byEmbeddedCatName) Len() int {

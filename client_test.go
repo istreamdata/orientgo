@@ -21,9 +21,9 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-func catch() {
+func catch(t testing.TB) {
 	if r := recover(); r != nil {
-		log.Printf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
+		t.Fatalf("panic recovery: %v\nTrace:\n%s\n", r, debug.Stack())
 	}
 }
 func notShort(t *testing.T) {
@@ -96,7 +96,7 @@ func TestInitialize(t *testing.T) {
 	notShort(t)
 	dbc, closer := SpinOrient(t)
 	defer closer()
-	defer catch()
+	defer catch(t)
 
 	sess, err := dbc.Auth(srvUser, srvPass)
 	Nil(t, err)
@@ -150,7 +150,7 @@ func TestRecordsNativeAPIStructs(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	type Cat struct {
@@ -234,7 +234,7 @@ func TestRecordsNativeAPI(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	// ---[ creation ]---
@@ -332,7 +332,7 @@ func TestRecordsWithDate(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.bday DATE")).Err()
@@ -384,7 +384,7 @@ func TestRecordsWithDatetime(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.ddd DATETIME")).Err()
@@ -435,7 +435,7 @@ func TestRecordsMismatchedTypes(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	c1 := orient.NewDocument("Cat")
@@ -467,7 +467,7 @@ func TestRecordsBasicTypes(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	for _, cmd := range []string{
@@ -548,7 +548,7 @@ func TestRecordsBinaryField(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	err := db.Command(orient.NewSQLCommand("CREATE PROPERTY Cat.bin BINARY")).Err()
@@ -634,7 +634,7 @@ func TestRecordBytes(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 
 	rec := orient.NewBytesRecord()
 
@@ -698,7 +698,7 @@ func TestCommandsNativeAPI(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	var (
@@ -1474,7 +1474,7 @@ func TestClusterNativeAPI(t *testing.T) {
 	notShort(t)
 	db, closer := SpinOrientAndOpenDB(t, false)
 	defer closer()
-	defer catch()
+	defer catch(t)
 	SeedDB(t, db)
 
 	cnt1, err := db.ClustersCount(true, "default", "index", "ouser")

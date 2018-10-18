@@ -15,9 +15,7 @@ OrientDB versions supported: **2.0.15 - 2.1.5**
 - 2.1.0 (bug in OrientDB, see [#28](https://github.com/istreamdata/orientgo/issues/28))
 - 2.1.3 (broken protocol, see [#39](https://github.com/istreamdata/orientgo/issues/39))
 
-Driver is under active development. API in `orientgo` is potentially unstable (though getting more stable now).
-
-Early adopters are welcome to try it out and report any problems found.
+Driver is no longer maintained and seeking for a new owner.
 
 ### Ogonori
 
